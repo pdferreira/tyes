@@ -4,6 +4,7 @@ enum Type:
   case Named(name: String)
 
 enum Term:
+  case Constant[T](value: T)
   case Variable(name: String)
   case Function(name: String, args: Term*)
 
