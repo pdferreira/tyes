@@ -10,6 +10,15 @@ object TSSamples:
     typesystem OneOrTwo
       rule One infers 1 : one
       rule Two infers 2 : two
+    """,
+    """
+    typesystem Any
+      rule Any infers e : any
+    """,
+    """
+    typesystem AnyWithOverlap
+      rule Any infers e : any
+      rule One infers 1 : one
     """
   )
 
@@ -17,14 +26,14 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
 
   enum Type:
-    case Odd, Even
+    case Any, One
 
   def typecheck(exp: LExpression): Either[Type, String] = exp match {
-    case LNumber(num) => num match {
-      case 1 => Left(Type.Odd)
-      case 2 => Left(Type.Even) 
-      case _ => Right(s"TypeError: no type for `$num`")
-    }
+    case e => Left(Type.Any)
+    // case LNumber(num) => num match {
+    //   case 1 => Left(Type.One)
+    //   case _ => Right(s"TypeError: no type for `$num`")
+    // }
   }
 
 @main def main: Unit =
@@ -38,7 +47,8 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   
   val exps = for case Parsers.Success(exp, _) <- parsedExps yield exp
   
-  object TsDeclParser extends TyesParser(expParser)
+  import LExpressionExtensions.given
+  object TsDeclParser extends TyesParser(expParser.toTermParser)
   for tsSource <- TSSamples.samples do
     val tsDecl = TsDeclParser.parse(tsSource)
     println(tsDecl)
