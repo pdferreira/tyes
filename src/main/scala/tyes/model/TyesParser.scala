@@ -7,6 +7,6 @@ trait TyesParser(termParser: Parser[Term]):
   def typesystem = "typesystem" ~> ident.? ~ rule.+ ^^ { case name ~ rules => TypeSystemDecl(name, rules) }
   def rule = ("rule" ~> ident.?) ~ ("infers" ~> assertion) ^^ { case name ~ concl  => RuleDecl(name, concl) }
   def assertion = term ~ (":" ~> tpe) ^^ { case term ~ tpe => HasType(term, tpe) }
-  def term = termParser
+  def term = termParser | (ident ^^ { case name => Term.Variable(name) })
   def tpe = ident ^^ { case name => Type.Named(name) }
   def parse(input: String) = Parsers.parse(phrase(typesystem), input)

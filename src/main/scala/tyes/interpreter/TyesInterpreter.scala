@@ -9,5 +9,5 @@ object TyesInterpreter:
       .rules
       .map(r => r.conclusion)
       .collectFirst({
-        case HasType(exp2, typ) if exp2 == exp.convert => typ
+        case HasType(term, typ) if term.matches(exp.convert).isDefined => typ
       })
