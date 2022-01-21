@@ -25,7 +25,7 @@ object TyesCompiler:
   def compile(tsDecl: TypeSystemDecl): String =
     s"""
     import tyes.runtime.*
-    import tyes.model.*
+    import example.*
 
     object ${getTypeSystemObjectName(tsDecl)} extends TypeSystem[LExpression]:
       type T = Type

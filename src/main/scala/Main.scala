@@ -1,5 +1,6 @@
 import tyes.model.*
 import tyes.compiler.*
+import example.*
 
 object TSSamples:
   val samples = Seq("""
@@ -19,7 +20,13 @@ object TSSamples:
     typesystem AnyWithOverlap
       rule Any infers e : any
       rule One infers 1 : one
+    """,
     """
+    typesystem OneOrTwoPlus
+      rule OnePlus infers 1 + e : onep
+      rule TwoPlus infers 2 + e : twop
+      rule RestPlus infers e1 + e2 : otherp
+    """,
   )
 
 object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
@@ -38,7 +45,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
 
 @main def main: Unit =
   val expParser = LExpressionParser;
-  val expTexts = List("1", "2", "3")
+  val expTexts = List("1", "2", "3", "1 + 2", "2 + 3", "1 + 1", "3 + 5")
   val parsedExps = for expText <- expTexts yield {
     val parseRes = expParser.parse(expText)
     println(s"${expText} parses to ${parseRes}")
@@ -48,7 +55,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   val exps = for case Parsers.Success(exp, _) <- parsedExps yield exp
   
   import LExpressionExtensions.given
-  object TsDeclParser extends TyesParser(expParser.toTermParser)
+  object TsDeclParser extends TyesParser(LExpressionContextParser)
   for tsSource <- TSSamples.samples do
     val tsDecl = TsDeclParser.parse(tsSource)
     println(tsDecl)
