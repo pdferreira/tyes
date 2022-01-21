@@ -35,11 +35,11 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   enum Type:
     case Any, One
 
-  def typecheck(exp: LExpression): Either[Type, String] = exp match {
-    case e => Left(Type.Any)
+  def typecheck(exp: LExpression): Either[String, Type] = exp match {
+    case e => Right(Type.Any)
     // case LNumber(num) => num match {
-    //   case 1 => Left(Type.One)
-    //   case _ => Right(s"TypeError: no type for `$num`")
+    //   case 1 => Right(Type.One)
+    //   case _ => Left(s"TypeError: no type for `$num`")
     // }
   }
 
