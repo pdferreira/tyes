@@ -3,7 +3,8 @@ import tyes.compiler.*
 import example.*
 
 object TSSamples:
-  val samples = Seq("""
+  val samples = Seq(
+    """
     typesystem I
       rule One infers 1 : int
     """,
@@ -17,15 +18,15 @@ object TSSamples:
       rule Any infers e : any
     """,
     """
-    typesystem AnyWithOverlap
-      rule Any infers e : any
+    typesystem PlusOne
       rule One infers 1 : one
+      rule PlusOne infers e + 1 : sumOne
     """,
     """
-    typesystem OneOrTwoPlus
-      rule OnePlus infers 1 + e : onep
-      rule TwoPlus infers 2 + e : twop
-      rule RestPlus infers e1 + e2 : otherp
+    typesystem Overlap
+      rule OnePlus infers 1 + e : oneP
+      rule TwoPlus infers 2 + e : twoP
+      rule RestPlus infers e1 + e2 : otherP
     """,
   )
 
@@ -33,14 +34,12 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
 
   enum Type:
-    case Any, One
+    case One, SumOne
 
   def typecheck(exp: LExpression): Either[String, Type] = exp match {
-    case e => Right(Type.Any)
-    // case LNumber(num) => num match {
-    //   case 1 => Right(Type.One)
-    //   case _ => Left(s"TypeError: no type for `$num`")
-    // }
+    case LNumber(1) => Right(Type.One)
+    case LPlus(e1, LNumber(1)) => Right(Type.SumOne)
+    case _ => Left(s"TypeError: no type for `$exp`")
   }
 
 @main def main: Unit =
@@ -59,24 +58,30 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   for tsSource <- TSSamples.samples do
     val tsDecl = TsDeclParser.parse(tsSource)
     println(tsDecl)
-    
-    println()
-    println(s"### Run interpreter")
-    for e <- exps do
-      println(s"${e} has type ${tyes.interpreter.TyesInterpreter.typecheck(tsDecl.get, e)}")
-  
-    println()
-    println("### Run compiler")
-    val src = TyesCompiler.compile(tsDecl.get)
-    println(src)
-    println()
 
-    val tsClassName = TyesCompiler.getTypeSystemObjectName(tsDecl.get)
-    val m = new javax.script.ScriptEngineManager(getClass().getClassLoader())
-    val e = m.getEngineByName("scala")
-    if e == null then
-      println("No script engine found")
-    else
-      val rtTypeSystem = e.eval(src + s"\r\n${tsClassName}").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+    println()
+    println("### Run validator")
+    val validationErrors = TyesValidator.validate(tsDecl.get)
+    println(validationErrors.mkString("\r\n"))
+
+    if validationErrors.isEmpty then  
+      println()
+      println(s"### Run interpreter")
       for e <- exps do
-        println(s"${e} has type ${rtTypeSystem.typecheck(e)}")
+        println(s"${e} has type ${tyes.interpreter.TyesInterpreter.typecheck(tsDecl.get, e)}")
+    
+      println()
+      println("### Run code generation")
+      val src = TyesCodeGenerator.compile(tsDecl.get)
+      println(src)
+      println()
+
+      val tsClassName = TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)
+      val m = new javax.script.ScriptEngineManager(getClass().getClassLoader())
+      val e = m.getEngineByName("scala")
+      if e == null then
+        println("No script engine found")
+      else
+        val rtTypeSystem = e.eval(src + s"\r\n${tsClassName}").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+        for e <- exps do
+          println(s"${e} has type ${rtTypeSystem.typecheck(e)}")

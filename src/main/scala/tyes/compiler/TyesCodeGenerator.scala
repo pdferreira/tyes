@@ -2,7 +2,7 @@ package tyes.compiler
 
 import tyes.model.*
 
-object TyesCompiler:
+object TyesCodeGenerator:
 
   def getAllTypes[E](asrt: Assertion): Set[Type] = Set(asrt match {
     case HasType(_, typ) => typ
@@ -24,20 +24,20 @@ object TyesCompiler:
 
   def compile(tsDecl: TypeSystemDecl): String =
     s"""
-      import tyes.runtime.*
-      import example.*
+    import tyes.runtime.*
+    import example.*
 
-      object ${getTypeSystemObjectName(tsDecl)} extends TypeSystem[LExpression]:
-        type T = Type
+    object ${getTypeSystemObjectName(tsDecl)} extends TypeSystem[LExpression]:
+      type T = Type
 
-        enum Type:
-          case ${(for case Type.Named(tname) <- getAllTypes(tsDecl) yield tname.capitalize).mkString(", ")}
+      enum Type:
+        case ${(for case Type.Named(tname) <- getAllTypes(tsDecl) yield tname.capitalize).mkString(", ")}
 
-        def typecheck(exp: LExpression): Either[String, Type] = exp match {
-          ${(
-            for case RuleDecl(_, HasType(term, Type.Named(tname))) <- tsDecl.rules
-            yield s"case ${compile(term)} => Right(Type.${tname.capitalize})"
-          ).mkString("\r\n        ")}
-          case _ => Left(s"TypeError: no type for `$$exp`")
-        }
+      def typecheck(exp: LExpression): Either[String, Type] = exp match {
+        ${(
+          for case RuleDecl(_, HasType(term, Type.Named(tname))) <- tsDecl.rules
+          yield s"case ${compile(term)} => Right(Type.${tname.capitalize})"
+        ).mkString("\r\n        ")}
+        case _ => Left(s"TypeError: no type for `$$exp`")
+      }
     """
