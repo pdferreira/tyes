@@ -37,6 +37,11 @@ object TSSamples:
       rule Two infers 2 : two
       rule PlusTwo infers e1 + e2 : twoPlus
         if e1 : two
+    """,
+    """
+    typesystem InvalidIdentifier
+      rule infers e : any
+        if e2 : any
     """
   )
 
@@ -72,7 +77,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
     println()
     println("### Run validator")
     val validationErrors = TyesValidator.validate(tsDecl.get)
-    println(validationErrors.mkString("\r\n"))
+    Console.err.println(validationErrors.mkString("\r\n"))
 
     if validationErrors.isEmpty then  
       println()
