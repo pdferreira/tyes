@@ -3,7 +3,9 @@ package tyes.model
 import Parsers.*
 
 trait TyesParser(contextParserBuilder: TermContextParserBuilder):
-  def ident = raw"[a-zA-Z][a-zA-Z\d_']*".r
+  val keywords = Set("typesystem", "rule", "infers", "if", "and")
+
+  def ident = raw"[a-zA-Z][a-zA-Z\d_']*".r ^? { case id if !keywords.contains(id) => id }
   def typesystem = "typesystem" ~> ident.? ~ rule.+ ^^ { case nameOpt ~ rules => TypeSystemDecl(nameOpt, rules) }
   def rule = ("rule" ~> ident.?) ~ ("infers" ~> assertion) ~ ("if" ~> rep1sep(assertion, "and")).? ^^ { 
     case nameOpt ~ concl ~ premisesOpt  => RuleDecl(nameOpt, premisesOpt.getOrElse(Seq()), concl) 
