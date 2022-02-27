@@ -66,7 +66,10 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
     parseRes
   }
   
-  val exps = for case Parsers.Success(exp, _) <- parsedExps yield exp
+  val exps = for case LExpressionParser.Success(exp, _) <- parsedExps yield exp
+  if exps.isEmpty then
+    println("No expressions")
+    return
   
   import LExpressionExtensions.given
   object TsDeclParser extends TyesParser(LExpressionContextParser)
@@ -91,6 +94,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
       println(src)
       println()
 
+      println("### Invoke generated code")
       val tsClassName = TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)
       val m = new javax.script.ScriptEngineManager(getClass().getClassLoader())
       val e = m.getEngineByName("scala")
