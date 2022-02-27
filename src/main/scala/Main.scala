@@ -28,20 +28,27 @@ object TSSamples:
       rule TwoPlus infers 2 + e : twoP
       rule RestPlus infers e1 + e2 : otherP
     """,
-    """
-    typesystem PlusOneOrTwoConditional
-      rule One infers 1 : one
-      rule OneSum infers e1 + e2 : one
-        if  e1 : one
-        and e2 : one
-      rule Two infers 2 : two
-      rule PlusTwo infers e1 + e2 : twoPlus
-        if e1 : two
-    """,
+    // """
+    // typesystem PlusOneOrTwoConditional
+    //   rule One infers 1 : one
+    //   rule OneSum infers e1 + e2 : one
+    //     if  e1 : one
+    //     and e2 : one
+    //   rule Two infers 2 : two
+    //   rule PlusTwo infers e1 + e2 : twoPlus
+    //     if e1 : two
+    // """,
     """
     typesystem InvalidIdentifier
       rule infers e : any
         if e2 : any
+    """,
+    """
+    typesystem RegularCases
+      rule One infers 1 : one
+      rule Sum infers e1 + e2 : one
+        if  e1 : one
+        and e2 : one
     """
   )
 
@@ -49,12 +56,23 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
 
   enum Type:
-    case One, SumOne
+    case Zero
 
   def typecheck(exp: LExpression): Either[String, Type] = exp match {
-    case LNumber(1) => Right(Type.One)
-    case LPlus(e1, LNumber(1)) => Right(Type.SumOne)
-    case _ => Left(s"TypeError: no type for `$exp`")
+    case LNumber(_c1) =>
+      if _c1 == 1 then 
+        Right(Type.Zero)
+      else 
+        Left(s"TypeError: no type for `$exp`")
+    case LPlus(e1, e2) => 
+      val t1 = typecheck(e1)
+      val t2 = typecheck(e2)
+      if t1 == Right(Type.Zero) && t2 == Right(Type.Zero) then
+        Right(Type.Zero)
+      else 
+        Left(s"TypeError: no type for `$exp`")
+    case _ => 
+      Left(s"TypeError: no type for `$exp`")
   }
 
 @main def main: Unit =
