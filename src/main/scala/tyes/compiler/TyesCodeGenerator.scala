@@ -77,7 +77,7 @@ object TyesCodeGenerator:
         s"case ${compile(c)} => ${caseBody}" 
     ).mkString(s"\r\n${indent}")
 
-  def getTypeErrorString(expVarName: String): String = s"Left(\"TypeError: no type for `$$${expVarName}`\")"
+  def getTypeErrorString(expVarName: String): String = s"Left(s\"TypeError: no type for `$$${expVarName}`\")"
 
   def compile(constructor: Term, rule: RuleDecl, indent: String): String =
     val HasType(concl, typ) = rule.conclusion
