@@ -69,38 +69,51 @@ object TyesCodeGenerator:
       yield
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
-          case Seq(r @ RuleDecl(_, Seq(), HasType(Term.Variable(_), _))) => compile(c, r, indent)
-          case _ => 
+          case Seq(r @ RuleDecl(_, Seq(), HasType(Term.Variable(_), _))) => compile(c, r, Map(), indent)
+          case _ =>
+            val premiseTerms = 
+              for case (HasType(prem, premTyp), idx) <- rs.flatMap(_.premises).zipWithIndex
+              yield (prem, getFreshVarName("t", idx), premTyp)
+
+            val inductionDeclNames = premiseTerms.groupMap(_._1)(_._2).mapValues(_.head)
+            val inductionDecls = (
+              for (premTerm, typVarName) <- inductionDeclNames.toSeq.sortBy(_._2) 
+              yield s"\r\n${indent}  val ${typVarName} = typecheck(${compile(premTerm)})" 
+            ).mkString
+
             val defaultCase = s"\r\n${indent}    ${getTypeErrorString("exp")}"
-            s"\r\n${indent}  ${rs.foldRight(defaultCase)((r, res) => compile(c, r, indent + "  ") + res)}"
+            val ruleEvaluations = rs.foldRight(defaultCase)((r, res) => compile(c, r, inductionDeclNames, indent + "  ") + " " + res)
+            s"${inductionDecls}\r\n${indent}  ${ruleEvaluations}"
         }
         s"case ${compile(c)} => ${caseBody}" 
     ).mkString(s"\r\n${indent}")
 
   def getTypeErrorString(expVarName: String): String = s"Left(s\"TypeError: no type for `$$${expVarName}`\")"
 
-  def compile(constructor: Term, rule: RuleDecl, indent: String): String =
+  def compile(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[Term, String], indent: String): String =
     val HasType(concl, typ) = rule.conclusion
     val subst = constructor.matches(concl).get
     val subst2 = subst.filter((_, v) => v match { 
       case Term.Variable(_) => false 
       case _ => true
     })
+    val premises = 
+      for case HasType(prem, premTyp) <- rule.premises
+      yield (inductionDeclNames(prem), premTyp)
+    
     val body = 
-      if rule.premises.isEmpty then 
+      if premises.isEmpty then 
         Seq(s"Right(${compile(typ)})")
       else
-        (
-          for case (HasType(prem, _), idx) <- rule.premises.zipWithIndex
-          yield s"val ${getFreshVarName("t", idx)} = typecheck(${compile(prem)})" 
-        ) ++ Seq(
+        Seq(
           (
-            for case (HasType(_, premTyp), idx) <- rule.premises.zipWithIndex
-            yield s"${getFreshVarName("t", idx)} == Right(${compile(premTyp)})" 
+            for (typVarName, premTyp) <- premises
+            yield s"${typVarName} == Right(${compile(premTyp)})" 
           ).mkString("if ", " && ", " then"),
           s"  Right(${compile(typ)})",
           "else"
         )
+
     if subst2.isEmpty then
       body.mkString("\r\n" + indent)
     else

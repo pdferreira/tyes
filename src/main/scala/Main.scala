@@ -28,16 +28,16 @@ object TSSamples:
       rule TwoPlus infers 2 + e : twoP
       rule RestPlus infers e1 + e2 : otherP
     """,
-    // """
-    // typesystem PlusOneOrTwoConditional
-    //   rule One infers 1 : one
-    //   rule OneSum infers e1 + e2 : one
-    //     if  e1 : one
-    //     and e2 : one
-    //   rule Two infers 2 : two
-    //   rule PlusTwo infers e1 + e2 : twoPlus
-    //     if e1 : two
-    // """,
+    """
+    typesystem PlusOneOrTwoConditional
+      rule One infers 1 : one
+      rule OneSum infers e1 + e2 : one
+        if  e1 : one
+        and e2 : one
+      rule Two infers 2 : two
+      rule PlusTwo infers e1 + e2 : plusTwo
+        if e2 : two
+    """,
     """
     typesystem InvalidIdentifier
       rule infers e : any
