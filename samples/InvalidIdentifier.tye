@@ -1,0 +1,4 @@
+typesystem InvalidIdentifier
+
+  rule infers e : any
+    if e2 : any

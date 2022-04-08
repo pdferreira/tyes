@@ -1,0 +1,7 @@
+typesystem RegularCases
+
+  rule One infers 1 : one
+
+  rule Sum infers e1 + e2 : one
+    if  e1 : one
+    and e2 : one

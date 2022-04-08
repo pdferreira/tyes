@@ -1,0 +1,2 @@
+typesystem Any
+  rule Any infers e : any

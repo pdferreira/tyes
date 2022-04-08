@@ -1,56 +1,11 @@
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.nio.file.DirectoryStream
+import scala.jdk.CollectionConverters.*
+import scala.util.Using
+import example.*
 import tyes.model.*
 import tyes.compiler.*
-import example.*
-
-object TSSamples:
-  val samples = Seq(
-    """
-    typesystem I
-      rule One infers 1 : int
-    """,
-    """
-    typesystem OneOrTwo
-      rule One infers 1 : one
-      rule Two infers 2 : two
-    """,
-    """
-    typesystem Any
-      rule Any infers e : any
-    """,
-    """
-    typesystem PlusOne
-      rule One infers 1 : one
-      rule PlusOne infers e + 1 : sumOne
-    """,
-    """
-    typesystem Overlap
-      rule OnePlus infers 1 + e : oneP
-      rule TwoPlus infers 2 + e : twoP
-      rule RestPlus infers e1 + e2 : otherP
-    """,
-    """
-    typesystem PlusOneOrTwoConditional
-      rule One infers 1 : one
-      rule OneSum infers e1 + e2 : one
-        if  e1 : one
-        and e2 : one
-      rule Two infers 2 : two
-      rule PlusTwo infers e1 + e2 : plusTwo
-        if e2 : two
-    """,
-    """
-    typesystem InvalidIdentifier
-      rule infers e : any
-        if e2 : any
-    """,
-    """
-    typesystem RegularCases
-      rule One infers 1 : one
-      rule Sum infers e1 + e2 : one
-        if  e1 : one
-        and e2 : one
-    """
-  )
 
 object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
@@ -91,8 +46,12 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   
   import LExpressionExtensions.given
   object TsDeclParser extends TyesParser(LExpressionContextParser)
-  for tsSource <- TSSamples.samples do
-    val tsDecl = TsDeclParser.parse(tsSource)
+
+  val samplesDirPath = Paths.get("./samples/")
+  val sampleFiles = Using(Files.newDirectoryStream(samplesDirPath, "*.tye"))(_.asScala.toList)
+  for samplePath <- sampleFiles.get do
+    val sampleSrc = Files.readString(samplePath)
+    val tsDecl = TsDeclParser.parse(sampleSrc)
     println(tsDecl)
 
     println()
@@ -114,7 +73,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
 
       println("### Invoke generated code")
       val tsClassName = TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)
-      val m = new javax.script.ScriptEngineManager(getClass().getClassLoader())
+      val m = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())
       val e = m.getEngineByName("scala")
       if e == null then
         println("No script engine found")

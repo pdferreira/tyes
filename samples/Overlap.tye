@@ -1,0 +1,7 @@
+typesystem Overlap
+
+  rule OnePlus infers 1 + e : oneP
+
+  rule TwoPlus infers 2 + e : twoP
+
+  rule RestPlus infers e1 + e2 : otherP

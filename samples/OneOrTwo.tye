@@ -1,0 +1,3 @@
+typesystem OneOrTwo
+  rule One infers 1 : one
+  rule Two infers 2 : two

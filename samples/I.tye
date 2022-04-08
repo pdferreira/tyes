@@ -1,0 +1,2 @@
+typesystem I
+  rule One infers 1 : int
