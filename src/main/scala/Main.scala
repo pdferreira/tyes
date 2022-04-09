@@ -44,14 +44,11 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
     println("No expressions")
     return
   
-  import LExpressionExtensions.given
-  object TsDeclParser extends TyesParser(LExpressionContextParser)
-
   val samplesDirPath = Paths.get("./samples/")
   val sampleFiles = Using(Files.newDirectoryStream(samplesDirPath, "*.tye"))(_.asScala.toList)
   for samplePath <- sampleFiles.get do
     val sampleSrc = Files.readString(samplePath)
-    val tsDecl = TsDeclParser.parse(sampleSrc)
+    val tsDecl = LExpressionTyesParser.parse(sampleSrc)
     println(tsDecl)
 
     println()
@@ -62,6 +59,8 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
     if validationErrors.isEmpty then  
       println()
       println(s"### Run interpreter")
+      
+      import LExpressionExtensions.given
       for e <- exps do
         println(s"${e} has type ${tyes.interpreter.TyesInterpreter.typecheck(tsDecl.get, e)}")
     
