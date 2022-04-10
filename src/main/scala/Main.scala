@@ -6,6 +6,7 @@ import scala.util.Using
 import example.*
 import tyes.model.*
 import tyes.compiler.*
+import tyes.interpreter.*
 
 object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
@@ -63,8 +64,9 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
       println(s"### Run interpreter")
       
       import LExpressionExtensions.given
-      for e <- exps do
-        println(s"${e} has type ${tyes.interpreter.TyesInterpreter.typecheck(tsDecl.get, e)}")
+      val interpreterResults = exps.map(e => TyesInterpreter.typecheck(tsDecl.get, e))
+      for (e, idx) <- exps.zipWithIndex do
+        println(s"${e} has type ${interpreterResults(idx)}")
     
       println()
       println("### Run code generation")
@@ -80,5 +82,14 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
         println("No script engine found")
       else
         val rtTypeSystem = e.eval(src + s"\r\n${tsClassName}").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
-        for e <- exps do
-          println(s"${e} has type ${rtTypeSystem.typecheck(e)}")
+        for (e, idx) <- exps.zipWithIndex do
+          val typ = rtTypeSystem.typecheck(e)
+          println(s"${e} has type ${typ}")
+
+          // Quick check if the interpreter results match by checking the string representation
+          val interpreterResStr = interpreterResults(idx) match {
+            case Some(Type.Named(name)) => s"Some(${name.capitalize})"
+            case t => t.toString
+          }
+          if typ.toOption.toString != interpreterResStr then
+            Console.err.println(s"Error: different interpreter result for ${e}: ${interpreterResults(idx)} vs ${typ}")
