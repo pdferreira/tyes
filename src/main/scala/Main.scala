@@ -11,20 +11,22 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
 
   enum Type:
-    case Zero
+    case One, Two
 
   def typecheck(exp: LExpression): Either[String, Type] = exp match {
     case LNumber(_c1) =>
       if _c1 == 1 then 
-        Right(Type.Zero)
+        Right(Type.One)
+      else if _c1 == 2 then
+        Right(Type.Two)
       else 
         Left(s"TypeError: no type for `$exp`")
     case LPlus(e1, e2) => 
-      val t1 = typecheck(e1)
-      val t2 = typecheck(e2)
-      if t1 == Right(Type.Zero) && t2 == Right(Type.Zero) then
-        Right(Type.Zero)
-      else 
+      val _t1 = typecheck(e1)
+      val _t2 = typecheck(e2)
+      if _t1.isRight && _t2.isRight && _t1 == _t2 then
+        _t1
+      else
         Left(s"TypeError: no type for `$exp`")
     case _ => 
       Left(s"TypeError: no type for `$exp`")
@@ -32,7 +34,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
 
 @main def main: Unit =
   val expParser = LExpressionParser;
-  val expTexts = List("1", "2", "3", "1 + 2", "2 + 3", "1 + 1", "3 + 5")
+  val expTexts = List("1", "2", "3", "1 + 2", "2 + 3", "1 + 1", "3 + 5", "2 + 1", "2 + 2")
   val parsedExps = for expText <- expTexts yield {
     val parseRes = expParser.parse(expText)
     println(s"${expText} parses to ${parseRes}")

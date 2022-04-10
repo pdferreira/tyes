@@ -1,0 +1,8 @@
+typesystem PolymorphicPlusOne
+  
+  rule One infers 1 : one
+
+  rule Two infers 2 : two
+  
+  rule Sum infers e + 1 : t
+    if e : t
