@@ -1,5 +1,4 @@
 import java.nio.file.*
-import java.nio.file.DirectoryStream
 import scala.io.Source
 import scala.jdk.CollectionConverters.*
 import scala.util.Using
@@ -7,55 +6,63 @@ import dotty.tools.dotc.Compiler
 import dotty.tools.dotc.core.Contexts.*
 import tyes.compiler.*
 import tyes.model.*
+import scala.util.Try
 
 object CommandLine:
   
   @main def tyec(args: String*): Unit =
     if args.isEmpty then
-      Console.err.println("Syntax: tyec <sourceFileOrDirPath> [<targetDirPath>]")
+      Console.err.println("Syntax: tyec [-out <targetDirPath>] <srcFilePaths...>")
       return
 
-    val srcFileOrDirPath = Path.of(args(0)).toAbsolutePath
-    if !Files.exists(srcFileOrDirPath) then
-      Console.err.println(s"File or directory not found: ${srcFileOrDirPath}")
+    val targetDirPathOpt = if args(0) == "-out" then Some(args(1)) else None
+
+    val srcPathArgs = if targetDirPathOpt.isDefined then args.drop(2) else args
+    val srcPaths = Try { srcPathArgs.map(Paths.get(_)) }
+    if srcPaths.isFailure then
+      Console.err.println(srcPaths.failed.get.getMessage)
       return
 
-    val srcPaths = 
-      if Files.isDirectory(srcFileOrDirPath) 
-      then Using(Files.newDirectoryStream(srcFileOrDirPath, "*.tye"))(_.asScala.toSeq).get
-      else Seq(srcFileOrDirPath)
+    for path <- srcPaths.get do
+      if Files.notExists(path) then
+        Console.err.println(s"File not found: ${path.toString}")
+        return
 
-    val dstDirPath = 
-      if args.isDefinedAt(1) then Path.of(args(1)).toAbsolutePath 
-      else if Files.isDirectory(srcFileOrDirPath) then srcFileOrDirPath
-      else srcFileOrDirPath.getParent()
-
-    val scalaDstDirPath = dstDirPath.resolve("src")
-    val binDstDirPath = dstDirPath.resolve("bin")
-
-    // Ensure required directories exist
-    for dirPath <- Seq(dstDirPath, scalaDstDirPath, binDstDirPath) do
-      Files.createDirectories(dirPath)
-
-    for path <- srcPaths do
+    for path <- srcPaths.get do
       println(s"Compiling '${path.toString}'")
 
-      val srcContent = Files.readString(path) 
-      val tsDecl = LExpressionTyesParser.parse(srcContent)
+      // Get output dir and ensure required directories exist
+      val dstDirPath = targetDirPathOpt.map { p =>
+        Path.of(p).toAbsolutePath
+      } getOrElse {
+        path.getParent()
+      }
 
-      val validationErrors = TyesValidator.validate(tsDecl.get)
-      if validationErrors.isEmpty then
-        println(s"\tGenerating scala sources...")
-        val generatedCode = TyesCodeGenerator.compile(tsDecl.get)
+      val scalaDstDirPath = dstDirPath.resolve("src")
+      val binDstDirPath = dstDirPath.resolve("bin")
 
-        val dstFileName = s"${TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)}.scala"
-        val scalaDstFilePath = scalaDstDirPath.resolve(dstFileName)
-        Files.write(scalaDstFilePath, generatedCode.getBytes)
+      for dirPath <- Seq(scalaDstDirPath, binDstDirPath) do
+        Files.createDirectories(dirPath)
 
-        println(s"\tGenerating scala binaries...")
-        val driver = new dotty.tools.dotc.Driver()
-        val report = driver.process(s"-usejavacp -d ${binDstDirPath} ${scalaDstFilePath}".split(" "))
-        if report.hasErrors then
-          println(report.summary)
-      else
-        Console.err.println(validationErrors.mkString("\r\n"))
+      invokeCompiler(path, scalaDstDirPath, binDstDirPath)
+
+  private def invokeCompiler(srcPath: Path, scalaDstDirPath: Path, binDstDirPath: Path): Unit = 
+    val srcContent = Files.readString(srcPath) 
+    val tsDecl = LExpressionTyesParser.parse(srcContent)
+
+    val validationErrors = TyesValidator.validate(tsDecl.get)
+    if validationErrors.isEmpty then
+      println(s"\tGenerating scala sources...")
+      val generatedCode = TyesCodeGenerator.compile(tsDecl.get)
+
+      val dstFileName = s"${TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)}.scala"
+      val scalaDstFilePath = scalaDstDirPath.resolve(dstFileName)
+      Files.write(scalaDstFilePath, generatedCode.getBytes)
+
+      println(s"\tGenerating scala binaries...")
+      val driver = new dotty.tools.dotc.Driver()
+      val report = driver.process(s"-usejavacp -d ${binDstDirPath} ${scalaDstFilePath}".split(" "))
+      if report.hasErrors then
+        println(report.summary)
+    else
+      Console.err.println(validationErrors.mkString("\r\n"))
