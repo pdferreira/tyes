@@ -4,6 +4,7 @@ import scala.jdk.CollectionConverters.*
 import scala.util.Using
 import scala.util.Try
 import scala.util.parsing.combinator.Parsers
+import scala.util.parsing.input.*
 import dotty.tools.dotc.Compiler
 import dotty.tools.dotc.core.Contexts.*
 import tyes.compiler.*
@@ -11,7 +12,6 @@ import tyes.interpreter.*
 import tyes.model.*
 import example.*
 import LExpressionExtensions.given
-import scala.util.parsing.combinator.RegexParsers
 
 object CommandLine:
 
@@ -20,57 +20,96 @@ object CommandLine:
     targetDirPath: Option[String] = None
   )
 
-  object CompilerOptions:
-    object Parsers extends RegexParsers():
-      def ensure[T](parser: Parser[T], cond: => Boolean, errorMessage: String = "unexpected input state"): Parser[T] =
-      Parser(in =>
-        val offset = in.offset
-        val start = handleWhiteSpace(in.source, offset)
-        val realIn = in.drop(start - offset)
-        
-        parser(realIn) match {
-          case s: Success[T] => 
-            if cond 
-            then s 
-            else Error(errorMessage, realIn)
-          case other => other 
+  class SeqPosition[T](seq: Seq[T], override val column: Int) extends Position:
+    override def line: Int = 1
+    override def lineContents: String = throw new NotImplementedError()
+    override def longString: String =
+      val sep = " "
+      val elemsWithPositions = seq.map(_.toString).foldLeft(Seq[(String, Int)]()) { 
+        case (acc, text) => acc match {
+          case Seq() => Seq(text -> 0)
+          case _ :+ (prevText, prevPos) => acc :+ (text, prevPos + prevText.length + sep.length)
         }
-      )
+      }
+      val line = elemsWithPositions.map(_._1).mkString(" ")
+      val arrowPos = 
+        if elemsWithPositions.isEmpty 
+        then 0 
+        else elemsWithPositions(column - 1)._2
+
+      line + "\r\n" + " ".repeat(arrowPos) + "^"
+
+  class SeqReader[T](seq: Seq[T], offset: Int = 0) extends Reader[T]:
+    override def first: T = seq(offset)
+    override def rest: Reader[T] =
+      if atEnd 
+      then this
+      else new SeqReader(seq, offset + 1)
+    override def atEnd: Boolean = offset >= seq.length
+    override def pos: Position = new SeqPosition(seq, offset + 1)
+
+  trait SeqParsers[T] extends Parsers:
+    override type Elem = T
+  
+  object CompilerOptions:
+    object Parsers extends SeqParsers[String]:
+      def ensure[T](parser: Parser[T], cond: T => Boolean, errorMessage: String = "unexpected input state"): Parser[T] =
+        Parser(in =>
+          parser(in) match {
+            case s: Success[T] => 
+              if cond(s.result) 
+              then s 
+              else Error(errorMessage, in)
+            case other => other 
+          }
+        )
 
     import Parsers.*
 
-    def anyNonFlagText = "[^- ]".r.withFailureMessage("flag in unexpected position") ~ "[^ ]*".r ^^ {
-      case head ~ tail => head ++ tail
+    def any = Parser[String] { in => 
+      if in.atEnd
+      then Failure("end of input", in)
+      else Success(in.first, in.rest)
     }
+
+    def anyNonFlag = ensure(any, !_.startsWith("-"), "flag in unexpected position")
+
+    def outputDirOption(currOptions: CompilerOptions, targetIsParsed: Boolean) = 
+      ensure("-out", _ => !targetIsParsed, "-out specified twice") ~>! 
+      anyNonFlag.withFailureMessage("no output directory specified") ~ 
+      options(currOptions, targetIsParsed = true) ^^ { 
+        case path ~ opts => opts.copy(targetDirPath = Some(path)) 
+      }
+
+    def sourceFiles(currOptions: CompilerOptions) =
+      anyNonFlag.+.withFailureMessage("no source file(s) specified") ^^ {
+        case paths => currOptions.copy(srcFilePaths = paths)
+      }
 
     def options(
       currOptions: CompilerOptions = CompilerOptions(),
       targetIsParsed: Boolean = false
     ): Parser[CompilerOptions] =
-      ensure("-out", !targetIsParsed, "-out specified twice") ~> anyNonFlagText ~ options(currOptions, targetIsParsed = true) ^^ { 
-          case path ~ opts => opts.copy(targetDirPath = Some(path)) 
-        }
-      | anyNonFlagText.+ ^^ {
-        case paths => currOptions.copy(srcFilePaths = paths)
-      }
+      outputDirOption(currOptions, targetIsParsed)
+      | sourceFiles(currOptions)
 
     def parse(args: Seq[String]): Option[CompilerOptions] = 
       if args.isEmpty then
         Console.err.println("Syntax: tyec [-out <targetDirPath>] <srcFilePaths...>")
         return None
 
-      (Parsers.parse(phrase(options()), args.mkString(" ")): @unchecked) match {
+      (phrase(options())(new SeqReader(args)): @unchecked) match {
         case Parsers.NoSuccess(msg, next) => 
           val cmdPrefix = "tyec "
           val lineIndent = " ".repeat(cmdPrefix.length)
           val errorLocation = cmdPrefix + next.pos.longString.linesIterator.mkString("\r\n" + lineIndent)
           val middlePos = next.pos.column + cmdPrefix.length
-          val msgIndent = " ".repeat(middlePos - msg.length / 2)
+          val msgIndent = " ".repeat(Math.max(0, middlePos - msg.length / 2))
           Console.err.println(s"${errorLocation}\r\n${msgIndent}${msg}")
           None
         case Parsers.Success(res, _) => Some(res)
       }
-  
+
   @main def tyec(args: String*): Unit =
     val options = CompilerOptions.parse(args) match {
       case None => return
