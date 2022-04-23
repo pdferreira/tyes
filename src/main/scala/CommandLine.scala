@@ -2,11 +2,14 @@ import java.nio.file.*
 import scala.io.Source
 import scala.jdk.CollectionConverters.*
 import scala.util.Using
+import scala.util.Try
 import dotty.tools.dotc.Compiler
 import dotty.tools.dotc.core.Contexts.*
 import tyes.compiler.*
+import tyes.interpreter.*
 import tyes.model.*
-import scala.util.Try
+import example.*
+import LExpressionExtensions.given
 
 object CommandLine:
   
@@ -46,16 +49,66 @@ object CommandLine:
 
       invokeCompiler(path, scalaDstDirPath, binDstDirPath)
 
+  @main def tyei(args: String*): Unit =
+    if args.isEmpty then
+      Console.err.println("Syntax: tyei <srcFilePath> [-e <expression>]")
+
+    val srcPath = Try { Paths.get(args(0)) }
+    if srcPath.isFailure then
+      Console.err.println(srcPath.failed.get.getMessage)
+      return
+
+    if Files.notExists(srcPath.get) || Files.isDirectory(srcPath.get) then
+      Console.err.println(s"File not found: ${srcPath.get.toString}")
+      return
+
+    val srcContent = Files.readString(srcPath.get)
+    for tsDecl <- parseTypeSystem(srcContent) do
+      if args.length > 2 && args(1) == "-e" then
+        // Consume everything after as if it were a single expression
+        val expSrc = args.drop(2).mkString(" ")
+        for exp <- parseLExpression(expSrc) do
+          TyesInterpreter.typecheck(tsDecl, exp) match {
+            case Some(Type.Named(typName)) => 
+              println(typName)
+            case _ => 
+              Console.err.println("No type for expression")
+          }
+      else
+        // TODO: repl
+        ()
+
+  private def parseLExpression(srcContent: String): Option[LExpression] =
+    (LExpressionParser.parse(srcContent): @unchecked) match {
+      case LExpressionParser.Success(exp, _) =>
+        Some(exp)
+      case LExpressionParser.NoSuccess(message, _) =>
+        Console.err.println(message)
+        None
+    }
+
+  private def parseTypeSystem(srcContent: String): Option[TypeSystemDecl] =
+    (LExpressionTyesParser.parse(srcContent): @unchecked) match {
+      case Parsers.Success(tsDecl, _) =>
+        val validationErrors = TyesValidator.validate(tsDecl)
+        if validationErrors.isEmpty then
+          Some(tsDecl)
+        else
+          Console.err.println(validationErrors.mkString("\r\n"))
+          None
+      case Parsers.NoSuccess(message, _) =>
+        Console.err.println(message)
+        None
+    }
+
   private def invokeCompiler(srcPath: Path, scalaDstDirPath: Path, binDstDirPath: Path): Unit = 
-    val srcContent = Files.readString(srcPath) 
-    val tsDecl = LExpressionTyesParser.parse(srcContent)
-
-    val validationErrors = TyesValidator.validate(tsDecl.get)
-    if validationErrors.isEmpty then
+    val srcContent = Files.readString(srcPath)
+    
+    for tsDecl <- parseTypeSystem(srcContent) do
       println(s"\tGenerating scala sources...")
-      val generatedCode = TyesCodeGenerator.compile(tsDecl.get)
+      val generatedCode = TyesCodeGenerator.compile(tsDecl)
 
-      val dstFileName = s"${TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)}.scala"
+      val dstFileName = s"${TyesCodeGenerator.getTypeSystemObjectName(tsDecl)}.scala"
       val scalaDstFilePath = scalaDstDirPath.resolve(dstFileName)
       Files.write(scalaDstFilePath, generatedCode.getBytes)
 
@@ -64,5 +117,3 @@ object CommandLine:
       val report = driver.process(s"-usejavacp -d ${binDstDirPath} ${scalaDstFilePath}".split(" "))
       if report.hasErrors then
         println(report.summary)
-    else
-      Console.err.println(validationErrors.mkString("\r\n"))
