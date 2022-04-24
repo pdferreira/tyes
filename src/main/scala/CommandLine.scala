@@ -4,13 +4,13 @@ import scala.jdk.CollectionConverters.*
 import scala.util.Using
 import scala.util.Try
 import scala.util.parsing.combinator.Parsers
-import scala.util.parsing.input.*
 import dotty.tools.dotc.Compiler
 import dotty.tools.dotc.core.Contexts.*
 import tyes.compiler.*
 import tyes.interpreter.*
 import tyes.model.*
 import example.*
+import utils.parsers.ParserExtensions
 import LExpressionExtensions.given
 
 object CommandLine:
@@ -19,63 +19,18 @@ object CommandLine:
     srcFilePaths: Seq[String] = Seq(),
     targetDirPath: Option[String] = None
   )
-
-  class SeqPosition[T](seq: Seq[T], override val column: Int) extends Position:
-    override def line: Int = 1
-    override def lineContents: String = throw new NotImplementedError()
-    override def longString: String =
-      val sep = " "
-      val elemsWithPositions = seq.map(_.toString).foldLeft(Seq[(String, Int)]()) { 
-        case (acc, text) => acc match {
-          case Seq() => Seq(text -> 0)
-          case _ :+ (prevText, prevPos) => acc :+ (text, prevPos + prevText.length + sep.length)
-        }
-      }
-      val line = elemsWithPositions.map(_._1).mkString(" ")
-      val arrowPos = 
-        if elemsWithPositions.isEmpty 
-        then 0 
-        else elemsWithPositions(column - 1)._2
-
-      line + "\r\n" + " ".repeat(arrowPos) + "^"
-
-  class SeqReader[T](seq: Seq[T], offset: Int = 0) extends Reader[T]:
-    override def first: T = seq(offset)
-    override def rest: Reader[T] =
-      if atEnd 
-      then this
-      else new SeqReader(seq, offset + 1)
-    override def atEnd: Boolean = offset >= seq.length
-    override def pos: Position = new SeqPosition(seq, offset + 1)
-
-  trait SeqParsers[T] extends Parsers:
-    override type Elem = T
   
   object CompilerOptions:
-    object Parsers extends SeqParsers[String]:
-      def ensure[T](parser: Parser[T], cond: T => Boolean, errorMessage: String = "unexpected input state"): Parser[T] =
-        Parser(in =>
-          parser(in) match {
-            case s: Success[T] => 
-              if cond(s.result) 
-              then s 
-              else Error(errorMessage, in)
-            case other => other 
-          }
-        )
-
-    import Parsers.*
-
-    def any = Parser[String] { in => 
-      if in.atEnd
-      then Failure("end of input", in)
-      else Success(in.first, in.rest)
-    }
-
-    def anyNonFlag = ensure(any, !_.startsWith("-"), "flag in unexpected position")
+    
+    object ArgParsers extends Parsers, ParserExtensions:
+      override type Elem = String
+      
+    import ArgParsers.*
+    
+    def anyNonFlag = any.withValidation(!_.startsWith("-"), "flag in unexpected position")
 
     def outputDirOption(currOptions: CompilerOptions, targetIsParsed: Boolean) = 
-      ensure("-out", _ => !targetIsParsed, "-out specified twice") ~>! 
+      "-out".withValidation(!targetIsParsed, "-out specified twice") ~>! 
       anyNonFlag.withFailureMessage("no output directory specified") ~ 
       options(currOptions, targetIsParsed = true) ^^ { 
         case path ~ opts => opts.copy(targetDirPath = Some(path)) 
@@ -98,8 +53,8 @@ object CommandLine:
         Console.err.println("Syntax: tyec [-out <targetDirPath>] <srcFilePaths...>")
         return None
 
-      (phrase(options())(new SeqReader(args)): @unchecked) match {
-        case Parsers.NoSuccess(msg, next) => 
+      (ArgParsers.parse(phrase(options()), args): @unchecked) match {
+        case ArgParsers.NoSuccess(msg, next) => 
           val cmdPrefix = "tyec "
           val lineIndent = " ".repeat(cmdPrefix.length)
           val errorLocation = cmdPrefix + next.pos.longString.linesIterator.mkString("\r\n" + lineIndent)
@@ -107,7 +62,7 @@ object CommandLine:
           val msgIndent = " ".repeat(Math.max(0, middlePos - msg.length / 2))
           Console.err.println(s"${errorLocation}\r\n${msgIndent}${msg}")
           None
-        case Parsers.Success(res, _) => Some(res)
+        case ArgParsers.Success(res, _) => Some(res)
       }
 
   @main def tyec(args: String*): Unit =
