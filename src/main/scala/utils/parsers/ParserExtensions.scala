@@ -27,3 +27,14 @@ trait ParserExtensions extends Parsers:
 
     def withValidation(cond: => Boolean, errorMessage: String): Parser[T] =
       withValidation(_ => cond, errorMessage)
+
+object ParserExtensions:
+
+  extension [T](result: Parsers#ParseResult[T])
+    def toOption(onNoSuccess: Parsers#NoSuccess => Unit): Option[T] = result match {
+      case s: Parsers#Success[T] => 
+        Some(s.result)
+      case ns: Parsers#NoSuccess => 
+        onNoSuccess(ns)
+        None
+    }

@@ -19,7 +19,10 @@ class SeqPosition[T](seq: Seq[T], override val column: Int) extends Position:
     val line = elemsWithPositions.map(_._1).mkString(" ")
     val arrowPos = 
       if elemsWithPositions.isEmpty 
-      then 0 
-      else elemsWithPositions(column - 1)._2
+      then 0
+      else 
+        if column - 1 >= elemsWithPositions.length
+        then line.length + 1 
+        else elemsWithPositions(column - 1)._2
 
     line + "\r\n" + " ".repeat(arrowPos) + "^"
