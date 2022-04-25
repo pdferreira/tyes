@@ -16,8 +16,8 @@ object InterpreterOptions extends OptionsParser[InterpreterOptions]:
     case srcPath ~ exprOpt => InterpreterOptions(srcPath, exprOpt)
   }
 
-  def expressionOption = "-e" ~>! anyNonFlag.+.withFailureMessage("no expression specified") ^^ {
+  private def expressionOption = "-e" ~>! anyNonFlag.+.withFailureMessage("no expression specified") ^^ {
     exprParts => exprParts.mkString(" ")
   }
 
-  def sourceFile = anyNonFlag.withFailureMessage("no source file specified")
+  private def sourceFile = anyNonFlag.withFailureMessage("no source file specified")

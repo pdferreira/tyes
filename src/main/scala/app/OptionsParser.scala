@@ -16,19 +16,19 @@ trait OptionsParser[T]:
   
   protected def options: ArgParsers.Parser[T]
 
-  def parse(args: Seq[String]): Option[T] = 
+  def parse(args: Seq[String]): Either[String, T] = 
     if args.isEmpty then
-      Console.err.println(s"Syntax: ${commandName} ${optionsSyntaxDocs}")
-      return None
+      return Left(s"Syntax: ${commandName} ${optionsSyntaxDocs}")
 
     (ArgParsers.parse(ArgParsers.phrase(options), args): @unchecked) match {
       case ArgParsers.NoSuccess(msg, next) => 
         val cmdPrefix = commandName + " "
         val lineIndent = " ".repeat(cmdPrefix.length)
-        val errorLocation = cmdPrefix + next.pos.longString.linesIterator.mkString("\r\n" + lineIndent)
-        val middlePos = next.pos.column + cmdPrefix.length
-        val msgIndent = " ".repeat(Math.max(0, middlePos - msg.length / 2))
-        Console.err.println(s"${errorLocation}\r\n${msgIndent}${msg}")
-        None
-      case ArgParsers.Success(res, _) => Some(res)
+        val errorLines = next.pos.longString.linesIterator.toList
+        val errorLocation = cmdPrefix + errorLines.mkString("\r\n" + lineIndent)
+        val arrowPos = cmdPrefix.length + errorLines(errorLines.length - 1).length - 1
+        val msgIndent = " ".repeat(Math.max(0, arrowPos - msg.length / 2))
+        return Left(s"${errorLocation}\r\n${msgIndent}${msg}")
+      case ArgParsers.Success(res, _) => 
+        return Right(res)
     }

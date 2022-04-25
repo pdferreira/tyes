@@ -19,8 +19,10 @@ object CommandLine:
 
   @main def tyec(args: String*): Unit =
     val options = CompilerOptions.parse(args) match {
-      case None => return
-      case Some(opts) => opts
+      case Left(message) => 
+        Console.err.println(message)
+        return
+      case Right(opts) => opts
     }
 
     val srcPaths = Try { options.srcFilePaths.map(Paths.get(_)) }
@@ -53,8 +55,10 @@ object CommandLine:
 
   @main def tyei(args: String*): Unit =
     val options = InterpreterOptions.parse(args) match {
-      case None => return
-      case Some(opts) => opts
+      case Left(message) => 
+        Console.err.println(message)
+        return
+      case Right(opts) => opts
     }
 
     val srcPath = Try { Paths.get(options.srcFilePath) }

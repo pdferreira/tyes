@@ -16,6 +16,6 @@ object CompilerOptions extends OptionsParser[CompilerOptions]:
     case targetPath ~ srcPaths => CompilerOptions(srcPaths, targetPath)
   }
 
-  def outputDirOption = "-out" ~>! anyNonFlag.withFailureMessage("no output directory specified")
+  private def outputDirOption = "-out" ~>! anyNonFlag.withFailureMessage("no output directory specified")
 
-  def sourceFiles = anyNonFlag.+.withFailureMessage("no source file(s) specified")
+  private def sourceFiles = anyNonFlag.+.withFailureMessage("no source file(s) specified")
