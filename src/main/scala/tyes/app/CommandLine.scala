@@ -1,3 +1,5 @@
+package tyes.app
+
 import java.nio.file.*
 import scala.io.Source
 import scala.jdk.CollectionConverters.*
@@ -10,14 +12,13 @@ import tyes.compiler.*
 import tyes.interpreter.*
 import tyes.model.*
 import example.*
-import app.*
 import utils.parsers.ParserExtensions
 import utils.parsers.ParserExtensions.*
 import LExpressionExtensions.given
 
 object CommandLine:
 
-  @main def tyec(args: String*): Unit =
+  def tyec(args: String*): Unit =
     val options = CompilerOptions.parse(args) match {
       case Left(message) => 
         Console.err.println(message)
@@ -53,7 +54,7 @@ object CommandLine:
 
       invokeCompiler(path, scalaDstDirPath, binDstDirPath)
 
-  @main def tyei(args: String*): Unit =
+  def tyei(args: String*): Unit =
     val options = InterpreterOptions.parse(args) match {
       case Left(message) => 
         Console.err.println(message)

@@ -1,4 +1,4 @@
-package app
+package tyes.app
 
 case class CompilerOptions(
   srcFilePaths: Seq[String],

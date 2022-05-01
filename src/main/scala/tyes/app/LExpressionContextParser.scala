@@ -1,3 +1,5 @@
+package tyes.app
+
 import tyes.model.*
 import example.*
 

@@ -7,6 +7,7 @@ import example.*
 import tyes.model.*
 import tyes.compiler.*
 import tyes.interpreter.*
+import tyes.app.*
 
 object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
@@ -32,6 +33,10 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
     case _ => 
       Left(s"TypeError: no type for `$exp`")
   }
+
+@main def tyec(args: String*): Unit = CommandLine.tyec(args*)
+
+@main def tyei(args: String*): Unit = CommandLine.tyei(args*)
 
 @main def main: Unit =
   val expParser = LExpressionParser;

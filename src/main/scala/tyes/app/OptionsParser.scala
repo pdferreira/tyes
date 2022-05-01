@@ -1,4 +1,4 @@
-package app
+package tyes.app
 
 import scala.util.parsing.combinator.Parsers
 import utils.parsers.ParserExtensions
