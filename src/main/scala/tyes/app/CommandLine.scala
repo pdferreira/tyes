@@ -2,6 +2,7 @@ package tyes.app
 
 import java.nio.file.*
 import scala.io.Source
+import scala.io.StdIn
 import scala.jdk.CollectionConverters.*
 import scala.util.Using
 import scala.util.Try
@@ -75,16 +76,12 @@ object CommandLine:
     for tsDecl <- parseTypeSystem(srcContent) do
       options.expression match {
         case Some(expSrc) =>
-          for exp <- parseLExpression(expSrc) do
-            TyesInterpreter.typecheck(tsDecl, exp) match {
-              case Some(Type.Named(typName)) => 
-                println(typName)
-              case _ => 
-                Console.err.println("No type for expression")
-            }
+          invokeInterpreter(tsDecl, expSrc)
         case None =>
-          // TODO: repl
-          ()
+          val lineIt = Iterator.continually { StdIn.readLine("> ") }
+          for line <- lineIt.takeWhile(_ != null) do
+            if !line.isBlank then
+              invokeInterpreter(tsDecl, line)
       }
 
   private def parseLExpression(srcContent: String): Option[LExpression] =
@@ -119,3 +116,13 @@ object CommandLine:
       val report = driver.process(s"-usejavacp -d ${binDstDirPath} ${scalaDstFilePath}".split(" "))
       if report.hasErrors then
         println(report.summary)
+
+  private def invokeInterpreter(tsDecl: TypeSystemDecl, expSrc: String): Unit =
+      for exp <- parseLExpression(expSrc) do
+        TyesInterpreter.typecheck(tsDecl, exp) match {
+          case Some(Type.Named(typName)) => 
+            println(typName)
+          case _ => 
+            Console.err.println("No type for expression")
+        }
+      

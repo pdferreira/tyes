@@ -15,4 +15,6 @@ lazy val root = project
     ),
 
     fork := true,
+    connectInput := true,
+    outputStrategy := Some(OutputStrategy.StdoutOutput),
   )
