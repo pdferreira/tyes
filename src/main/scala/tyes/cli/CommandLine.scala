@@ -1,4 +1,4 @@
-package tyes.app
+package tyes.cli
 
 import java.nio.file.*
 import scala.io.Source

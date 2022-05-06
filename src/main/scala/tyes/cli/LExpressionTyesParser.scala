@@ -1,4 +1,4 @@
-package tyes.app
+package tyes.cli
 
 import tyes.model.TyesParser
 

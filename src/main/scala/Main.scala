@@ -7,7 +7,7 @@ import example.*
 import tyes.model.*
 import tyes.compiler.*
 import tyes.interpreter.*
-import tyes.app.*
+import tyes.cli.*
 
 object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
