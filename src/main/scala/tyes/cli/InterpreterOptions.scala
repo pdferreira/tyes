@@ -8,7 +8,7 @@ case class InterpreterOptions(
 object InterpreterOptions extends OptionsParser[InterpreterOptions]:
   import ArgParsers.*
 
-  protected override def commandName = "tyei"
+  protected override def commandName = "tyer"
 
   protected override def optionsSyntaxDocs = "<srcFilePath> [-e <expression>]"
 

@@ -36,7 +36,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
 
 @main def tyec(args: String*): Unit = CommandLine.tyec(args*)
 
-@main def tyei(args: String*): Unit = CommandLine.tyei(args*)
+@main def tyer(args: String*): Unit = CommandLine.tyer(args*)
 
 @main def main: Unit =
   val expParser = LExpressionParser;

@@ -55,7 +55,7 @@ object CommandLine:
 
       invokeCompiler(path, scalaDstDirPath, binDstDirPath)
 
-  def tyei(args: String*): Unit =
+  def tyer(args: String*): Unit =
     val options = InterpreterOptions.parse(args) match {
       case Left(message) => 
         Console.err.println(message)
@@ -73,16 +73,14 @@ object CommandLine:
       return
 
     val srcContent = Files.readString(srcPath.get)
-    for tsDecl <- parseTypeSystem(srcContent) do
-      options.expression match {
-        case Some(expSrc) =>
-          invokeInterpreter(tsDecl, expSrc)
-        case None =>
-          val lineIt = Iterator.continually { StdIn.readLine("> ") }
-          for line <- lineIt.takeWhile(_ != null) do
-            if !line.isBlank then
-              invokeInterpreter(tsDecl, line)
-      }
+    val fileName = srcPath.get.getFileName.toString
+    val (nameWithoutExt, ext) = fileName.splitAt(fileName.lastIndexOf('.'))
+    if ext == ".tye" then
+      invokeInterpreter(srcContent, options.expression)
+    else if ext == ".scala" then
+      invokeRunner(nameWithoutExt, srcContent, options.expression)
+    else
+      Console.err.println(s"File type not recognized: ${ext}")   
 
   private def parseLExpression(srcContent: String): Option[LExpression] =
     LExpressionParser.parse(srcContent)
@@ -117,12 +115,45 @@ object CommandLine:
       if report.hasErrors then
         println(report.summary)
 
-  private def invokeInterpreter(tsDecl: TypeSystemDecl, expSrc: String): Unit =
-      for exp <- parseLExpression(expSrc) do
-        TyesInterpreter.typecheck(tsDecl, exp) match {
-          case Some(Type.Named(typName)) => 
-            println(typName)
-          case _ => 
-            Console.err.println("No type for expression")
-        }
+  private def invokeInterpreter(tyesSrc: String, expSrcOption: Option[String]): Unit =
+    for tsDecl <- parseTypeSystem(tyesSrc) do
+      runInteractive(line => {
+        for exp <- parseLExpression(line) do
+          TyesInterpreter.typecheck(tsDecl, exp) match {
+            case Some(Type.Named(typName)) => 
+              println(typName)
+            case _ => 
+              Console.err.println("No type for expression")
+          }
+        },
+        expSrcOption)
+
+  private  def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String]): Unit =
+    val engineManager = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())
+    val engine = engineManager.getEngineByName("scala")
+    if engine == null then
+      Console.err.println("Unable to load scala file, no script engine found")
+    else
+      val tsClassName = objName
+      val rtTypeSystem = engine.eval(srcContent + s"\r\n${tsClassName}").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+      runInteractive(
+        line => {
+          for exp <- parseLExpression(line) do 
+            rtTypeSystem.typecheck(exp) match {
+              case Right(typ) => println(typ)
+              case Left(errMsg) => Console.err.println(errMsg)
+            }
+        }, 
+        expSrcOption)
+
+  private def runInteractive(processLine: String => Unit, singleInputOpt: Option[String]): Unit =
+    singleInputOpt match {
+      case Some(line) =>
+        processLine(line)
+      case None =>
+        val lineIt = Iterator.continually { StdIn.readLine("> ") }
+        for line <- lineIt.takeWhile(_ != null) do
+          if !line.isBlank then
+            processLine(line)
+    }
       
