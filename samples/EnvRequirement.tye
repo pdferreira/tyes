@@ -6,3 +6,7 @@ typesystem EnvRequirement
   rule PiGiver
     infers e + 1 : t
     if e : t under pi : real
+
+  rule WrongPiGiver
+    infers e + 2 : t
+    if e : t under pi : int
