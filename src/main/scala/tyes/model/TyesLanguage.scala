@@ -7,5 +7,10 @@ enum Type:
 sealed abstract class Assertion
 case class HasType(term: Term, typ: Type) extends Assertion
 
-case class RuleDecl(name: Option[String], premises: Seq[Assertion], conclusion: Assertion)
+enum Environment:
+  case BindName(name: String, typ: Type)
+
+case class Judgement(env: Option[Environment], assertion: Assertion)
+
+case class RuleDecl(name: Option[String], premises: Seq[Judgement], conclusion: Judgement)
 case class TypeSystemDecl(name: Option[String], rules: Seq[RuleDecl])

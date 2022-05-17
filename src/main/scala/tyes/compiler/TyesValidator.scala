@@ -19,8 +19,8 @@ object TyesValidator:
   def validateScope(tsDecl: TypeSystemDecl): Seq[String] =
     (for
       r <- tsDecl.rules
-      HasType(ce, _) = r.conclusion
-      premiseVariables = r.premises.toSet.map { case HasType(pe, _) => pe.variables } .flatten
+      Judgement(_, HasType(ce, _)) = r.conclusion
+      premiseVariables = r.premises.toSet.map { case Judgement(_, HasType(pe, _)) => pe.variables } .flatten
       unknownVariables = premiseVariables.diff(ce.variables)
       if !unknownVariables.isEmpty
     yield
@@ -31,8 +31,8 @@ object TyesValidator:
   def validateAmbiguity(tsDecl: TypeSystemDecl): Seq[String] =
     (for
       case Seq(r1, r2) <- tsDecl.rules.combinations(2)
-      HasType(e1, t1) = r1.conclusion
-      HasType(e2, t2) = r2.conclusion
+      Judgement(_, HasType(e1, t1)) = r1.conclusion
+      Judgement(_, HasType(e2, t2)) = r2.conclusion
       if t1 != t2 && e1.overlaps(e2)
       // As a simplification, only perform the validation if there are no premises
       // TODO: replace this by a validation if the premises could ever hold true for the same term

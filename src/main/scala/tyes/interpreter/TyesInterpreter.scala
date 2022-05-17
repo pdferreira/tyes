@@ -5,13 +5,13 @@ import tyes.model.*
 object TyesInterpreter:
   
   def typecheck[E](tsDecl: TypeSystemDecl, ruleDecl: RuleDecl, term: Term): Option[Type] = ruleDecl.conclusion match {
-    case HasType(metaTerm, typ) => metaTerm.matches(term).flatMap { subst => 
+    case Judgement(_, HasType(metaTerm, typ)) => metaTerm.matches(term).flatMap { subst => 
       // check all premises hold, while unifying possible type variables
       val (premisesHold, typeVarEnv) = ruleDecl.premises.foldLeft((true, Map[String, Type.Named]())) { 
         // if one of the premises failed, propagate failure
         case (acc @ (false, typeVarEnv), _) => acc 
         // otherwise, check the next premise
-        case ((true, typeVarEnv), HasType(premTerm, premTyp)) => 
+        case ((true, typeVarEnv), Judgement(_, HasType(premTerm, premTyp))) => 
           val resTyp = typecheck(tsDecl, premTerm.substitute(subst))
           premTyp match {
             // if we expect a named type, just compare directly

@@ -1,0 +1,8 @@
+typesystem EnvRequirement
+
+  rule PiTaker 
+    infers 1 : real under pi : real
+
+  rule PiGiver
+    infers e + 1 : t
+    if e : t under pi : real

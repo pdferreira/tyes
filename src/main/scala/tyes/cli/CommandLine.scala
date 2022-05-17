@@ -139,7 +139,7 @@ object CommandLine:
       runInteractive(
         line => {
           for exp <- parseLExpression(line) do 
-            rtTypeSystem.typecheck(exp) match {
+            rtTypeSystem.typecheck(exp, Map()) match {
               case Right(typ) => println(typ)
               case Left(errMsg) => Console.err.println(errMsg)
             }

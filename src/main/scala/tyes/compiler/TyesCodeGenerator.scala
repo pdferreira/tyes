@@ -4,18 +4,24 @@ import tyes.model.*
 
 object TyesCodeGenerator:
 
-  def getAllTypes[E](asrt: Assertion): Set[Type] = Set(asrt match {
+  def getAllTypes(asrt: Assertion): Set[Type] = Set(asrt match {
     case HasType(_, typ) => typ
   })
 
-  def getAllTypes[E](tsDecl: TypeSystemDecl): Set[Type] =
+  def getAllTypes(env: Environment): Set[Type] = Set(env match {
+    case Environment.BindName(_, typ) => typ
+  })
+
+  def getAllTypes(judg: Judgement): Set[Type] = getAllTypes(judg.assertion) ++ judg.env.fold(Set())(getAllTypes)
+
+  def getAllTypes(tsDecl: TypeSystemDecl): Set[Type] =
     (for 
       case RuleDecl(_, prems, concl) <- tsDecl.rules
-      a <- concl +: prems
-      t <- getAllTypes(a)
+      j <- concl +: prems
+      t <- getAllTypes(j)
     yield t).toSet 
 
-  def getTypeSystemObjectName[E](tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"
+  def getTypeSystemObjectName(tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"
 
   def compile(term: Term): String = term match {
     case Term.Constant(value) => value.toString
@@ -23,15 +29,23 @@ object TyesCodeGenerator:
     case Term.Function(name, args*) => name + args.map(compile).mkString("(", ", ", ")")
   }
 
+  def compile(envOpt: Option[Environment]): String = envOpt match {
+    case Some(Environment.BindName(name, typ @ Type.Named(_))) =>
+      s"env + (\"${name}\" -> ${compileNamedType(typ)})"
+    case _ => 
+      // TBD: how to handle type variables
+      "env"
+  }
+
   def compileNamedType(typ: Type.Named): String = s"Type.${typ.name.capitalize}"
 
   def getFreshVarName(base: String, index: Int): String = s"_${base}${index + 1}"
 
-  def compileTypecheckV2(tsDecl: TypeSystemDecl, indent: String): String =
+  def compileTypecheck(tsDecl: TypeSystemDecl, indent: String): String =
     val rulesByConstructor = 
       (for
         r <- tsDecl.rules
-        case HasType(term, _) <- Seq(r.conclusion)
+        HasType(term, _) = r.conclusion.assertion
       yield
         val constructor = term match {
           case Term.Function(fnName, args*) =>
@@ -48,20 +62,20 @@ object TyesCodeGenerator:
         (constructor, r)
       ).groupMap(_._1)(_._2)
     (
-      for (c, rs) <- rulesByConstructor 
+      for (c, rs) <- rulesByConstructor
       yield
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
-          case Seq(r @ RuleDecl(_, Seq(), HasType(Term.Variable(_), _))) => compileRule(c, r, Map(), indent)
+          case Seq(r @ RuleDecl(_, Seq(), Judgement(_, HasType(Term.Variable(_), _)))) => compileRule(c, r, Map(), indent)
           case _ =>
             val premiseTerms = 
-              for case (HasType(prem, premTyp), idx) <- rs.flatMap(_.premises).zipWithIndex
-              yield (prem, getFreshVarName("t", idx), premTyp)
+              for case (Judgement(envOpt, HasType(prem, _)), idx) <- rs.flatMap(_.premises).zipWithIndex
+              yield (prem, envOpt) -> getFreshVarName("t", idx)
 
             val inductionDeclNames = premiseTerms.groupMap(_._1)(_._2).mapValues(_.head)
             val inductionDecls = (
-              for (premTerm, typVarName) <- inductionDeclNames.toSeq.sortBy(_._2) 
-              yield s"\r\n${indent}  val ${typVarName} = typecheck(${compile(premTerm)})" 
+              for ((premTerm, envOpt), typVarName) <- inductionDeclNames.toSeq.sortBy(_._2) 
+              yield s"\r\n${indent}  val ${typVarName} = typecheck(${compile(premTerm)}, ${compile(envOpt)})" 
             ).mkString
 
             val defaultCase = s"\r\n${indent}    ${getTypeErrorString("exp")}"
@@ -73,24 +87,32 @@ object TyesCodeGenerator:
 
   def getTypeErrorString(expVarName: String): String = s"Left(s\"TypeError: no type for `$$${expVarName}`\")"
 
-  def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[Term, String], indent: String): String =
-    val HasType(concl, typ) = rule.conclusion
+  def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[(Term, Option[Environment]), String], indent: String): String =
+    val Judgement(conclEnvOpt, HasType(concl, typ)) = rule.conclusion
     val subst = constructor.matches(concl).get
     val subst2 = subst.filter((_, v) => v match { 
       case Term.Variable(_) => false 
       case _ => true
     })
     val premises = 
-      for case HasType(prem, premTyp) <- rule.premises
-      yield (inductionDeclNames(prem), premTyp)
+      for case Judgement(envOpt, HasType(prem, premTyp)) <- rule.premises
+      yield (inductionDeclNames(prem, envOpt), premTyp)
     
     val body = generateTypeCheckIf(premises, typ, leaveOpen = subst2.isEmpty)
 
-    if subst2.isEmpty then
+    val syntacticConds = subst2.map((n, v) => s"${n} == ${compile(v)}")
+    val envConds = conclEnvOpt.toSeq.map({
+      case Environment.BindName(name, typ @ Type.Named(_)) => 
+        s"env.contains(\"${name}\") && env(\"${name}\") == ${compileNamedType(typ)}"
+      // TDB: how to handle type variables. Possibly drop the second part of the condition and then unify
+    })
+    val conds = syntacticConds ++ envConds
+
+    if conds.isEmpty then
       body.mkString("\r\n" + indent)
     else
       (Seq(
-        s"if ${subst2.map((n, v) => s"${n} == ${compile(v)}").mkString(" && ")} then",
+        s"if ${conds.mkString(" && ")} then",
       ) ++ body.map("  " ++ _) ++ Seq(
         s"else "
       )).mkString("\r\n" + indent)
@@ -170,8 +192,8 @@ object TyesCodeGenerator:
       enum Type:
         case ${(for case Type.Named(tname) <- getAllTypes(tsDecl) yield tname.capitalize).mkString(", ")}
     
-      def typecheck(exp: LExpression): Either[String, Type] = exp match {
-        ${compileTypecheckV2(tsDecl, "        ")}
+      def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
+        ${compileTypecheck(tsDecl, "        ")}
         case _ => ${getTypeErrorString("exp")}
       }
     """

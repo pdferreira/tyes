@@ -3,7 +3,7 @@ package tyes.model
 import Parsers.*
 
 trait TyesParser(contextParserBuilder: TermContextParserBuilder):
-  val keywords = Set("typesystem", "rule", "infers", "if", "and")
+  val keywords = Set("typesystem", "rule", "infers", "if", "and", "under")
   
   // All variables and declaration names: int, Lambda, e1
   def genericIdent = raw"[a-zA-Z][a-zA-Z\d_']*".r.filter(id => !keywords.contains(id))
@@ -13,10 +13,12 @@ trait TyesParser(contextParserBuilder: TermContextParserBuilder):
   def declIdent = genericIdent.filter(id => !metaIdent.matches(id))
 
   def typesystem = "typesystem" ~> declIdent.? ~ rule.+ ^^ { case nameOpt ~ rules => TypeSystemDecl(nameOpt, rules) }
-  def rule = ("rule" ~> declIdent.?) ~ ("infers" ~> assertion) ~ ("if" ~> rep1sep(assertion, "and")).? ^^ { 
+  def rule = ("rule" ~> declIdent.?) ~ ("infers" ~> judgement) ~ ("if" ~> rep1sep(judgement, "and")).? ^^ { 
     case nameOpt ~ concl ~ premisesOpt  => RuleDecl(nameOpt, premisesOpt.getOrElse(Seq()), concl) 
   }
   def assertion = term ~ (":" ~> tpe) ^^ { case term ~ tpe => HasType(term, tpe) }
+  def judgement = assertion ~ ("under" ~> environment).? ^^ { case assert ~ env => Judgement(env, assert) }
+  def environment = declIdent ~ (":" ~> tpe) ^^ { case name ~ tpe => Environment.BindName(name, tpe) }
   def metaVariable = metaIdent ^^ { varName => Term.Variable(varName) }
   def term = contextParserBuilder(metaVariable)
   def tpe = genericIdent ^^ { case name => 

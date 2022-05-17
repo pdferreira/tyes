@@ -10,7 +10,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.tyes",
-				"match": "\\b(typesystem|rule|infers|if|and)\\b"
+				"match": "\\b(typesystem|rule|infers|if|and|under)\\b"
 			}]
 		}
 	},

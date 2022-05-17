@@ -15,7 +15,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   enum Type:
     case One, Two
 
-  def typecheck(exp: LExpression): Either[String, Type] = exp match {
+  def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
     case LNumber(_c1) =>
       if _c1 == 1 then 
         Right(Type.One)
@@ -24,8 +24,8 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
       else 
         Left(s"TypeError: no type for `$exp`")
     case LPlus(e1, e2) => 
-      val _t1 = typecheck(e1)
-      val _t2 = typecheck(e2)
+      val _t1 = typecheck(e1, env)
+      val _t2 = typecheck(e2, env)
       if _t1.isRight && _t2.isRight && _t1 == _t2 then
         _t1
       else
@@ -88,7 +88,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
       else
         val rtTypeSystem = e.eval(src + s"\r\n${tsClassName}").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
         for (e, idx) <- exps.zipWithIndex do
-          val typ = rtTypeSystem.typecheck(e)
+          val typ = rtTypeSystem.typecheck(e, Map())
           println(s"${e} has type ${typ}")
 
           // Quick check if the interpreter results match by checking the string representation
