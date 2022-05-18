@@ -12,6 +12,8 @@
         case LNumber(_c1) => 
           if _c1 == 1 && env.contains("pi") && env("pi") == Type.Real then
             Right(Type.Real)
+          else  if _c1 == 3 && env.contains("pi") then
+            Right(env("pi"))
           else  
             Left(s"TypeError: no type for `$exp`")
         case LPlus(e, _e2) => 

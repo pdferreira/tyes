@@ -10,3 +10,6 @@ typesystem EnvRequirement
   rule WrongPiGiver
     infers e + 2 : t
     if e : t under pi : int
+
+  rule GenericPiTaker
+    infers 3 : t under pi : t

@@ -98,16 +98,23 @@ object TyesCodeGenerator:
       for case Judgement(envOpt, HasType(prem, premTyp)) <- rule.premises
       yield (inductionDeclNames(prem, envOpt), premTyp)
     
-    val body = generateTypeCheckIf(premises, typ, leaveOpen = subst2.isEmpty)
-
     val syntacticConds = subst2.map((n, v) => s"${n} == ${compile(v)}")
-    val envConds = conclEnvOpt.toSeq.map({
-      case Environment.BindName(name, typ @ Type.Named(_)) => 
-        s"env.contains(\"${name}\") && env(\"${name}\") == ${compileNamedType(typ)}"
-      // TDB: how to handle type variables. Possibly drop the second part of the condition and then unify
-    })
+    val envConds = conclEnvOpt.toSeq.map {
+      case Environment.BindName(name, typ) =>
+        val existsCheck = s"env.contains(\"${name}\")"
+        // If we have an expected type, check right away, otherwise just check for containment
+        typ match {
+          case t @ Type.Named(_) => s"${existsCheck} && env(\"${name}\") == ${compileNamedType(t)}"
+          case Type.Variable(_) => existsCheck
+        }
+    }
     val conds = syntacticConds ++ envConds
 
+    val extraPremises = conclEnvOpt.toSeq.collect {
+      case Environment.BindName(name, typ @ Type.Variable(_)) => s"Right(env(\"${name}\"))" -> typ
+    }
+    val body = generateTypeCheckIf(premises ++ extraPremises, typ, leaveOpen = conds.isEmpty)
+    
     if conds.isEmpty then
       body.mkString("\r\n" + indent)
     else
