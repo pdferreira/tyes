@@ -1,4 +1,19 @@
 typesystem InvalidIdentifier
 
-  rule infers e : any
+  rule UnknownVarInPrem
+    infers e : any
     if e2 : any
+
+  rule UnknownTypeVarInConclWithPrems
+    infers e : t
+    if e : any
+
+  rule UnknownTypeVarInConcl
+    infers e : t
+
+  rule TypeVarInConclBoundInContext
+    infers 1 : t under util : t
+
+  rule TypeVarInConclOnlyBoundInPremContext
+    infers 1 : t
+    if 1 : any under util : t
