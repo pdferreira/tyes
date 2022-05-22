@@ -57,9 +57,11 @@ object TyesValidator:
           errors += s"Error: ${ruleName} conclusion uses a type variable but has no premises or environment: ${cTypeVar}"
         
         else if !r.premises.exists(judg => getTypeVars(judg.assertion).contains(cTypeVar)) then
-          if concl.env.exists(env => !getTypeVars(env).contains(cTypeVar)) then
+          if concl.env.exists(env => getTypeVars(env).contains(cTypeVar)) then
+            () // ok, bound in concl env
+          else if !r.premises.exists(judg => judg.env.exists(env => getTypeVars(env).contains(cTypeVar))) then
             errors += s"Error: ${ruleName} conclusion uses an unbound type variable: ${cTypeVar}"
-          else if concl.env.isDefined then
+          else
             errors += s"Error: ${ruleName} conclusion uses a type variable that is only bound in a premise environment: ${cTypeVar}"
 
     return errors.toSeq
