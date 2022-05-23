@@ -13,3 +13,14 @@ typesystem EnvRequirement
 
   rule GenericPiTaker
     infers 3 : t under pi : t
+
+  rule NeutralReal
+    infers 4 : real
+
+  rule NeutralInt
+    infers 5 : int
+
+  rule PiTransitiveGiver
+    infers e + 3 : t
+    if e : t
+    and 1 : t under pi : t

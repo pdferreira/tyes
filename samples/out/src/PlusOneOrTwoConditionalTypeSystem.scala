@@ -19,9 +19,10 @@
         case LPlus(e1, e2) => 
           val _t1 = typecheck(e1, env)
           val _t2 = typecheck(e2, env)
+          val _t3 = typecheck(e2, env)
           if _t1 == Right(Type.One) && _t2 == Right(Type.One) then
             Right(Type.One)
-          else if _t2 == Right(Type.Two) then
+          else if _t3 == Right(Type.Two) then
             Right(Type.PlusTwo)
           else 
             Left(s"TypeError: no type for `$exp`")

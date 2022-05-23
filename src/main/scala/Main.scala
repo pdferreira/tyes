@@ -25,7 +25,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
         Left(s"TypeError: no type for `$exp`")
     case LPlus(e1, e2) => 
       val _t1 = typecheck(e1, env)
-      val _t2 = typecheck(e2, env)
+      val _t2 = typecheck(e2, _t1.map(t => env + ("pi" -> t)).getOrElse(env))
       if _t1.isRight && _t2.isRight && _t1 == _t2 then
         _t1
       else

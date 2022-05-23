@@ -14,15 +14,26 @@
             Right(Type.Real)
           else  if _c1 == 3 && env.contains("pi") then
             Right(env("pi"))
+          else  if _c1 == 4 then
+            Right(Type.Real)
+          else  if _c1 == 5 then
+            Right(Type.Int)
           else  
             Left(s"TypeError: no type for `$exp`")
         case LPlus(e, _e2) => 
           val _t1 = typecheck(e, env + ("pi" -> Type.Real))
           val _t2 = typecheck(e, env + ("pi" -> Type.Int))
+          val _t3 = typecheck(e, env)
+          val _t4 = typecheck(LNumber(1), _t3.map(t => env + ("pi" -> t)).getOrElse(env))
           if _e2 == LNumber(1) then
             _t1
           else  if _e2 == LNumber(2) then
             _t2
+          else  if _e2 == LNumber(3) then
+            if _t3.isRight && _t4 == _t3 then
+              _t3
+            else
+              Left(s"TypeError: no type for `$exp`")
           else  
             Left(s"TypeError: no type for `$exp`")
         case _ => Left(s"TypeError: no type for `$exp`")

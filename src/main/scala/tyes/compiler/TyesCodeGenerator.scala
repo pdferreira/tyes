@@ -1,6 +1,7 @@
 package tyes.compiler
 
 import tyes.model.*
+import scala.collection.mutable
 
 object TyesCodeGenerator:
 
@@ -19,7 +20,7 @@ object TyesCodeGenerator:
       case RuleDecl(_, prems, concl) <- tsDecl.rules
       j <- concl +: prems
       t <- getAllTypes(j)
-    yield t).toSet 
+    yield t).toSet
 
   def getTypeSystemObjectName(tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"
 
@@ -29,11 +30,19 @@ object TyesCodeGenerator:
     case Term.Function(name, args*) => name + args.map(compile).mkString("(", ", ", ")")
   }
 
-  def compile(envOpt: Option[Environment]): String = envOpt match {
-    case Some(Environment.BindName(name, typ @ Type.Named(_))) =>
-      s"env + (\"${name}\" -> ${compileNamedType(typ)})"
-    case _ => 
-      // TBD: how to handle type variables
+  def compile(envOpt: Option[Environment], typSubst: Map[String, String]): String = envOpt match {
+    case Some(Environment.BindName(name, typ)) =>
+      typ match {
+        case t @ Type.Named(_) => 
+          s"env + (\"${name}\" -> ${compileNamedType(t)})"
+        case Type.Variable(varTypeName) => 
+          val typStr = typSubst.getOrElse(varTypeName, throw new Exception(s"Unbound type variable: ${varTypeName}"))
+          // Hackish way to locally add the result of another typecheck and don't blow up just here
+          // Can be made cleaner once the generated code structure is reviewed to check if the previous
+          // premise succeeded or not, instead of dealing with Eithers here.
+          s"${typStr}.map(t => env + (\"${name}\" -> t)).getOrElse(env)"
+      }
+    case None => 
       "env"
   }
 
@@ -68,15 +77,24 @@ object TyesCodeGenerator:
           // Special case for catch'all rules with no premises
           case Seq(r @ RuleDecl(_, Seq(), Judgement(_, HasType(Term.Variable(_), _)))) => compileRule(c, r, Map(), indent)
           case _ =>
-            val premiseTerms = 
-              for case (Judgement(envOpt, HasType(prem, _)), idx) <- rs.flatMap(_.premises).zipWithIndex
-              yield (prem, envOpt) -> getFreshVarName("t", idx)
-
-            val inductionDeclNames = premiseTerms.groupMap(_._1)(_._2).mapValues(_.head)
-            val inductionDecls = (
-              for ((premTerm, envOpt), typVarName) <- inductionDeclNames.toSeq.sortBy(_._2) 
-              yield s"\r\n${indent}  val ${typVarName} = typecheck(${compile(premTerm)}, ${compile(envOpt)})" 
-            ).mkString
+            val inductionDeclNames = rs.flatMap(_.premises).zipWithIndex.toMap.mapValues(idx => getFreshVarName("t", idx))
+            val inductionDecls = new mutable.StringBuilder()
+            // TODO: Type variables are now properly scoped per rule, but now common premises don't get merged...
+            // This needs a big rewrite
+            for r <- rs do
+              r.premises.foldLeft(Map[String, String]()) {
+                case (typeVarEnv, judg @ Judgement(envOpt, HasType(premTerm, premTyp))) =>
+                  val typVarName = inductionDeclNames(judg)
+                  inductionDecls ++= s"\r\n${indent}  val ${typVarName} = typecheck(${compile(premTerm)}, ${compile(envOpt, typeVarEnv)})"
+                  premTyp match {
+                    case Type.Named(_) => typeVarEnv
+                    case Type.Variable(premTypVar) =>
+                      if typeVarEnv.contains(premTypVar) then
+                        typeVarEnv
+                      else
+                        typeVarEnv + (premTypVar -> typVarName) 
+                  }
+              }
 
             val defaultCase = s"\r\n${indent}    ${getTypeErrorString("exp")}"
             val ruleEvaluations = rs.foldRight(defaultCase)((r, res) => compileRule(c, r, inductionDeclNames, indent + "  ") + " " + res)
@@ -87,7 +105,7 @@ object TyesCodeGenerator:
 
   def getTypeErrorString(expVarName: String): String = s"Left(s\"TypeError: no type for `$$${expVarName}`\")"
 
-  def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[(Term, Option[Environment]), String], indent: String): String =
+  def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[Judgement, String], indent: String): String =
     val Judgement(conclEnvOpt, HasType(concl, typ)) = rule.conclusion
     val subst = constructor.matches(concl).get
     val subst2 = subst.filter((_, v) => v match { 
@@ -95,8 +113,8 @@ object TyesCodeGenerator:
       case _ => true
     })
     val premises = 
-      for case Judgement(envOpt, HasType(prem, premTyp)) <- rule.premises
-      yield (inductionDeclNames(prem, envOpt), premTyp)
+      for case judg @ Judgement(_, HasType(_, premTyp)) <- rule.premises
+      yield (inductionDeclNames(judg), premTyp)
     
     val syntacticConds = subst2.map((n, v) => s"${n} == ${compile(v)}")
     val envConds = conclEnvOpt.toSeq.map {
