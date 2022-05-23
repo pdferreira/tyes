@@ -75,7 +75,7 @@ object TyesCodeGenerator:
       yield
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
-          case Seq(r @ RuleDecl(_, Seq(), Judgement(_, HasType(Term.Variable(_), _)))) => compileRule(c, r, Map(), indent)
+          case Seq(r @ RuleDecl(_, Seq(), Judgement(None, HasType(Term.Variable(_), _)))) => compileRule(c, r, Map(), indent)
           case _ =>
             val inductionDeclNames = rs.flatMap(_.premises).zipWithIndex.toMap.mapValues(idx => getFreshVarName("t", idx))
             val inductionDecls = new mutable.StringBuilder()
