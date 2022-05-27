@@ -83,20 +83,27 @@ object CommandLine:
       Console.err.println(s"File type not recognized: ${ext}")   
 
   private def parseLExpression(srcContent: String): Option[LExpression] =
-    LExpressionParser.parse(srcContent)
-      .toOption { ns => Console.err.println(ns.msg) }
-
+    LExpressionParser.parse(srcContent).withReadableError match {
+      case Left(error) => 
+        Console.err.println(error)
+        None
+      case Right(result) => 
+        Some(result)
+    }
+    
   private def parseTypeSystem(srcContent: String): Option[TypeSystemDecl] =
-    LExpressionTyesParser.parse(srcContent)
-      .toOption { ns => Console.err.println(ns.msg) }
-      .flatMap { tsDecl =>
+    LExpressionTyesParser.parse(srcContent).withReadableError match {
+      case Left(error) => 
+        Console.err.println(error)
+        None
+      case Right(tsDecl) =>
         val validationErrors = TyesValidator.validate(tsDecl)
         if validationErrors.isEmpty then
           Some(tsDecl)
         else
           Console.err.println(validationErrors.mkString("\r\n"))
           None
-      }
+    }
 
   private def invokeCompiler(srcPath: Path, scalaDstDirPath: Path, binDstDirPath: Path): Unit = 
     val srcContent = Files.readString(srcPath)
