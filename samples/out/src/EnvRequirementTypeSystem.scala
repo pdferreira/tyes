@@ -21,10 +21,10 @@
           else  
             Left(s"TypeError: no type for `$exp`")
         case LPlus(e, _e2) => 
-          val _t1 = typecheck(e, env + ("pi" -> Type.Real))
-          val _t2 = typecheck(e, env + ("pi" -> Type.Int))
+          val _t1 = typecheck(e, Map("pi" -> Type.Real))
+          val _t2 = typecheck(e, Map("pi" -> Type.Int))
           val _t3 = typecheck(e, env)
-          val _t4 = typecheck(LNumber(1), _t3.map(t => env + ("pi" -> t)).getOrElse(env))
+          val _t4 = typecheck(LNumber(1), _t3.map(t => Map("pi" -> t)).getOrElse(Map()))
           if _e2 == LNumber(1) then
             _t1
           else  if _e2 == LNumber(2) then

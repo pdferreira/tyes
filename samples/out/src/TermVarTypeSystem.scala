@@ -10,7 +10,7 @@
     
       def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
         case LPlus(_e1, _e2) => 
-          val _t1 = typecheck(LVariable("pi"), env + ("pi" -> Type.Real))
+          val _t1 = typecheck(LVariable("pi"), Map("pi" -> Type.Real))
           if _e2 == LNumber(1) && _e1 == LVariable("pi") then
             if _t1 == Right(Type.Real) then
               Right(Type.Sumpi)

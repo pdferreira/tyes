@@ -38,13 +38,13 @@ object TyesCodeGenerator:
     case Some(Environment.BindName(name, typ)) =>
       typ match {
         case t @ Type.Named(_) => 
-          s"env + (\"${name}\" -> ${compileNamedType(t)})"
+          s"Map(\"${name}\" -> ${compileNamedType(t)})"
         case Type.Variable(varTypeName) => 
           val typStr = typSubst.getOrElse(varTypeName, throw new Exception(s"Unbound type variable: ${varTypeName}"))
           // Hackish way to locally add the result of another typecheck and don't blow up just here
           // Can be made cleaner once the generated code structure is reviewed to check if the previous
           // premise succeeded or not, instead of dealing with Eithers here.
-          s"${typStr}.map(t => env + (\"${name}\" -> t)).getOrElse(env)"
+          s"${typStr}.map(t => Map(\"${name}\" -> t)).getOrElse(Map())"
       }
     case None => 
       "env"
