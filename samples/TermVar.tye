@@ -1,0 +1,8 @@
+typesystem TermVar
+
+  rule PiVar
+    infers pi : t under pi : t
+
+  rule SumPiVar
+    infers pi + 1 : sumpi
+    if pi : real under pi : real

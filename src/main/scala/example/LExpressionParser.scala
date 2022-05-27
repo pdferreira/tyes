@@ -4,11 +4,17 @@ import scala.util.parsing.combinator.RegexParsers
 
 object LExpressionParser extends RegexParsers:
 
-  def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => LNumber(numStr.toInt) }
+  def ident = raw"[a-zA-Z][a-zA-Z\d_]*".r
 
-  def operator = number ~ ("+" ~ expression).? ^^ { 
+  def variable = ident ^^ { varName => LVariable(varName) } 
+
+  def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => LNumber(numStr.toInt) }
+  
+  def leaf = number | variable
+
+  def operator = leaf ~ ("+" ~> expression).? ^^ { 
     case exp ~ None => exp
-    case left ~ Some(_ ~ right) => LPlus(left, right) 
+    case left ~ Some(right) => LPlus(left, right)
   }
   
   def expression: Parser[LExpression] = operator

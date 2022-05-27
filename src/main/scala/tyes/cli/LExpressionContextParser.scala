@@ -1,7 +1,6 @@
 package tyes.cli
 
 import tyes.model.*
-import example.*
 
 import Parsers.*
 
@@ -13,11 +12,17 @@ import Parsers.*
 */
 class LExpressionContextParser(metaVariableParser: Parser[Term]):
 
+  def ident = raw"[a-zA-Z][a-zA-Z\d_]*".r
+
+  def variable = ident ^^ { varName => Term.Function("LVariable", Term.Constant(varName)) } 
+
   def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => Term.Function("LNumber", Term.Constant(numStr.toInt)) }
   
-  def operator = leaf ~ ("+" ~ expression).? ^^ { 
+  def leaf = number | metaVariableParser ||| variable
+  
+  def operator = leaf ~ ("+" ~> expression).? ^^ { 
     case exp ~ None => exp
-    case left ~ Some(_ ~ right) => Term.Function("LPlus", left, right) 
+    case left ~ Some(right) => Term.Function("LPlus", left, right) 
   }
   
   def expression: Parser[Term] = operator

@@ -25,7 +25,11 @@ object TyesCodeGenerator:
   def getTypeSystemObjectName(tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"
 
   def compile(term: Term): String = term match {
-    case Term.Constant(value) => value.toString
+    case Term.Constant(value) => value match {
+      case i: Int => i.toString
+      case s: String => '\"' + s + '\"'
+      case _ => throw new Exception(s"No compilation defined for constants of type ${value.getClass().getSimpleName}: ${value}")
+    }
     case Term.Variable(name) => name
     case Term.Function(name, args*) => name + args.map(compile).mkString("(", ", ", ")")
   }
