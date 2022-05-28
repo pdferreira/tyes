@@ -12,9 +12,8 @@ object LExpressionParser extends RegexParsers:
   
   def leaf = number | variable
 
-  def operator = leaf ~ ("+" ~> expression).? ^^ { 
-    case exp ~ None => exp
-    case left ~ Some(right) => LPlus(left, right)
+  def operator = leaf ~ ("+" ~> leaf).* ^^ { 
+    case exp ~ rs => rs.foldLeft(exp) { (left, right) => LPlus(left, right) }
   }
   
   def expression: Parser[LExpression] = operator

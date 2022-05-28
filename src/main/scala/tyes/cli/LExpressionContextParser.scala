@@ -20,9 +20,8 @@ class LExpressionContextParser(metaVariableParser: Parser[Term]):
   
   def leaf = number | metaVariableParser ||| variable
   
-  def operator = leaf ~ ("+" ~> expression).? ^^ { 
-    case exp ~ None => exp
-    case left ~ Some(right) => Term.Function("LPlus", left, right) 
+  def operator = leaf ~ ("+" ~> leaf).* ^^ { 
+    case exp ~ rs => rs.foldLeft(exp) { (left, right) => Term.Function("LPlus", left, right) }
   }
   
   def expression: Parser[Term] = operator
