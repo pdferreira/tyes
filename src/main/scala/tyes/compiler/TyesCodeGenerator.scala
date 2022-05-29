@@ -1,7 +1,8 @@
 package tyes.compiler
 
-import tyes.model.*
 import scala.collection.mutable
+import tyes.model.*
+import tyes.model.TyesLanguageExtensions.*
 
 object TyesCodeGenerator:
 
@@ -40,11 +41,7 @@ object TyesCodeGenerator:
         case t @ Type.Named(_) => 
           s"Map(\"${name}\" -> ${compileNamedType(t)})"
         case Type.Variable(varTypeName) => 
-          val typStr = typSubst.getOrElse(varTypeName, throw new Exception(s"Unbound type variable: ${varTypeName}"))
-          // Hackish way to locally add the result of another typecheck and don't blow up just here
-          // Can be made cleaner once the generated code structure is reviewed to check if the previous
-          // premise succeeded or not, instead of dealing with Eithers here.
-          s"${typStr}.map(t => Map(\"${name}\" -> t)).getOrElse(Map())"
+          s"Map(\"${name}\" -> $varTypeName)"
       }
     case None => 
       "env"
@@ -52,7 +49,9 @@ object TyesCodeGenerator:
 
   def compileNamedType(typ: Type.Named): String = s"Type.${typ.name.capitalize}"
 
-  def getFreshVarName(base: String, index: Int): String = s"_${base}${index + 1}"
+  def getFreshVarName(base: String): String = s"_$base"
+
+  def getFreshVarName(base: String, index: Int): String = s"${getFreshVarName(base)}${index + 1}"
 
   def compileTypecheck(tsDecl: TypeSystemDecl, indent: String): String =
     val rulesByConstructor = 
@@ -82,14 +81,17 @@ object TyesCodeGenerator:
           case Seq(r @ RuleDecl(_, Seq(), Judgement(None, HasType(Term.Variable(_), _)))) => compileRule(c, r, Map(), indent)
           case _ =>
             val inductionDeclNames = rs.flatMap(_.premises).zipWithIndex.toMap.mapValues(idx => getFreshVarName("t", idx))
+            val destructureDecls = rs.flatMap(compileDestructurings).map(line => s"\r\n$indent  $line").mkString
             val inductionDecls = new mutable.StringBuilder()
             // TODO: Type variables are now properly scoped per rule, but now common premises don't get merged...
             // This needs a big rewrite
             for r <- rs do
               r.premises.foldLeft(Map[String, String]()) {
-                case (typeVarEnv, judg @ Judgement(envOpt, HasType(premTerm, premTyp))) =>
+                case (typeVarEnv, judg @ Judgement(_, HasType(_, premTyp))) =>
                   val typVarName = inductionDeclNames(judg)
-                  inductionDecls ++= s"\r\n${indent}  val ${typVarName} = typecheck(${compile(premTerm)}, ${compile(envOpt, typeVarEnv)})"
+                  val typecheckExpr = compileInductionCall(judg, typeVarEnv)
+                  
+                  inductionDecls ++= s"\r\n${indent}  val ${typVarName} = $typecheckExpr"
                   premTyp match {
                     case Type.Named(_) => typeVarEnv
                     case Type.Variable(premTypVar) =>
@@ -102,17 +104,41 @@ object TyesCodeGenerator:
 
             val defaultCase = s"\r\n${indent}    ${getTypeErrorString("exp")}"
             val ruleEvaluations = rs.foldRight(defaultCase)((r, res) => compileRule(c, r, inductionDeclNames, indent + "  ") + " " + res)
-            s"${inductionDecls}\r\n${indent}  ${ruleEvaluations}"
+            s"${destructureDecls}${inductionDecls}\r\n${indent}  ${ruleEvaluations}"
         }
         s"case ${compile(c)} => ${caseBody}" 
     ).mkString(s"\r\n${indent}")
 
   def getTypeErrorString(expVarName: String): String = s"Left(s\"TypeError: no type for `$$${expVarName}`\")"
 
+  def compileInductionCall(judg: Judgement, typeVarEnv: Map[String, String]): String =
+    val Judgement(envOpt, HasType(term, _)) = judg
+    val typecheckExpr = s"typecheck(${compile(term)}, ${compile(envOpt, typeVarEnv)})"
+
+    // TODO: Hard-coded for a single variable cases for now. Probably not worth generalizing before the generated code
+    // structure (and code generation strategy) is reviewed.
+    if term.isInstanceOf[Term.Function] && term.variables.nonEmpty then
+      val varName = term.variables.head
+      s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
+    else
+      val envTypeVariables = envOpt.toSet.flatMap(env => env.typeVariables)
+      if envTypeVariables.nonEmpty then
+        val varTypeName = envTypeVariables.head
+        val typStr = typeVarEnv.getOrElse(varTypeName, throw new Exception(s"Unbound type variable: $varTypeName"))
+        s"$typStr.flatMap($varTypeName => $typecheckExpr)"
+      else
+        typecheckExpr
+
+  def compileDestructurings(rule: RuleDecl): Seq[String] = rule.conclusion.assertion match {
+    case HasType(Term.Function(_, fnArgs*), _) if fnArgs.exists(_.variables.nonEmpty) =>
+      for case (Term.Function(fnName, Term.Variable(metaVarName)), idx) <- fnArgs.zipWithIndex yield
+        s"val ${getFreshVarName(metaVarName)} = ${getFreshVarName("e", idx)} match { case $fnName(v) => Right(v) ; case _ => Left(\"Not a $fnName\") }"
+    case _ => Seq()
+  }
+
   def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[Judgement, String], indent: String): String =
     val Judgement(conclEnvOpt, HasType(concl, typ)) = rule.conclusion
-    val subst = constructor.matches(concl).get
-    val subst2 = subst.filter((_, v) => v match { 
+    val subst = constructor.matches(concl).get.filter((_, v) => v match { 
       case Term.Variable(_) => false 
       case _ => true
     })
@@ -120,7 +146,16 @@ object TyesCodeGenerator:
       for case judg @ Judgement(_, HasType(_, premTyp)) <- rule.premises
       yield (inductionDeclNames(judg), premTyp)
     
-    val syntacticConds = subst2.map((n, v) => s"${n} == ${compile(v)}")
+    val syntacticConds = subst.map { (n, v) =>
+      if v.variables.nonEmpty then
+        // TODO: Hard-coded for a single variable for now. Probably not worth generalizing before the generated code
+        // structure (and code generation strategy) is reviewed.
+        val varName = v.variables.head
+        s"_$varName.isRight"
+      else
+        s"${n} == ${compile(v)}"
+    }
+    
     val envConds = conclEnvOpt.toSeq.map {
       case Environment.BindName(name, typ) =>
         val existsCheck = s"env.contains(\"${name}\")"

@@ -1,7 +1,7 @@
 package tyes.interpreter
 
 import tyes.model.*
-import TyesLanguageExtensions.*
+import tyes.model.TyesLanguageExtensions.*
 
 object TyesInterpreter:
 

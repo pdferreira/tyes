@@ -1,0 +1,11 @@
+typesystem MetaVar
+
+  rule ZeroConst
+    infers 0 : int
+
+  rule PiConst
+    infers pi : real
+
+  rule VarPlusOne
+    infers x + 1 : t 
+    if x : t

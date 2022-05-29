@@ -1,6 +1,4 @@
-package tyes.interpreter
-
-import tyes.model.*
+package tyes.model
 
 object TyesLanguageExtensions:
   
@@ -31,9 +29,18 @@ object TyesLanguageExtensions:
       case _ => None
     }
 
+    def typeVariables: Set[String] = metaEnv match {
+      case Environment.BindName(_, typ) => typ.variables
+    }
+
   extension (typ: Type)
 
     def substitute(typeVarEnv: Map[String, Type.Named]): Type = typ match {
       case Type.Named(_) => typ
       case Type.Variable(name) => typeVarEnv(name)
+    }
+
+    def variables: Set[String] = typ match {
+      case Type.Named(_) => Set()
+      case Type.Variable(name) => Set(name)
     }

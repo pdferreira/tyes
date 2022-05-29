@@ -26,6 +26,8 @@ class LExpressionContextParser(metaVariableParser: Parser[Term]):
   
   def expression: Parser[Term] = operator
 
-object LExpressionContextParser extends TermContextParserBuilder:
+object LExpressionLanguageBindings extends TyesTermLanguageBindings:
 
-  def apply(metaVariableParser: Parser[Term]) = new LExpressionContextParser(metaVariableParser).expression
+  def buildTermLanguageParser(metaVariableParser: Parser[Term]) = new LExpressionContextParser(metaVariableParser).expression
+
+  def buildVariableTerm(variableNameTerm: Term) = Term.Function("LVariable", variableNameTerm)
