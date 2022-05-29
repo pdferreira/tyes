@@ -80,7 +80,7 @@ object CommandLine:
     else if ext == ".scala" then
       invokeRunner(nameWithoutExt, srcContent, options.expression)
     else
-      Console.err.println(s"File type not recognized: ${ext}")   
+      Console.err.println(s"File type not recognized: $ext")   
 
   private def parseLExpression(srcContent: String): Option[LExpression] =
     LExpressionParser.parse(srcContent).withReadableError match {
@@ -118,7 +118,7 @@ object CommandLine:
 
       println(s"\tGenerating scala binaries...")
       val driver = new dotty.tools.dotc.Driver()
-      val report = driver.process(s"-usejavacp -d ${binDstDirPath} ${scalaDstFilePath}".split(" "))
+      val report = driver.process(s"-usejavacp -d $binDstDirPath $scalaDstFilePath".split(" "))
       if report.hasErrors then
         println(report.summary)
 
@@ -142,7 +142,7 @@ object CommandLine:
       Console.err.println("Unable to load scala file, no script engine found")
     else
       val tsClassName = objName
-      val rtTypeSystem = engine.eval(srcContent + s"\r\n${tsClassName}").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+      val rtTypeSystem = engine.eval(srcContent + s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
       runInteractive(
         line => {
           for exp <- parseLExpression(line) do 

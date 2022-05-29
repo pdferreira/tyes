@@ -43,7 +43,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   val expTexts = List("1", "2", "3", "1 + 2", "2 + 3", "1 + 1", "3 + 5", "2 + 1", "2 + 2")
   val parsedExps = for expText <- expTexts yield {
     val parseRes = expParser.parse(expText)
-    println(s"${expText} parses to ${parseRes}")
+    println(s"$expText parses to $parseRes")
     parseRes
   }
   
@@ -71,7 +71,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
       import LExpressionExtensions.given
       val interpreterResults = exps.map(e => TyesInterpreter.typecheck(tsDecl.get, e))
       for (e, idx) <- exps.zipWithIndex do
-        println(s"${e} has type ${interpreterResults(idx)}")
+        println(s"$e has type ${interpreterResults(idx)}")
     
       println()
       println("### Run code generation")
@@ -86,10 +86,10 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
       if e == null then
         println("No script engine found")
       else
-        val rtTypeSystem = e.eval(src + s"\r\n${tsClassName}").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+        val rtTypeSystem = e.eval(src + s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
         for (e, idx) <- exps.zipWithIndex do
           val typ = rtTypeSystem.typecheck(e, Map())
-          println(s"${e} has type ${typ}")
+          println(s"$e has type $typ")
 
           // Quick check if the interpreter results match by checking the string representation
           val interpreterResStr = interpreterResults(idx) match {
@@ -97,4 +97,4 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
             case t => t.toString
           }
           if typ.toOption.toString != interpreterResStr then
-            Console.err.println(s"Error: different interpreter result for ${e}: ${interpreterResults(idx)} vs ${typ}")
+            Console.err.println(s"Error: different interpreter result for $e: ${interpreterResults(idx)} vs $typ")

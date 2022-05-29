@@ -50,19 +50,19 @@ object TyesValidator:
       val psTermVariables = r.premises.flatMap(getTermVariables).toSet
       val unknownPsTermVariables = psTermVariables.diff(getTermVariables(concl))
       if !unknownPsTermVariables.isEmpty then
-        errors += s"Error: ${ruleName} premises use some identifiers not bound in the conclusion: ${unknownPsTermVariables.mkString(", ")}"
+        errors += s"Error: $ruleName premises use some identifiers not bound in the conclusion: ${unknownPsTermVariables.mkString(", ")}"
 
       for cTypeVar <- getTypeVars(concl.assertion) do 
         if r.premises.isEmpty && concl.env.isEmpty then
-          errors += s"Error: ${ruleName} conclusion uses a type variable but has no premises or environment: ${cTypeVar}"
+          errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVar"
         
         else if !r.premises.exists(judg => getTypeVars(judg.assertion).contains(cTypeVar)) then
           if concl.env.exists(env => getTypeVars(env).contains(cTypeVar)) then
             () // ok, bound in concl env
           else if !r.premises.exists(judg => judg.env.exists(env => getTypeVars(env).contains(cTypeVar))) then
-            errors += s"Error: ${ruleName} conclusion uses an unbound type variable: ${cTypeVar}"
+            errors += s"Error: $ruleName conclusion uses an unbound type variable: $cTypeVar"
           else
-            errors += s"Error: ${ruleName} conclusion uses a type variable that is only bound in a premise environment: ${cTypeVar}"
+            errors += s"Error: $ruleName conclusion uses a type variable that is only bound in a premise environment: $cTypeVar"
 
     return errors.toSeq
 
@@ -82,6 +82,6 @@ object TyesValidator:
         if r1.premises.isEmpty || r2.premises.isEmpty then
           val r1Name = getRuleDisplayName(r1, tsDecl)
           val r2Name = getRuleDisplayName(r2, tsDecl)
-          errors += s"Error: conclusions of ${r1Name} and ${r2Name} overlap but result in different types"
+          errors += s"Error: conclusions of $r1Name and $r2Name overlap but result in different types"
     
     return errors.toSeq

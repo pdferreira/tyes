@@ -19,7 +19,7 @@
           val _t1 = _x.flatMap(x => typecheck(LVariable(x), env))
           if _e2 == LNumber(1) && _x.isRight then
             _t1
-          else
+          else  
             Left(s"TypeError: no type for `$exp`")
         case LVariable(_c1) => 
           if _c1 == "pi" then
