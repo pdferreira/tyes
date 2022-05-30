@@ -2,6 +2,7 @@ package tyes.compiler
 
 import scala.collection.mutable.ListBuffer
 import tyes.model.*
+import tyes.model.TyesLanguageExtensions.*
 
 object TyesValidator:
 
@@ -11,29 +12,6 @@ object TyesValidator:
       case Some(n) => n.mkString("'", "", "'")
     }
     s"rule ${ruleName}"
-
-  private def getTypeVars(typ: Type): Set[String] = typ match {
-    case Type.Named(_) => Set()
-    case Type.Variable(name) => Set(name)
-  }
-
-  private def getTypeVars(asrt: Assertion): Set[String] = asrt match {
-    case HasType(_, t) => getTypeVars(t)
-  }
-
-  private def getTypeVars(env: Environment): Set[String] = env match {
-    case Environment.BindName(_, t) => getTypeVars(t)
-  }
-
-  private def getTypeVars(judg: Judgement): Set[String] =
-    getTypeVars(judg.assertion) ++ judg.env.toIterable.map(getTypeVars).flatten
-
-  private def getTermVariables(asrt: Assertion): Set[String] = asrt match {
-    case HasType(e, _) => e.variables
-  }
-
-  private def getTermVariables(judg: Judgement): Set[String] =
-    getTermVariables(judg.assertion)
 
   def validate(tsDecl: TypeSystemDecl): Seq[String] =
     Seq(
@@ -47,19 +25,19 @@ object TyesValidator:
       val ruleName = getRuleDisplayName(r, tsDecl)
       val concl = r.conclusion
 
-      val psTermVariables = r.premises.flatMap(getTermVariables).toSet
-      val unknownPsTermVariables = psTermVariables.diff(getTermVariables(concl))
+      val psTermVariables = r.premises.flatMap(_.termVariables).toSet
+      val unknownPsTermVariables = psTermVariables.diff(concl.termVariables)
       if !unknownPsTermVariables.isEmpty then
         errors += s"Error: $ruleName premises use some identifiers not bound in the conclusion: ${unknownPsTermVariables.mkString(", ")}"
 
-      for cTypeVar <- getTypeVars(concl.assertion) do 
+      for cTypeVar <- concl.assertion.typeVariables do 
         if r.premises.isEmpty && concl.env.isEmpty then
           errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVar"
         
-        else if !r.premises.exists(judg => getTypeVars(judg.assertion).contains(cTypeVar)) then
-          if concl.env.exists(env => getTypeVars(env).contains(cTypeVar)) then
+        else if !r.premises.exists(judg => judg.assertion.typeVariables.contains(cTypeVar)) then
+          if concl.env.exists(env => env.typeVariables.contains(cTypeVar)) then
             () // ok, bound in concl env
-          else if !r.premises.exists(judg => judg.env.exists(env => getTypeVars(env).contains(cTypeVar))) then
+          else if !r.premises.exists(judg => judg.env.exists(env => env.typeVariables.contains(cTypeVar))) then
             errors += s"Error: $ruleName conclusion uses an unbound type variable: $cTypeVar"
           else
             errors += s"Error: $ruleName conclusion uses a type variable that is only bound in a premise environment: $cTypeVar"

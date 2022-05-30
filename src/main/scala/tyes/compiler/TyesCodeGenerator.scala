@@ -6,23 +6,6 @@ import tyes.model.TyesLanguageExtensions.*
 
 object TyesCodeGenerator:
 
-  def getAllTypes(asrt: Assertion): Set[Type] = Set(asrt match {
-    case HasType(_, typ) => typ
-  })
-
-  def getAllTypes(env: Environment): Set[Type] = Set(env match {
-    case Environment.BindName(_, typ) => typ
-  })
-
-  def getAllTypes(judg: Judgement): Set[Type] = getAllTypes(judg.assertion) ++ judg.env.fold(Set())(getAllTypes)
-
-  def getAllTypes(tsDecl: TypeSystemDecl): Set[Type] =
-    (for 
-      case RuleDecl(_, prems, concl) <- tsDecl.rules
-      j <- concl +: prems
-      t <- getAllTypes(j)
-    yield t).toSet
-
   def getTypeSystemObjectName(tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"
 
   def compile(term: Term): String = term match {
@@ -254,7 +237,7 @@ object TyesCodeGenerator:
       type T = Type
     
       enum Type:
-        case ${(for case Type.Named(tname) <- getAllTypes(tsDecl) yield tname.capitalize).mkString(", ")}
+        case ${(for case Type.Named(tname) <- tsDecl.types yield tname.capitalize).mkString(", ")}
     
       def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
         ${compileTypecheck(tsDecl, "        ")}
