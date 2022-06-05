@@ -1,0 +1,15 @@
+typesystem SumDeclVar
+
+  rule infers 1 : one
+
+  rule infers 2 : two
+
+  rule infers 3 : three
+
+  rule Var
+    infers x : t under x : t
+
+  rule SumDecl
+    infers x + e : t
+    if e : t under x : two
+

@@ -19,12 +19,16 @@ object TyesCodeGenerator:
   }
 
   def compile(envOpt: Option[Environment], typSubst: Map[String, String]): String = envOpt match {
-    case Some(Environment.BindName(name, typ)) =>
+    case Some(env) =>
+      val (varNameExpr, typ) = env match {
+        case Environment.BindName(name, typ) => (s"\"$name\"", typ)
+        case Environment.BindVariable(name, typ) => (name, typ)
+      }
       typ match {
         case t @ Type.Named(_) => 
-          s"Map(\"$name\" -> ${compileNamedType(t)})"
+          s"Map($varNameExpr -> ${compileNamedType(t)})"
         case Type.Variable(varTypeName) => 
-          s"Map(\"$name\" -> $varTypeName)"
+          s"Map($varNameExpr -> $varTypeName)"
       }
     case None => 
       "env"
@@ -96,21 +100,27 @@ object TyesCodeGenerator:
 
   def compileInductionCall(judg: Judgement, typeVarEnv: Map[String, String]): String =
     val Judgement(envOpt, HasType(term, _)) = judg
-    val typecheckExpr = s"typecheck(${compile(term)}, ${compile(envOpt, typeVarEnv)})"
+    var typecheckExpr = s"typecheck(${compile(term)}, ${compile(envOpt, typeVarEnv)})"
 
     // TODO: Hard-coded for a single variable cases for now. Probably not worth generalizing before the generated code
     // structure (and code generation strategy) is reviewed.
     if term.isInstanceOf[Term.Function] && term.variables.nonEmpty then
       val varName = term.variables.head
-      s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
-    else
-      val envTypeVariables = envOpt.toSet.flatMap(env => env.typeVariables)
-      if envTypeVariables.nonEmpty then
-        val varTypeName = envTypeVariables.head
-        val typStr = typeVarEnv.getOrElse(varTypeName, throw new Exception(s"Unbound type variable: $varTypeName"))
-        s"$typStr.flatMap($varTypeName => $typecheckExpr)"
-      else
-        typecheckExpr
+      typecheckExpr = s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
+    
+    val envTypeVariables = envOpt.toSet.flatMap(env => env.typeVariables)
+    if envTypeVariables.nonEmpty then
+      val varTypeName = envTypeVariables.head
+      val typStr = typeVarEnv.getOrElse(varTypeName, throw new Exception(s"Unbound type variable: $varTypeName"))
+      typecheckExpr = s"$typStr.flatMap($varTypeName => $typecheckExpr)"
+    
+    val envTermVariables = envOpt.toSet.flatMap(env => env.termVariables)
+    if envTermVariables.nonEmpty then
+      val varName = envTermVariables.head
+      // TODO: validate if the variable is supposed to be bound here at all, otherwise it should be an explicit error
+      typecheckExpr = s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
+
+    return typecheckExpr
 
   def compileDestructurings(rule: RuleDecl): Seq[String] = rule.conclusion.assertion match {
     case HasType(Term.Function(_, fnArgs*), _) if fnArgs.exists(_.variables.nonEmpty) =>
@@ -120,40 +130,19 @@ object TyesCodeGenerator:
   }
 
   def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[Judgement, String], indent: String): String =
-    val Judgement(conclEnvOpt, HasType(concl, typ)) = rule.conclusion
-    val subst = constructor.matches(concl).get.filter((_, v) => v match { 
-      case Term.Variable(_) => false 
-      case _ => true
-    })
+    val Judgement(conclEnvOpt, HasType(concl, conclTyp)) = rule.conclusion
+    
+    val conds = generateSyntacticConditions(constructor, concl) ++ generateEnvironmentConditions(conclEnvOpt)
+    
     val premises = 
       for case judg @ Judgement(_, HasType(_, premTyp)) <- rule.premises
       yield (inductionDeclNames(judg), premTyp)
     
-    val syntacticConds = subst.map { (n, v) =>
-      if v.variables.nonEmpty then
-        // TODO: Hard-coded for a single variable for now. Probably not worth generalizing before the generated code
-        // structure (and code generation strategy) is reviewed.
-        val varName = v.variables.head
-        s"_$varName.isRight"
-      else
-        s"$n == ${compile(v)}"
-    }
-    
-    val envConds = conclEnvOpt.toSeq.map {
-      case Environment.BindName(name, typ) =>
-        val existsCheck = s"env.contains(\"$name\")"
-        // If we have an expected type, check right away, otherwise just check for containment
-        typ match {
-          case t @ Type.Named(_) => s"$existsCheck && env(\"$name\") == ${compileNamedType(t)}"
-          case Type.Variable(_) => existsCheck
-        }
-    }
-    val conds = syntacticConds ++ envConds
-
-    val extraPremises = conclEnvOpt.toSeq.collect {
-      case Environment.BindName(name, typ @ Type.Variable(_)) => s"Right(env(\"$name\"))" -> typ
-    }
-    val body = generateTypeCheckIf(premises ++ extraPremises, typ, leaveOpen = conds.isEmpty)
+    val extraPremise = 
+      for case (nameVarExpr, typ: Type.Variable) <- conclEnvOpt.map(generateEnvironmentBinding)
+      yield (s"Right(env($nameVarExpr))", typ)
+      
+    val body = generateTypeCheckIf(premises ++ extraPremise, conclTyp, leaveOpen = conds.isEmpty)
     
     if conds.isEmpty then
       body.mkString("\r\n" + indent)
@@ -163,6 +152,38 @@ object TyesCodeGenerator:
       ) ++ body.map("  " ++ _) ++ Seq(
         s"else "
       )).mkString("\r\n" + indent)
+
+  def generateSyntacticConditions(constructor: Term, conclTerm: Term): Iterable[String] =
+    val subst = constructor.matches(conclTerm).get.filter((_, v) => v match { 
+      case Term.Variable(_) => false 
+      case _ => true
+    })
+
+    subst.map { (n, v) =>
+      if v.variables.nonEmpty then
+        // TODO: Hard-coded for a single variable for now. Probably not worth generalizing before the generated code
+        // structure (and code generation strategy) is reviewed.
+        val varName = v.variables.head
+        s"_$varName.isRight"
+      else
+        s"$n == ${compile(v)}"
+    }
+
+  def generateEnvironmentBinding(env: Environment): (String, Type) = env match {
+    case Environment.BindName(name, typ) => (s"\"$name\"", typ)
+    case Environment.BindVariable(name, typ) => (name, typ)
+  }
+
+  def generateEnvironmentConditions(conclEnvOpt: Option[Environment]): Iterable[String] = conclEnvOpt.toSeq.map { env =>
+    val (varNameExpr, typ) = generateEnvironmentBinding(env)
+    
+    // If we have an expected type, check right away, otherwise just check for containment
+    val sizeCheckExpr = s"env.size == 1"
+    typ match {
+      case t @ Type.Named(_) => s"$sizeCheckExpr && env.get($varNameExpr) == Some(${compileNamedType(t)})"
+      case Type.Variable(_) => s"$sizeCheckExpr && env.contains($varNameExpr)"
+    }
+  }
 
   def generateTypeCheckIf(premisesToCheck: Seq[(String, Type)], conclTyp: Type, leaveOpen: Boolean): Seq[String] =
     /** General idea: the first occurence of a type variable must be bound to that type and then used

@@ -7,21 +7,19 @@ object TyesLanguageExtensions:
     def matches(env: Map[String, Type.Named]): Option[Map[String, Type.Named]] = metaEnv match {
       case Environment.BindName(name, typ) =>
         if env.contains(name) && env.size == 1 then
-          typ match {
-            case t @ Type.Named(_) => 
-              if t == env(name) then
-                Some(Map())
-              else
-                None
-            case Type.Variable(typVarName) =>
-              Some(Map(typVarName -> env(name)))
-          }
+          typ.matches(env(name))
+        else
+          None
+      case Environment.BindVariable(_, typ) =>
+        if env.size == 1 then
+          typ.matches(env.values.head)
         else
           None
     }
 
     def substitute(typeVarEnv: Map[String, Type.Named]): Environment = metaEnv match {
       case Environment.BindName(name, typ) => Environment.BindName(name, typ.substitute(typeVarEnv))
+      case Environment.BindVariable(name, typ) => Environment.BindVariable(name, typ.substitute(typeVarEnv)) 
     }
 
     def toConcrete: Option[Map[String, Type.Named]] = metaEnv match {
@@ -33,6 +31,7 @@ object TyesLanguageExtensions:
 
     def termVariables: Set[String] = metaEnv match {
       case Environment.BindName(_, _) => Set()
+      case Environment.BindVariable(name, _) => Set(name)
     }
 
     def types: Set[Type] = Set(metaEnv match {

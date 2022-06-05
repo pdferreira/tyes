@@ -10,9 +10,9 @@
     
       def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
         case LNumber(_c1) => 
-          if _c1 == 1 && env.contains("pi") && env("pi") == Type.Real then
+          if _c1 == 1 && env.size == 1 && env.get("pi") == Some(Type.Real) then
             Right(Type.Real)
-          else  if _c1 == 3 && env.contains("pi") then
+          else  if _c1 == 3 && env.size == 1 && env.contains("pi") then
             Right(env("pi"))
           else  if _c1 == 4 then
             Right(Type.Real)

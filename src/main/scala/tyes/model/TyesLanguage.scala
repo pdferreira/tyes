@@ -9,6 +9,7 @@ case class HasType(term: Term, typ: Type) extends Assertion
 
 enum Environment:
   case BindName(name: String, typ: Type)
+  case BindVariable(name: String, typ: Type)
 
 case class Judgement(env: Option[Environment], assertion: Assertion)
 

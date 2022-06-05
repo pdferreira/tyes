@@ -28,7 +28,11 @@ trait TyesParser(termLanguageBindings: TyesTermLanguageBindings):
   
   def judgement = assertion ~ ("under" ~> environment).? ^^ { case assert ~ env => Judgement(env, assert) }
   
-  def environment = declIdent ~ (":" ~> tpe) ^^ { case name ~ tpe => Environment.BindName(name, tpe) }
+  def environment = genericIdent ~ (":" ~> tpe) ^^ { case name ~ tpe => 
+    if metaVarIdent.matches(name)
+    then Environment.BindVariable(name, tpe)
+    else Environment.BindName(name, tpe) 
+  }
   
   def metaVariable = metaIdent ^^ { varName => 
     if metaVarIdent.matches(varName) 

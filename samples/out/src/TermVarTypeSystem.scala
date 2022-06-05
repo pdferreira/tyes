@@ -19,7 +19,7 @@
           else  
             Left(s"TypeError: no type for `$exp`")
         case LVariable(_c1) => 
-          if _c1 == "pi" && env.contains("pi") then
+          if _c1 == "pi" && env.size == 1 && env.contains("pi") then
             Right(env("pi"))
           else  
             Left(s"TypeError: no type for `$exp`")

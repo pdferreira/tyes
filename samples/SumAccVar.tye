@@ -1,0 +1,15 @@
+typesystem SumAccVar
+
+  rule infers 1 : one
+
+  rule infers 2 : two
+
+  rule infers 3 : three
+
+  rule Var
+    infers x : t under x : t
+
+  rule SumAcc
+    infers e1 + e2 : t2
+    if e1 : t1
+    and e2 : t2 under acc : t1
