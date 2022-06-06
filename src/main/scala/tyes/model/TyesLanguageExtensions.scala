@@ -4,22 +4,27 @@ object TyesLanguageExtensions:
   
   extension (metaEnv: Environment)
 
-    def matches(env: Map[String, Type.Named]): Option[Map[String, Type.Named]] = metaEnv match {
+    def matches(env: Map[String, Type.Named]): Option[(Map[String, String], Map[String, Type.Named])] = metaEnv match {
       case Environment.BindName(name, typ) =>
         if env.contains(name) && env.size == 1 then
-          typ.matches(env(name))
+          typ.matches(env(name)).map((Map(), _))
         else
           None
-      case Environment.BindVariable(_, typ) =>
+      case Environment.BindVariable(name, typ) =>
         if env.size == 1 then
-          typ.matches(env.values.head)
+          val (entryName, entryTyp) = env.toSeq.head
+          typ.matches(entryTyp).map((Map(name -> entryName), _))
         else
           None
     }
 
-    def substitute(typeVarEnv: Map[String, Type.Named]): Environment = metaEnv match {
-      case Environment.BindName(name, typ) => Environment.BindName(name, typ.substitute(typeVarEnv))
-      case Environment.BindVariable(name, typ) => Environment.BindVariable(name, typ.substitute(typeVarEnv)) 
+    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type.Named]): Environment = metaEnv match {
+      case Environment.BindName(name, typ) => Environment.BindName(name, typ.substitute(typeVarSubst))
+      case Environment.BindVariable(name, typ) => 
+        if termVarSubst.contains(name) then
+          Environment.BindName(termVarSubst(name), typ.substitute(typeVarSubst))
+        else
+          Environment.BindVariable(name, typ.substitute(typeVarSubst)) 
     }
 
     def toConcrete: Option[Map[String, Type.Named]] = metaEnv match {
