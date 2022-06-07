@@ -1,18 +1,27 @@
 {
-	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-	"name": "TyES",
-	"patterns": [
-		{
-			"include": "#keywords"
-		}
-	],
-	"repository": {
-		"keywords": {
-			"patterns": [{
-				"name": "keyword.control.tyes",
-				"match": "\\b(typesystem|rule|infers|if|and|under)\\b"
-			}]
-		}
-	},
-	"scopeName": "source.tyes"
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "TyES",
+  "patterns": [
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#meta-variables"
+    }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [{
+        "name": "keyword.control.tyes",
+        "match": "\\b(typesystem|rule|infers|if|and|under)\\b"
+      }]
+    },
+    "meta-variables": {
+      "patterns": [{
+        "name": "variable.name.meta-var.tyes",
+        "match": "[a-z](\\d+|'+)?"
+      }]
+    }
+  },
+  "scopeName": "source.tyes"
 }
