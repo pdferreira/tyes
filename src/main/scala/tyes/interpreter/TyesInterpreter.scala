@@ -32,7 +32,7 @@ object TyesInterpreter:
             case ((true, typeVarEnv), Judgement(premMetaEnvOpt, HasType(premTerm, premTyp))) => 
               // replace the term and type variables we already know in the premise env and then produce an
               // actual term env out of it
-              val premEnvOpt = premMetaEnvOpt.map(_.substitute(allVarSubst, envTypeSubst).toConcrete).getOrElse(Some(Map()))
+              val premEnvOpt = premMetaEnvOpt.map(_.substitute(allVarSubst, typeVarEnv).toConcrete).getOrElse(Some(termEnv))
               val refinedPremTerm = premTerm.substitute(allTermSubst)
               val resTyp = premEnvOpt.flatMap(premEnv => typecheck(tsDecl, refinedPremTerm, premEnv))
               premTyp match {

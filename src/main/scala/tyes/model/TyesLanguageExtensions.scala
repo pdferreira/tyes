@@ -58,7 +58,7 @@ object TyesLanguageExtensions:
 
     def substitute(typeVarEnv: Map[String, Type.Named]): Type = typ match {
       case Type.Named(_) => typ
-      case Type.Variable(name) => typeVarEnv(name)
+      case Type.Variable(name) => typeVarEnv.getOrElse(name, typ)
     }
 
     def variables: Set[String] = typ match {
