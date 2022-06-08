@@ -119,7 +119,6 @@ object TyesCodeGenerator:
       val varName = envTermVariables.head
       // TODO: validate if the variable is supposed to be bound here at all, otherwise it should be an explicit error
       typecheckExpr = s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
-      println(typecheckExpr)
 
     return typecheckExpr
 
