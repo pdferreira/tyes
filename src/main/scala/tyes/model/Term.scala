@@ -76,3 +76,9 @@ enum Term:
     val freshNamesSubst = Map.from(commonVarNames.map(name => name -> Term.Variable('$' + name)))
     val freshOtherTerm = otherTerm.substitute(freshNamesSubst)
     this.unifies(freshOtherTerm).isDefined
+
+  override def toString(): String = this match {
+    case Term.Constant(value) => s"C:$value"
+    case Term.Variable(name) =>  s"V:$name"
+    case Term.Function(name, args*) => args.mkString(s"$name(", ", ", ")")
+  }
