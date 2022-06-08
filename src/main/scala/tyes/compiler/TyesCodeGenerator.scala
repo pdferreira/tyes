@@ -76,7 +76,7 @@ object TyesCodeGenerator:
               r.premises.foldLeft(Map[String, String]()) {
                 case (typeVarEnv, judg @ Judgement(_, HasType(_, premTyp))) =>
                   val typVarName = inductionDeclNames(judg)
-                  val typecheckExpr = compileInductionCall(judg, typeVarEnv)
+                  val typecheckExpr = compileInductionCall(judg, typeVarEnv, c.variables)
                   
                   inductionDecls ++= s"\r\n$indent  val $typVarName = $typecheckExpr"
                   premTyp match {
@@ -98,14 +98,13 @@ object TyesCodeGenerator:
 
   def getTypeErrorString(expVarName: String): String = s"Left(s\"TypeError: no type for `$$$expVarName`\")"
 
-  def compileInductionCall(judg: Judgement, typeVarEnv: Map[String, String]): String =
+  def compileInductionCall(judg: Judgement, typeVarEnv: Map[String, String], declaredVariables: Set[String]): String =
     val Judgement(envOpt, HasType(term, _)) = judg
     var typecheckExpr = s"typecheck(${compile(term)}, ${compile(envOpt, typeVarEnv)})"
 
     // TODO: Hard-coded for a single variable cases for now. Probably not worth generalizing before the generated code
     // structure (and code generation strategy) is reviewed.
-    if term.isInstanceOf[Term.Function] && term.variables.nonEmpty then
-      val varName = term.variables.head
+    for case Term.Function(_, Term.Variable(varName)) <- Seq(term) do
       typecheckExpr = s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
     
     val envTypeVariables = envOpt.toSet.flatMap(env => env.typeVariables)
@@ -114,11 +113,13 @@ object TyesCodeGenerator:
       val typStr = typeVarEnv.getOrElse(varTypeName, throw new Exception(s"Unbound type variable: $varTypeName"))
       typecheckExpr = s"$typStr.flatMap($varTypeName => $typecheckExpr)"
     
+    // Destructure the variables from the environment *if* they are not already declared
     val envTermVariables = envOpt.toSet.flatMap(env => env.termVariables)
-    if envTermVariables.nonEmpty then
+    if envTermVariables.diff(declaredVariables).nonEmpty then
       val varName = envTermVariables.head
       // TODO: validate if the variable is supposed to be bound here at all, otherwise it should be an explicit error
       typecheckExpr = s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
+      println(typecheckExpr)
 
     return typecheckExpr
 

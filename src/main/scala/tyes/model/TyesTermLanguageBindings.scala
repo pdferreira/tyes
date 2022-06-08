@@ -4,6 +4,7 @@ import Parsers.*
 
 trait TyesTermLanguageBindings:
   
-  def buildTermLanguageParser(metaVariableParser: Parser[Term]): Parser[Term]
-
-  def buildVariableTerm(variableNameTerm: Term): Term
+  def buildTermLanguageParser(
+    metaTermVariableParser: Parser[Term],
+    newIdentifierTerm: String => Term
+  ): Parser[Term]

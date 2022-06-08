@@ -34,13 +34,14 @@ trait TyesParser(termLanguageBindings: TyesTermLanguageBindings):
     else Environment.BindName(name, tpe) 
   }
   
-  def metaVariable = metaIdent ^^ { varName => 
-    if metaVarIdent.matches(varName) 
-    then termLanguageBindings.buildVariableTerm(Term.Variable(varName)) 
-    else Term.Variable(varName) 
-  }
+  def metaTermVariable = metaIdent.filter(id => !metaVarIdent.matches(id)) ^^ { varName => Term.Variable(varName) }
+
+  def newIdentifierTerm(ident: String): Term =
+    if metaVarIdent.matches(ident)
+    then Term.Variable(ident)
+    else Term.Constant(ident)
   
-  def term = termLanguageBindings.buildTermLanguageParser(metaVariable)
+  def term = termLanguageBindings.buildTermLanguageParser(metaTermVariable, newIdentifierTerm)
   
   def tpe = genericIdent ^^ { case name => 
     if metaIdent.matches(name) 

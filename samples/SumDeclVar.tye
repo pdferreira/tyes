@@ -12,4 +12,3 @@ typesystem SumDeclVar
   rule SumDecl
     infers x + e : t
     if e : t under x : two
-
