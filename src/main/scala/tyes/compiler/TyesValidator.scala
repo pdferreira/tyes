@@ -30,6 +30,11 @@ object TyesValidator:
       if !unknownPsTermVariables.isEmpty then
         errors += s"Error: $ruleName premises use some identifiers not bound in the conclusion: ${unknownPsTermVariables.mkString(", ")}"
 
+      val conclEnvTermVariables = concl.env.toSet.flatMap(_.termVariables)
+      val unknownConclEnvTermVariables = conclEnvTermVariables.diff(concl.assertion.termVariables)
+      if !unknownConclEnvTermVariables.isEmpty then
+        errors += s"Error: $ruleName conclusion environment uses some identifiers not bound in its term: ${unknownConclEnvTermVariables.mkString(", ")}"
+        
       for cTypeVar <- concl.assertion.typeVariables do 
         if r.premises.isEmpty && concl.env.isEmpty then
           errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVar"
