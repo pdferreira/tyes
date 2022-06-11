@@ -6,3 +6,15 @@ typesystem TermVar
   rule SumPiVar
     infers pi + 1 : sumpi
     if pi : real under pi : real
+
+  rule ConstVar
+    infers const : t1 under pi : t2, const : t1
+
+  rule SumConstVar
+    infers const + 1 : sumpi under pi : t2
+    if const : int under pi : t2, const : int
+
+  rule Let
+    infers let x = e1 in e2 : t2
+    if e1 : t1
+    and e2 : t2 under x : t1

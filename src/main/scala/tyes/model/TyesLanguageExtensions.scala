@@ -2,47 +2,80 @@ package tyes.model
 
 object TyesLanguageExtensions:
   
-  extension (metaEnv: Environment)
+  extension (metaBinding: Binding)
 
-    def matches(env: Map[String, Type.Named]): Option[(Map[String, String], Map[String, Type.Named])] = metaEnv match {
-      case Environment.BindName(name, typ) =>
-        if env.contains(name) && env.size == 1 then
-          typ.matches(env(name)).map((Map(), _))
-        else
-          None
-      case Environment.BindVariable(name, typ) =>
-        if env.size == 1 then
-          val (entryName, entryTyp) = env.toSeq.head
+    def matches(entry: (String, Type.Named)): Option[(Map[String, String], Map[String, Type.Named])] = 
+      val (entryName, entryTyp) = entry
+      metaBinding match {
+        case Binding.BindName(name, typ) =>
+          if entryName == name then
+            typ.matches(entryTyp).map((Map(), _))
+          else
+            None
+        case Binding.BindVariable(name, typ) =>
           typ.matches(entryTyp).map((Map(name -> entryName), _))
-        else
-          None
-    }
+      }
 
-    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type.Named]): Environment = metaEnv match {
-      case Environment.BindName(name, typ) => Environment.BindName(name, typ.substitute(typeVarSubst))
-      case Environment.BindVariable(name, typ) => 
+    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type.Named]): Binding = metaBinding match {
+      case Binding.BindName(name, typ) => Binding.BindName(name, typ.substitute(typeVarSubst))
+      case Binding.BindVariable(name, typ) => 
         if termVarSubst.contains(name) then
-          Environment.BindName(termVarSubst(name), typ.substitute(typeVarSubst))
+          Binding.BindName(termVarSubst(name), typ.substitute(typeVarSubst))
         else
-          Environment.BindVariable(name, typ.substitute(typeVarSubst)) 
+          Binding.BindVariable(name, typ.substitute(typeVarSubst)) 
     }
 
-    def toConcrete: Option[Map[String, Type.Named]] = metaEnv match {
-      case Environment.BindName(name, typ @ Type.Named(_)) => Some(Map(name -> typ))
+    def toConcrete: Option[(String, Type.Named)] = metaBinding match {
+      case Binding.BindName(name, typ @ Type.Named(_)) => Some(name -> typ)
       case _ => None
     }
 
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
-    def termVariables: Set[String] = metaEnv match {
-      case Environment.BindName(_, _) => Set()
-      case Environment.BindVariable(name, _) => Set(name)
+    def termVariables: Set[String] = metaBinding match {
+      case Binding.BindName(_, _) => Set()
+      case Binding.BindVariable(name, _) => Set(name)
     }
 
-    def types: Set[Type] = Set(metaEnv match {
-      case Environment.BindName(_, typ) => typ
-      case Environment.BindVariable(_, typ) => typ
+    def types: Set[Type] = Set(metaBinding match {
+      case Binding.BindName(_, typ) => typ
+      case Binding.BindVariable(_, typ) => typ
     })
+
+  extension (metaEnv: Environment)
+
+    def matches(env: Map[String, Type.Named]): Option[(Map[String, String], Map[String, Type.Named])] =
+      if metaEnv.bindings.isEmpty != env.isEmpty then
+        None
+      else
+        val (remEntries, matchRes) = metaEnv.bindings.foldLeft((env.toSeq, Option((Map[String, String](), Map[String, Type.Named]())))) { case ((entries, substsOpt), b) =>
+          substsOpt.map { (prevTermVarSubst, prevTypeVarSubst) =>
+            val matches = for e <- entries ; m <- b.matches(e) yield (e, m)
+            if matches.isEmpty then
+              (Seq(), Option.empty)
+            else
+              val (entry, (termVarSubst, typeVarSubst)) = matches.head
+              (entries.filterNot(_ == entry), Option((prevTermVarSubst ++ termVarSubst, prevTypeVarSubst ++ typeVarSubst)))
+          }.getOrElse((Seq(), Option.empty))
+        }
+        if remEntries.isEmpty then
+          matchRes
+        else
+          None
+
+    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type.Named]): Environment = 
+      Environment(metaEnv.bindings.map(_.substitute(termVarSubst, typeVarSubst)))
+
+    def toConcrete: Option[Map[String, Type.Named]] = 
+      metaEnv.bindings.foldLeft(Option(Map[String, Type.Named]())) { (envOpt, binding) =>
+        binding.toConcrete.zip(envOpt).map { (entry, env) => env + entry }
+      }
+
+    def typeVariables: Set[String] = types.flatMap(_.variables)
+
+    def termVariables: Set[String] = metaEnv.bindings.flatMap(_.termVariables).toSet
+
+    def types: Set[Type] = metaEnv.bindings.flatMap(_.types).toSet
 
   extension (typ: Type)
 

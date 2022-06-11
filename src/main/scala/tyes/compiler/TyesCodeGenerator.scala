@@ -17,19 +17,25 @@ object TyesCodeGenerator:
     case Term.Variable(name) => name
     case Term.Function(name, args*) => name + args.map(compile).mkString("(", ", ", ")")
   }
+  
+  def generateBinding(binding: Binding): (String, Type) = binding match {
+    case Binding.BindName(name, typ) => (s"\"$name\"", typ)
+    case Binding.BindVariable(name, typ) => (name, typ)
+  }
+
+  def compile(binding: Binding, typSubst: Map[String, String]): String =
+    val (varNameExpr, typ) = generateBinding(binding)
+    typ match {
+      case t @ Type.Named(_) => 
+        s"$varNameExpr -> ${compileNamedType(t)}"
+      case Type.Variable(varTypeName) => 
+        s"$varNameExpr -> $varTypeName"
+    }
 
   def compile(envOpt: Option[Environment], typSubst: Map[String, String]): String = envOpt match {
     case Some(env) =>
-      val (varNameExpr, typ) = env match {
-        case Environment.BindName(name, typ) => (s"\"$name\"", typ)
-        case Environment.BindVariable(name, typ) => (name, typ)
-      }
-      typ match {
-        case t @ Type.Named(_) => 
-          s"Map($varNameExpr -> ${compileNamedType(t)})"
-        case Type.Variable(varTypeName) => 
-          s"Map($varNameExpr -> $varTypeName)"
-      }
+      val entryExprs = env.bindings.map(compile(_, typSubst))
+      entryExprs.mkString("Map(", ", ", ")")
     case None => 
       "env"
   }
@@ -73,7 +79,14 @@ object TyesCodeGenerator:
             // TODO: Type variables are now properly scoped per rule, but now common premises don't get merged...
             // This needs a big rewrite
             for r <- rs do
-              r.premises.foldLeft(Map[String, String]()) {
+              val typeVarsFromEnv = 
+                for
+                  conclEnv <- r.conclusion.env.toSeq
+                  case (varNameExpr, Type.Variable(typVarName)) <- conclEnv.bindings.map(generateBinding)
+                yield
+                  typVarName -> s"env.get($varNameExpr).toRight(s\"'$${$varNameExpr}' not found\")"
+              
+              r.premises.foldLeft(Map.from(typeVarsFromEnv)) {
                 case (typeVarEnv, judg @ Judgement(_, HasType(_, premTyp))) =>
                   val typVarName = inductionDeclNames(judg)
                   val typecheckExpr = compileInductionCall(judg, typeVarEnv, c.variables)
@@ -138,11 +151,14 @@ object TyesCodeGenerator:
       for case judg @ Judgement(_, HasType(_, premTyp)) <- rule.premises
       yield (inductionDeclNames(judg), premTyp)
     
-    val extraPremise = 
-      for case (nameVarExpr, typ: Type.Variable) <- conclEnvOpt.map(generateEnvironmentBinding)
-      yield (s"Right(env($nameVarExpr))", typ)
+    val extraPremises = 
+      for
+        conclEnv <- conclEnvOpt.toSeq
+        case (nameVarExpr, typ: Type.Variable) <- conclEnv.bindings.map(generateBinding)
+      yield 
+        (s"Right(env($nameVarExpr))", typ)
       
-    val body = generateTypeCheckIf(premises ++ extraPremise, conclTyp, leaveOpen = conds.isEmpty)
+    val body = generateTypeCheckIf(premises ++ extraPremises, conclTyp, leaveOpen = conds.isEmpty)
     
     if conds.isEmpty then
       body.mkString("\r\n" + indent)
@@ -169,20 +185,21 @@ object TyesCodeGenerator:
         s"$n == ${compile(v)}"
     }
 
-  def generateEnvironmentBinding(env: Environment): (String, Type) = env match {
-    case Environment.BindName(name, typ) => (s"\"$name\"", typ)
-    case Environment.BindVariable(name, typ) => (name, typ)
-  }
-
   def generateEnvironmentConditions(conclEnvOpt: Option[Environment]): Iterable[String] = conclEnvOpt.toSeq.map { env =>
-    val (varNameExpr, typ) = generateEnvironmentBinding(env)
-    
-    // If we have an expected type, check right away, otherwise just check for containment
-    val sizeCheckExpr = s"env.size == 1"
-    typ match {
-      case t @ Type.Named(_) => s"$sizeCheckExpr && env.get($varNameExpr) == Some(${compileNamedType(t)})"
-      case Type.Variable(_) => s"$sizeCheckExpr && env.contains($varNameExpr)"
-    }
+    // For each binding, if we have an expected type, check right away, otherwise just check for containment
+    val genBindings = 
+      for 
+        b <- env.bindings
+        (varNameExpr, typ) = generateBinding(b)
+      yield typ match {
+        case t @ Type.Named(_) => s"env.get($varNameExpr) == Some(${compileNamedType(t)})"
+        case Type.Variable(_) => s"env.contains($varNameExpr)"
+      }
+
+    if genBindings.isEmpty then
+      "env.isEmpty"
+    else
+      s"env.size == ${genBindings.size} && ${genBindings.mkString(" && ")}"
   }
 
   def generateTypeCheckIf(premisesToCheck: Seq[(String, Type)], conclTyp: Type, leaveOpen: Boolean): Seq[String] =
@@ -224,7 +241,11 @@ object TyesCodeGenerator:
               (conds :+ s"$typCheckRes == ${typeVarEnv(typVarName)}", typeVarEnv)
             else
               val newTypeVarEnv = typeVarEnv + (typVarName -> typCheckRes)
-              (conds :+ s"$typCheckRes.isRight", newTypeVarEnv)
+              // TODO: review this temporary hack used to prettify the generated code
+              if typCheckRes.startsWith("Right(") then
+                (conds, newTypeVarEnv)
+              else
+                (conds :+ s"$typCheckRes.isRight", newTypeVarEnv)
         }
     }
     
