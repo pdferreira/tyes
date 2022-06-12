@@ -1,0 +1,18 @@
+typesystem LetVarOpenEnv
+
+  rule infers 1 : one
+
+  rule infers 2 : two
+
+  rule Var
+    infers x : t under Env, x : t
+
+  rule Plus
+    infers e1 + e2 : t
+    if e1 : t
+    and e2 : t
+
+  rule Let
+    infers let x = e1 in e2 : t2 under Env
+    if e1 : t1 under Env
+    and e2 : t2 under Env, x : t1

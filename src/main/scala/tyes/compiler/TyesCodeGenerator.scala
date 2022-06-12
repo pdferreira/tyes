@@ -32,15 +32,29 @@ object TyesCodeGenerator:
         s"$varNameExpr -> $varTypeName"
     }
 
-  def compile(envOpt: Option[Environment], typSubst: Map[String, String]): String = envOpt match {
-    case Some(env) =>
-      val entryExprs = env.bindings.map(compile(_, typSubst))
+  def compile(env: EnvironmentPart, typSubst: Map[String, String]): String = env match {
+    case EnvironmentPart.Bindings(bindings) =>
+      val entryExprs = bindings.map(compile(_, typSubst))
       entryExprs.mkString("Map(", ", ", ")")
-    case None => 
+    case EnvironmentPart.Variable(_) =>
+      // TODO: take into account env var name 
+      // getEnvFreshVarName(name)
       "env"
   }
 
+  def compile(env: Environment, typSubst: Map[String, String]): String =
+    if env.parts.isEmpty then
+      "env"
+    else
+      env.parts.map(compile(_, typSubst)).mkString(" ++ ")
+
   def compileNamedType(typ: Type.Named): String = s"Type.${typ.name.capitalize}"
+
+  def getEnvFreshVarName(base: String): String =
+    if base.head.isLower then
+      getFreshVarName(base)
+    else
+      getEnvFreshVarName(base.head.toLower + base.substring(1))
 
   def getFreshVarName(base: String): String = s"_$base"
 
@@ -71,7 +85,8 @@ object TyesCodeGenerator:
       yield
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
-          case Seq(r @ RuleDecl(_, Seq(), Judgement(None, HasType(Term.Variable(_), _)))) => compileRule(c, r, Map(), indent)
+          case Seq(r @ RuleDecl(_, Seq(), Judgement(Environment(Seq()), HasType(Term.Variable(_), _)))) => 
+            compileRule(c, r, Map(), indent)
           case _ =>
             val inductionDeclNames = rs.flatMap(_.premises).zipWithIndex.toMap.mapValues(idx => getFreshVarName("t", idx))
             val destructureDecls = rs.flatMap(compileDestructurings).map(line => s"\r\n$indent  $line").mkString
@@ -81,8 +96,8 @@ object TyesCodeGenerator:
             for r <- rs do
               val typeVarsFromEnv = 
                 for
-                  conclEnv <- r.conclusion.env.toSeq
-                  case (varNameExpr, Type.Variable(typVarName)) <- conclEnv.bindings.map(generateBinding)
+                  case EnvironmentPart.Bindings(bindings)  <- r.conclusion.env.parts
+                  case (varNameExpr, Type.Variable(typVarName)) <- bindings.map(generateBinding)
                 yield
                   typVarName -> s"env.get($varNameExpr).toRight(s\"'$${$varNameExpr}' not found\")"
               
@@ -112,22 +127,22 @@ object TyesCodeGenerator:
   def getTypeErrorString(expVarName: String): String = s"Left(s\"TypeError: no type for `$$$expVarName`\")"
 
   def compileInductionCall(judg: Judgement, typeVarEnv: Map[String, String], declaredVariables: Set[String]): String =
-    val Judgement(envOpt, HasType(term, _)) = judg
-    var typecheckExpr = s"typecheck(${compile(term)}, ${compile(envOpt, typeVarEnv)})"
+    val Judgement(env, HasType(term, _)) = judg
+    var typecheckExpr = s"typecheck(${compile(term)}, ${compile(env, typeVarEnv)})"
 
     // TODO: Hard-coded for a single variable cases for now. Probably not worth generalizing before the generated code
     // structure (and code generation strategy) is reviewed.
     for case Term.Function(_, Term.Variable(varName)) <- Seq(term) do
       typecheckExpr = s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
     
-    val envTypeVariables = envOpt.toSet.flatMap(env => env.typeVariables)
+    val envTypeVariables = env.typeVariables
     if envTypeVariables.nonEmpty then
       val varTypeName = envTypeVariables.head
       val typStr = typeVarEnv.getOrElse(varTypeName, throw new Exception(s"Unbound type variable: $varTypeName"))
       typecheckExpr = s"$typStr.flatMap($varTypeName => $typecheckExpr)"
     
     // Destructure the variables from the environment *if* they are not already declared
-    val envTermVariables = envOpt.toSet.flatMap(env => env.termVariables)
+    val envTermVariables = env.termVariables
     if envTermVariables.diff(declaredVariables).nonEmpty then
       val varName = envTermVariables.head
       // TODO: validate if the variable is supposed to be bound here at all, otherwise it should be an explicit error
@@ -143,9 +158,9 @@ object TyesCodeGenerator:
   }
 
   def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[Judgement, String], indent: String): String =
-    val Judgement(conclEnvOpt, HasType(concl, conclTyp)) = rule.conclusion
+    val Judgement(conclEnv, HasType(concl, conclTyp)) = rule.conclusion
     
-    val conds = generateSyntacticConditions(constructor, concl) ++ generateEnvironmentConditions(conclEnvOpt)
+    val conds = generateSyntacticConditions(constructor, concl) ++ generateEnvironmentPartConditions(conclEnv)
     
     val premises = 
       for case judg @ Judgement(_, HasType(_, premTyp)) <- rule.premises
@@ -153,8 +168,8 @@ object TyesCodeGenerator:
     
     val extraPremises = 
       for
-        conclEnv <- conclEnvOpt.toSeq
-        case (nameVarExpr, typ: Type.Variable) <- conclEnv.bindings.map(generateBinding)
+        case EnvironmentPart.Bindings(bindings) <- conclEnv.parts
+        case (nameVarExpr, typ: Type.Variable) <- bindings.map(generateBinding)
       yield 
         (s"Right(env($nameVarExpr))", typ)
       
@@ -185,21 +200,32 @@ object TyesCodeGenerator:
         s"$n == ${compile(v)}"
     }
 
-  def generateEnvironmentConditions(conclEnvOpt: Option[Environment]): Iterable[String] = conclEnvOpt.toSeq.map { env =>
-    // For each binding, if we have an expected type, check right away, otherwise just check for containment
-    val genBindings = 
+  def generateEnvironmentPartConditions(env: Environment): Iterable[String] =
+    val sizeOpt = 
+      if env.parts.isEmpty || env.parts.exists(_.isInstanceOf[EnvironmentPart.Variable])
+      then None
+      else Some(env.parts.collect({ case EnvironmentPart.Bindings(bs) => bs.length }).sum)
+
+    val sizeCondition = sizeOpt.map(size => 
+      if size == 0 
+      then "env.isEmpty"
+      else s"env.size == $size"
+    )
+
+    sizeCondition.toSeq ++ env.parts.flatMap(generateEnvironmentPartConditions)
+
+  def generateEnvironmentPartConditions(env: EnvironmentPart): Iterable[String] = env match {
+    case EnvironmentPart.Bindings(bindings) =>  
+      // For each binding, if we have an expected type, check right away, otherwise just check for containment
       for 
-        b <- env.bindings
+        b <- bindings
         (varNameExpr, typ) = generateBinding(b)
       yield typ match {
         case t @ Type.Named(_) => s"env.get($varNameExpr) == Some(${compileNamedType(t)})"
         case Type.Variable(_) => s"env.contains($varNameExpr)"
       }
-
-    if genBindings.isEmpty then
-      "env.isEmpty"
-    else
-      s"env.size == ${genBindings.size} && ${genBindings.mkString(" && ")}"
+    case EnvironmentPart.Variable(_) => 
+      Seq()
   }
 
   def generateTypeCheckIf(premisesToCheck: Seq[(String, Type)], conclTyp: Type, leaveOpen: Boolean): Seq[String] =

@@ -11,9 +11,13 @@ enum Binding:
   case BindName(name: String, typ: Type)
   case BindVariable(name: String, typ: Type)
 
-case class Environment(bindings: Seq[Binding])
+enum EnvironmentPart:
+  case Bindings(bindings: Seq[Binding])
+  case Variable(name: String)
 
-case class Judgement(env: Option[Environment], assertion: Assertion)
+case class Environment(parts: Seq[EnvironmentPart])
+
+case class Judgement(env: Environment, assertion: Assertion)
 
 case class RuleDecl(name: Option[String], premises: Seq[Judgement], conclusion: Judgement)
 case class TypeSystemDecl(name: Option[String], rules: Seq[RuleDecl])

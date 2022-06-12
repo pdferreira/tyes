@@ -26,9 +26,16 @@ trait TyesParser(termLanguageBindings: TyesTermLanguageBindings):
   
   def assertion = term ~ (":" ~> tpe) ^^ { case term ~ tpe => HasType(term, tpe) }
   
-  def judgement = assertion ~ ("under" ~> environment).? ^^ { case assert ~ envOpt => Judgement(envOpt, assert) }
+  def judgement = assertion ~ ("under" ~> environment).? ^^ { case assert ~ envOpt => 
+    val env = envOpt.getOrElse(Environment(Seq()))
+    Judgement(env, assert) 
+  }
   
-  def environment = rep1sep(binding, ",") ^^ { case bs => Environment(bs) }
+  def environment = rep1sep(environmentPart, ",") ^^ { case parts => Environment(parts) }
+
+  def environmentPart = 
+    genericIdent ^^ { case name => EnvironmentPart.Variable(name) }
+    ||| rep1sep(binding, ",") ^^ { case bs => EnvironmentPart.Bindings(bs) }
 
   def binding = genericIdent ~ (":" ~> tpe) ^^ { case name ~ tpe => 
     if metaVarIdent.matches(name)

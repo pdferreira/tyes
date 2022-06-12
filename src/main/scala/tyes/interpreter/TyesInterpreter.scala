@@ -6,11 +6,11 @@ import tyes.model.TyesLanguageExtensions.*
 object TyesInterpreter:
 
   def typecheck(tsDecl: TypeSystemDecl, ruleDecl: RuleDecl, term: Term, termEnv: Map[String, Type.Named]): Option[Type] = ruleDecl.conclusion match {
-    case Judgement(metaEnvOpt, HasType(metaTerm, typ)) =>
+    case Judgement(metaEnv, HasType(metaTerm, typ)) =>
       // match the conclusion env to the rule to see if it's applicable at all
-      val envSubstOpt = metaEnvOpt match {
-        case None => Some((Map(), Map()))
-        case Some(metaEnv) => metaEnv.matches(termEnv)
+      val envSubstOpt = metaEnv.parts match {
+        case Seq() => Some((Map(), Map()))
+        case Seq(metaEnv) => metaEnv.matches(termEnv)
       }
       
       envSubstOpt.flatMap { (envVarSubst, envTypeSubst) =>
@@ -29,10 +29,10 @@ object TyesInterpreter:
             // if one of the premises failed, propagate failure
             case (acc @ (false, typeVarEnv), _) => acc 
             // otherwise, check the next premise
-            case ((true, typeVarEnv), Judgement(premMetaEnvOpt, HasType(premTerm, premTyp))) => 
+            case ((true, typeVarEnv), Judgement(premMetaEnv, HasType(premTerm, premTyp))) => 
               // replace the term and type variables we already know in the premise env and then produce an
               // actual term env out of it
-              val premEnvOpt = premMetaEnvOpt.map(_.substitute(allVarSubst, typeVarEnv).toConcrete).getOrElse(Some(termEnv))
+              val premEnvOpt = premMetaEnv.parts.headOption.map(_.substitute(allVarSubst, typeVarEnv).toConcrete).getOrElse(Some(termEnv))
               val refinedPremTerm = premTerm.substitute(allTermSubst)
               val resTyp = premEnvOpt.flatMap(premEnv => typecheck(tsDecl, refinedPremTerm, premEnv))
               premTyp match {

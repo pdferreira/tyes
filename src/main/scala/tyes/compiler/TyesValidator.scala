@@ -30,19 +30,19 @@ object TyesValidator:
       if !unknownPsTermVariables.isEmpty then
         errors += s"Error: $ruleName premises use some identifiers not bound in the conclusion: ${unknownPsTermVariables.mkString(", ")}"
 
-      val conclEnvTermVariables = concl.env.toSet.flatMap(_.termVariables)
+      val conclEnvTermVariables = concl.env.termVariables
       val unknownConclEnvTermVariables = conclEnvTermVariables.diff(concl.assertion.termVariables)
       if !unknownConclEnvTermVariables.isEmpty then
         errors += s"Error: $ruleName conclusion environment uses some identifiers not bound in its term: ${unknownConclEnvTermVariables.mkString(", ")}"
         
       for cTypeVar <- concl.assertion.typeVariables do 
-        if r.premises.isEmpty && concl.env.isEmpty then
+        if r.premises.isEmpty && concl.env.parts.isEmpty then
           errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVar"
         
         else if !r.premises.exists(judg => judg.assertion.typeVariables.contains(cTypeVar)) then
-          if concl.env.exists(env => env.typeVariables.contains(cTypeVar)) then
+          if concl.env.typeVariables.contains(cTypeVar) then
             () // ok, bound in concl env
-          else if !r.premises.exists(judg => judg.env.exists(env => env.typeVariables.contains(cTypeVar))) then
+          else if !r.premises.exists(judg => judg.env.typeVariables.contains(cTypeVar)) then
             errors += s"Error: $ruleName conclusion uses an unbound type variable: $cTypeVar"
           else
             errors += s"Error: $ruleName conclusion uses a type variable that is only bound in a premise environment: $cTypeVar"

@@ -22,7 +22,7 @@ object TyesLanguageExtensions:
         if termVarSubst.contains(name) then
           Binding.BindName(termVarSubst(name), typ.substitute(typeVarSubst))
         else
-          Binding.BindVariable(name, typ.substitute(typeVarSubst)) 
+          Binding.BindVariable(name, typ.substitute(typeVarSubst))
     }
 
     def toConcrete: Option[(String, Type.Named)] = metaBinding match {
@@ -37,45 +37,64 @@ object TyesLanguageExtensions:
       case Binding.BindVariable(name, _) => Set(name)
     }
 
-    def types: Set[Type] = Set(metaBinding match {
-      case Binding.BindName(_, typ) => typ
-      case Binding.BindVariable(_, typ) => typ
-    })
+    def types: Set[Type] = metaBinding match {
+      case Binding.BindName(_, typ) => Set(typ)
+      case Binding.BindVariable(_, typ) => Set(typ)
+    }
 
-  extension (metaEnv: Environment)
+  extension (envPart: EnvironmentPart)
 
-    def matches(env: Map[String, Type.Named]): Option[(Map[String, String], Map[String, Type.Named])] =
-      if metaEnv.bindings.isEmpty != env.isEmpty then
-        None
-      else
-        val (remEntries, matchRes) = metaEnv.bindings.foldLeft((env.toSeq, Option((Map[String, String](), Map[String, Type.Named]())))) { case ((entries, substsOpt), b) =>
-          substsOpt.map { (prevTermVarSubst, prevTypeVarSubst) =>
-            val matches = for e <- entries ; m <- b.matches(e) yield (e, m)
-            if matches.isEmpty then
-              (Seq(), Option.empty)
-            else
-              val (entry, (termVarSubst, typeVarSubst)) = matches.head
-              (entries.filterNot(_ == entry), Option((prevTermVarSubst ++ termVarSubst, prevTypeVarSubst ++ typeVarSubst)))
-          }.getOrElse((Seq(), Option.empty))
-        }
-        if remEntries.isEmpty then
-          matchRes
-        else
+    def matches(env: Map[String, Type.Named]): Option[(Map[String, String], Map[String, Type.Named])] = envPart match {
+      case EnvironmentPart.Bindings(bindings) =>
+        if bindings.isEmpty != env.isEmpty then
           None
+        else
+          val (remEntries, matchRes) = bindings.foldLeft((env.toSeq, Option((Map[String, String](), Map[String, Type.Named]())))) { case ((entries, substsOpt), b) =>
+            substsOpt.map { (prevTermVarSubst, prevTypeVarSubst) =>
+              val matches = for e <- entries ; m <- b.matches(e) yield (e, m)
+              if matches.isEmpty then
+                (Seq(), Option.empty)
+              else
+                val (entry, (termVarSubst, typeVarSubst)) = matches.head
+                (entries.filterNot(_ == entry), Option((prevTermVarSubst ++ termVarSubst, prevTypeVarSubst ++ typeVarSubst)))
+            }.getOrElse((Seq(), Option.empty))
+          }
+          if remEntries.isEmpty then
+            matchRes
+          else
+            None
+    }
 
-    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type.Named]): Environment = 
-      Environment(metaEnv.bindings.map(_.substitute(termVarSubst, typeVarSubst)))
+    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type.Named]): EnvironmentPart = envPart match {
+      case EnvironmentPart.Bindings(bindings) => EnvironmentPart.Bindings(bindings.map(_.substitute(termVarSubst, typeVarSubst)))
+    }
 
-    def toConcrete: Option[Map[String, Type.Named]] = 
-      metaEnv.bindings.foldLeft(Option(Map[String, Type.Named]())) { (envOpt, binding) =>
-        binding.toConcrete.zip(envOpt).map { (entry, env) => env + entry }
-      }
+    def toConcrete: Option[Map[String, Type.Named]] = envPart match {
+      case EnvironmentPart.Bindings(bindings) => 
+        bindings.foldLeft(Option(Map[String, Type.Named]())) { (envOpt, binding) =>
+          binding.toConcrete.zip(envOpt).map { (entry, env) => env + entry }
+        }
+    }
 
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
-    def termVariables: Set[String] = metaEnv.bindings.flatMap(_.termVariables).toSet
+    def termVariables: Set[String] = envPart match {
+      case EnvironmentPart.Bindings(bindings) => bindings.flatMap(_.termVariables).toSet
+      case EnvironmentPart.Variable(_) => Set()
+    }
 
-    def types: Set[Type] = metaEnv.bindings.flatMap(_.types).toSet
+    def types: Set[Type] = envPart match {
+      case EnvironmentPart.Bindings(bindings) => bindings.flatMap(_.types).toSet
+      case EnvironmentPart.Variable(_) => Set()
+    }
+
+  extension (metaEnv: Environment)
+
+    def typeVariables: Set[String] = types.flatMap(_.variables)
+
+    def termVariables: Set[String] = metaEnv.parts.flatMap(_.termVariables).toSet
+
+    def types: Set[Type] = metaEnv.parts.flatMap(_.types).toSet
 
   extension (typ: Type)
 
@@ -103,9 +122,9 @@ object TyesLanguageExtensions:
 
     def typeVariables: Set[String] = judg.types.flatMap(_.variables)
 
-    def termVariables: Set[String] = judg.assertion.termVariables ++ judg.env.fold(Set())(_.termVariables)
+    def termVariables: Set[String] = judg.assertion.termVariables ++ judg.env.termVariables
 
-    def types: Set[Type] = judg.assertion.types ++ judg.env.fold(Set())(_.types)
+    def types: Set[Type] = judg.assertion.types ++ judg.env.types
 
   extension (asrt: Assertion)
 
