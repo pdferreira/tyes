@@ -5,34 +5,36 @@ import tyes.model.TyesLanguageExtensions.*
 
 object TyesInterpreter:
 
+  private val DefaultEnvVarName = "env"
+
   def typecheck(tsDecl: TypeSystemDecl, ruleDecl: RuleDecl, term: Term, termEnv: Map[String, Type.Named]): Option[Type] = ruleDecl.conclusion match {
     case Judgement(metaEnv, HasType(metaTerm, typ)) =>
-      // match the conclusion env to the rule to see if it's applicable at all
-      val envSubstOpt = metaEnv.parts match {
-        case Seq() => Some((Map(), Map()))
-        case Seq(metaEnv) => metaEnv.matches(termEnv)
-      }
-      
-      envSubstOpt.flatMap { (envVarSubst, envTypeSubst) =>
+      metaTerm.matches(term).flatMap { (termSubst) =>
         // replace the vars we already unified in the term
-        val envTermSubst = envVarSubst.mapValues(Term.Constant(_)).toMap
-        val refinedMetaTerm = metaTerm.substitute(envTermSubst)
+        // TODO: review assumption that only string constants that are directly unified are variables
+        val termVarSubst = termSubst.collect { case (k, Term.Constant(varName: String)) => k -> varName }
+        val refinedMetaEnv = metaEnv.substitute(EnvironmentMatch(termVarSubst), DefaultEnvVarName)
 
-        refinedMetaTerm.matches(term).flatMap { (termSubst) =>
+        // match the conclusion env to the rule to see if it's applicable at all
+        refinedMetaEnv.matches(termEnv, DefaultEnvVarName).flatMap { case m @ EnvironmentMatch(envTermVarSubst, envTypeVarSubst, envVarSubst) =>
+          val envTermSubst = envTermVarSubst.mapValues(Term.Constant(_)).toMap
+          val refinedMetaTerm = metaTerm.substitute(envTermSubst)
+
           // build variable substitutions considering info from term and environment
-          // TODO: review assumption that only string constants that are directly unified are variables
-          val allVarSubst = envVarSubst ++ termSubst.collect { case (k, Term.Constant(varName: String)) => k -> varName }
+          val allVarSubst = envTermVarSubst ++ termVarSubst
           val allTermSubst = envTermSubst ++ termSubst
 
           // check all premises hold, while unifying possible type variables
-          val (premisesHold, finalTypeVarEnv) = ruleDecl.premises.foldLeft((true, envTypeSubst)) { 
+          val (premisesHold, finalTypeVarEnv) = ruleDecl.premises.foldLeft((true, envTypeVarSubst)) { 
             // if one of the premises failed, propagate failure
             case (acc @ (false, typeVarEnv), _) => acc 
             // otherwise, check the next premise
             case ((true, typeVarEnv), Judgement(premMetaEnv, HasType(premTerm, premTyp))) => 
               // replace the term and type variables we already know in the premise env and then produce an
               // actual term env out of it
-              val premEnvOpt = premMetaEnv.parts.headOption.map(_.substitute(allVarSubst, typeVarEnv).toConcrete).getOrElse(Some(termEnv))
+              val premEnvMatch = EnvironmentMatch(allVarSubst, typeVarEnv, envVarSubst)
+              val premEnvOpt = premMetaEnv.substitute(premEnvMatch, DefaultEnvVarName).toConcrete
+
               val refinedPremTerm = premTerm.substitute(allTermSubst)
               val resTyp = premEnvOpt.flatMap(premEnv => typecheck(tsDecl, refinedPremTerm, premEnv))
               premTyp match {

@@ -42,31 +42,51 @@ object TyesLanguageExtensions:
       case Binding.BindVariable(_, typ) => Set(typ)
     }
 
+  case class EnvironmentMatch(
+    termVarSubst: Map[String, String] = Map(),
+    typeVarSubst: Map[String, Type.Named] = Map(),
+    envVarSubst: Map[String, Map[String, Type.Named]] = Map()
+  )
+
   extension (envPart: EnvironmentPart)
 
-    def matches(env: Map[String, Type.Named]): Option[(Map[String, String], Map[String, Type.Named])] = envPart match {
+    def matches(env: Map[String, Type.Named], remainingEnvVar: Option[String]): Option[EnvironmentMatch] = envPart match {
       case EnvironmentPart.Bindings(bindings) =>
         if bindings.isEmpty != env.isEmpty then
           None
         else
-          val (remEntries, matchRes) = bindings.foldLeft((env.toSeq, Option((Map[String, String](), Map[String, Type.Named]())))) { case ((entries, substsOpt), b) =>
-            substsOpt.map { (prevTermVarSubst, prevTypeVarSubst) =>
+          val (remEntries, matchRes) = bindings.foldLeft((env.toSeq, Option(EnvironmentMatch()))) { case ((entries, prevEnvMatchOpt), b) =>
+            prevEnvMatchOpt.map { prevEnvMatch =>
               val matches = for e <- entries ; m <- b.matches(e) yield (e, m)
               if matches.isEmpty then
                 (Seq(), Option.empty)
               else
                 val (entry, (termVarSubst, typeVarSubst)) = matches.head
-                (entries.filterNot(_ == entry), Option((prevTermVarSubst ++ termVarSubst, prevTypeVarSubst ++ typeVarSubst)))
+                val newEnvMatch = EnvironmentMatch(
+                  prevEnvMatch.termVarSubst ++ termVarSubst,
+                  prevEnvMatch.typeVarSubst ++ typeVarSubst
+                )
+                (entries.filterNot(_ == entry), Option(newEnvMatch))
             }.getOrElse((Seq(), Option.empty))
           }
+
           if remEntries.isEmpty then
             matchRes
           else
-            None
+            remainingEnvVar.zip(matchRes).map { (remEnvVarName, m) => 
+              m.copy(envVarSubst = Map(remEnvVarName -> Map.from(remEntries)))
+            }
+      case EnvironmentPart.Variable(envVarName) => Some(EnvironmentMatch(envVarSubst = Map(envVarName -> env)))
     }
 
-    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type.Named]): EnvironmentPart = envPart match {
-      case EnvironmentPart.Bindings(bindings) => EnvironmentPart.Bindings(bindings.map(_.substitute(termVarSubst, typeVarSubst)))
+    def substitute(envMatch: EnvironmentMatch): EnvironmentPart = envPart match {
+      case EnvironmentPart.Bindings(bindings) => EnvironmentPart.Bindings(bindings.map(_.substitute(envMatch.termVarSubst, envMatch.typeVarSubst)))
+      case EnvironmentPart.Variable(_) => 
+        if envMatch.envVarSubst.isEmpty then
+          envPart
+        else
+          val singleEntry = envMatch.envVarSubst.values.head;
+          EnvironmentPart.Bindings(singleEntry.toSeq.map((name, typ) => Binding.BindName(name, typ)))
     }
 
     def toConcrete: Option[Map[String, Type.Named]] = envPart match {
@@ -74,6 +94,7 @@ object TyesLanguageExtensions:
         bindings.foldLeft(Option(Map[String, Type.Named]())) { (envOpt, binding) =>
           binding.toConcrete.zip(envOpt).map { (entry, env) => env + entry }
         }
+      case EnvironmentPart.Variable(_) => Some(Map())
     }
 
     def typeVariables: Set[String] = types.flatMap(_.variables)
@@ -89,6 +110,31 @@ object TyesLanguageExtensions:
     }
 
   extension (metaEnv: Environment)
+
+    def matches(env: Map[String, Type.Named], defaultEnvVarName: String): Option[EnvironmentMatch] =
+      if metaEnv.parts.isEmpty then
+        Some(EnvironmentMatch(envVarSubst = Map(defaultEnvVarName -> env)))
+      else
+        val remainingEnvVarOpt = metaEnv.parts.collectFirst({ case EnvironmentPart.Variable(_) => defaultEnvVarName })
+        val allBindingSeqs = metaEnv.parts.collect({ case EnvironmentPart.Bindings(bs) => bs })
+        if allBindingSeqs.isEmpty then
+          remainingEnvVarOpt.map(envVarName => 
+            EnvironmentMatch(envVarSubst = Map(envVarName -> env))
+          )
+        else
+          EnvironmentPart.Bindings(allBindingSeqs.flatten).matches(env, remainingEnvVarOpt)
+
+    def substitute(envMatch: EnvironmentMatch, defaultEnvVarName: String): Environment =
+      if metaEnv.parts.isEmpty then
+        val defaultVarPart = EnvironmentPart.Variable(defaultEnvVarName).substitute(envMatch)
+        Environment(Seq(defaultVarPart))
+      else
+        Environment(metaEnv.parts.map(_.substitute(envMatch)))
+
+    def toConcrete: Option[Map[String, Type.Named]] =
+      metaEnv.parts.map(_.toConcrete).foldLeft(Option(Map[String, Type.Named]())) { (prevEnvOpt, currEnvOpt) =>
+        prevEnvOpt.zip(currEnvOpt).map(_ ++ _)
+      }
 
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
