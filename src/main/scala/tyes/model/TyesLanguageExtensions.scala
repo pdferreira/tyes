@@ -81,12 +81,11 @@ object TyesLanguageExtensions:
 
     def substitute(envMatch: EnvironmentMatch): EnvironmentPart = envPart match {
       case EnvironmentPart.Bindings(bindings) => EnvironmentPart.Bindings(bindings.map(_.substitute(envMatch.termVarSubst, envMatch.typeVarSubst)))
-      case EnvironmentPart.Variable(_) => 
-        if envMatch.envVarSubst.isEmpty then
-          envPart
-        else
-          val singleEntry = envMatch.envVarSubst.values.head;
-          EnvironmentPart.Bindings(singleEntry.toSeq.map((name, typ) => Binding.BindName(name, typ)))
+      case EnvironmentPart.Variable(envVarName) =>
+        envMatch.envVarSubst.get(envVarName) match {
+          case None => envPart
+          case Some(env) => EnvironmentPart.Bindings(env.toSeq.map((name, typ) => Binding.BindName(name, typ)))
+        } 
     }
 
     def toConcrete: Option[Map[String, Type.Named]] = envPart match {
@@ -111,25 +110,21 @@ object TyesLanguageExtensions:
 
   extension (metaEnv: Environment)
 
-    def matches(env: Map[String, Type.Named], defaultEnvVarName: String): Option[EnvironmentMatch] =
-      if metaEnv.parts.isEmpty then
-        Some(EnvironmentMatch(envVarSubst = Map(defaultEnvVarName -> env)))
+    def matches(env: Map[String, Type.Named]): Option[EnvironmentMatch] =
+      val remainingEnvVars = metaEnv.parts.collect({ case EnvironmentPart.Variable(envVarName) => envVarName })
+      if remainingEnvVars.length > 1 then
+        throw new NotImplementedError("Environments with more than one environment variable are unsupported")
+      
+      val allBindingSeqs = metaEnv.parts.collect({ case EnvironmentPart.Bindings(bs) => bs })
+      if allBindingSeqs.isEmpty then
+        remainingEnvVars.headOption.map(envVarName => 
+          EnvironmentMatch(envVarSubst = Map(envVarName -> env))
+        )
       else
-        val remainingEnvVarOpt = metaEnv.parts.collectFirst({ case EnvironmentPart.Variable(_) => defaultEnvVarName })
-        val allBindingSeqs = metaEnv.parts.collect({ case EnvironmentPart.Bindings(bs) => bs })
-        if allBindingSeqs.isEmpty then
-          remainingEnvVarOpt.map(envVarName => 
-            EnvironmentMatch(envVarSubst = Map(envVarName -> env))
-          )
-        else
-          EnvironmentPart.Bindings(allBindingSeqs.flatten).matches(env, remainingEnvVarOpt)
+        EnvironmentPart.Bindings(allBindingSeqs.flatten).matches(env, remainingEnvVars.headOption)
 
-    def substitute(envMatch: EnvironmentMatch, defaultEnvVarName: String): Environment =
-      if metaEnv.parts.isEmpty then
-        val defaultVarPart = EnvironmentPart.Variable(defaultEnvVarName).substitute(envMatch)
-        Environment(Seq(defaultVarPart))
-      else
-        Environment(metaEnv.parts.map(_.substitute(envMatch)))
+    def substitute(envMatch: EnvironmentMatch): Environment =
+      Environment(metaEnv.parts.map(_.substitute(envMatch)))
 
     def toConcrete: Option[Map[String, Type.Named]] =
       metaEnv.parts.map(_.toConcrete).foldLeft(Option(Map[String, Type.Named]())) { (prevEnvOpt, currEnvOpt) =>
