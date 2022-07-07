@@ -3,10 +3,11 @@ package tyes.compiler
 import scala.collection.mutable
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
+import utils.StringExtensions.*
 
-object TyesCodeGenerator:
+private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
-  def getTypeSystemObjectName(tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"
+  val defaultEnvVarExpr = getEnvFreshVarName(defaultEnvName)
 
   def compile(term: Term): String = term match {
     case Term.Constant(value) => value match {
@@ -36,25 +37,20 @@ object TyesCodeGenerator:
     case EnvironmentPart.Bindings(bindings) =>
       val entryExprs = bindings.map(compile(_, typSubst))
       entryExprs.mkString("Map(", ", ", ")")
-    case EnvironmentPart.Variable(_) =>
-      // TODO: take into account env var name 
-      // getEnvFreshVarName(name)
-      "env"
+    case EnvironmentPart.Variable(name) =>
+      if name != defaultEnvName then
+        throw new Exception("Compilation of rules with distinct environment variables is not supported")
+
+      defaultEnvVarExpr
   }
 
   def compile(env: Environment, typSubst: Map[String, String]): String =
-    if env.parts.isEmpty then
-      "env"
-    else
-      env.parts.map(compile(_, typSubst)).mkString(" ++ ")
+    assert(!env.parts.isEmpty)
+    env.parts.map(compile(_, typSubst)).mkString(" ++ ")
 
   def compileNamedType(typ: Type.Named): String = s"Type.${typ.name.capitalize}"
 
-  def getEnvFreshVarName(base: String): String =
-    if base.head.isLower then
-      getFreshVarName(base)
-    else
-      getEnvFreshVarName(base.head.toLower + base.substring(1))
+  def getEnvFreshVarName(base: String): String = base.decapitalize
 
   def getFreshVarName(base: String): String = s"_$base"
 
@@ -85,7 +81,7 @@ object TyesCodeGenerator:
       yield
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
-          case Seq(r @ RuleDecl(_, Seq(), Judgement(Environment(Seq()), HasType(Term.Variable(_), _)))) => 
+          case Seq(r @ RuleDecl(_, Seq(), Judgement(Environment(Seq(EnvironmentPart.Variable(_))), HasType(Term.Variable(_), _)))) => 
             compileRule(c, r, Map(), indent)
           case _ =>
             val inductionDeclNames = rs.flatMap(_.premises).zipWithIndex.toMap.mapValues(idx => getFreshVarName("t", idx))
@@ -96,13 +92,13 @@ object TyesCodeGenerator:
             for r <- rs do
               val typeVarsFromEnv = 
                 for
-                  case EnvironmentPart.Bindings(bindings)  <- r.conclusion.env.parts
+                  case EnvironmentPart.Bindings(bindings) <- r.conclusion.env.parts
                   case (varNameExpr, Type.Variable(typVarName)) <- bindings.map(generateBinding)
                 yield
-                  typVarName -> s"env.get($varNameExpr).toRight(s\"'$${$varNameExpr}' not found\")"
-              
+                  typVarName -> s"$defaultEnvVarExpr.get($varNameExpr).toRight(s\"'$${$varNameExpr}' not found\")"
+
               r.premises.foldLeft(Map.from(typeVarsFromEnv)) {
-                case (typeVarEnv, judg @ Judgement(_, HasType(_, premTyp))) =>
+                case (typeVarEnv, judg @ Judgement(premEnv, HasType(premTerm, premTyp))) =>
                   val typVarName = inductionDeclNames(judg)
                   val typecheckExpr = compileInductionCall(judg, typeVarEnv, c.variables)
                   
@@ -171,7 +167,7 @@ object TyesCodeGenerator:
         case EnvironmentPart.Bindings(bindings) <- conclEnv.parts
         case (nameVarExpr, typ: Type.Variable) <- bindings.map(generateBinding)
       yield 
-        (s"Right(env($nameVarExpr))", typ)
+        (s"Right($defaultEnvVarExpr($nameVarExpr))", typ)
       
     val body = generateTypeCheckIf(premises ++ extraPremises, conclTyp, leaveOpen = conds.isEmpty)
     
@@ -201,15 +197,17 @@ object TyesCodeGenerator:
     }
 
   def generateEnvironmentPartConditions(env: Environment): Iterable[String] =
+    assert(!env.parts.isEmpty)
+
     val sizeOpt = 
-      if env.parts.isEmpty || env.parts.exists(_.isInstanceOf[EnvironmentPart.Variable])
+      if !env.envVariables.isEmpty
       then None
       else Some(env.parts.collect({ case EnvironmentPart.Bindings(bs) => bs.length }).sum)
 
     val sizeCondition = sizeOpt.map(size => 
       if size == 0 
-      then "env.isEmpty"
-      else s"env.size == $size"
+      then s"$defaultEnvVarExpr.isEmpty"
+      else s"$defaultEnvVarExpr.size == $size"
     )
 
     sizeCondition.toSeq ++ env.parts.flatMap(generateEnvironmentPartConditions)
@@ -221,8 +219,8 @@ object TyesCodeGenerator:
         b <- bindings
         (varNameExpr, typ) = generateBinding(b)
       yield typ match {
-        case t @ Type.Named(_) => s"env.get($varNameExpr) == Some(${compileNamedType(t)})"
-        case Type.Variable(_) => s"env.contains($varNameExpr)"
+        case t @ Type.Named(_) => s"$defaultEnvVarExpr.get($varNameExpr) == Some(${compileNamedType(t)})"
+        case Type.Variable(_) => s"$defaultEnvVarExpr.contains($varNameExpr)"
       }
     case EnvironmentPart.Variable(_) => 
       Seq()
@@ -296,19 +294,28 @@ object TyesCodeGenerator:
       
       ifCode ++ elseCode
 
-  def compile(tsDecl: TypeSystemDecl): String =
+  private def compileTypeSystem(tsDecl: TypeSystemDecl): String =
     s"""
     import tyes.runtime.*
     import example.*
     
-    object ${getTypeSystemObjectName(tsDecl)} extends TypeSystem[LExpression]:
+    object ${TyesCodeGenerator.getTypeSystemObjectName(tsDecl)} extends TypeSystem[LExpression]:
       type T = Type
     
       enum Type:
         case ${(for case Type.Named(tname) <- tsDecl.types yield tname.capitalize).mkString(", ")}
     
-      def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
+      def typecheck(exp: LExpression, $defaultEnvVarExpr: Map[String, Type]): Either[String, Type] = exp match {
         ${compileTypecheck(tsDecl, "        ")}
         case _ => ${getTypeErrorString("exp")}
       }
     """
+
+object TyesCodeGenerator:
+
+  def compile(tsDecl: TypeSystemDecl): String =
+    val commonEnvName = TyesEnvDesugarer.inferEnvVarName(tsDecl).getOrElse("env")
+    val desugaredTsDecl = TyesEnvDesugarer(commonEnvName).desugar(tsDecl)
+    TyesCodeGenerator(commonEnvName).compileTypeSystem(desugaredTsDecl)
+
+  def getTypeSystemObjectName(tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"

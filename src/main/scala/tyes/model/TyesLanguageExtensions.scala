@@ -45,7 +45,7 @@ object TyesLanguageExtensions:
   case class EnvironmentMatch(
     termVarSubst: Map[String, String] = Map(),
     typeVarSubst: Map[String, Type.Named] = Map(),
-    envVarSubst: Map[String, Map[String, Type.Named]] = Map()
+    envVarSubst: Map[String, Either[String, Map[String, Type.Named]]] = Map()
   )
 
   extension (envPart: EnvironmentPart)
@@ -74,9 +74,9 @@ object TyesLanguageExtensions:
             matchRes
           else
             remainingEnvVar.zip(matchRes).map { (remEnvVarName, m) => 
-              m.copy(envVarSubst = Map(remEnvVarName -> Map.from(remEntries)))
+              m.copy(envVarSubst = Map(remEnvVarName -> Right(Map.from(remEntries))))
             }
-      case EnvironmentPart.Variable(envVarName) => Some(EnvironmentMatch(envVarSubst = Map(envVarName -> env)))
+      case EnvironmentPart.Variable(envVarName) => Some(EnvironmentMatch(envVarSubst = Map(envVarName -> Right(env))))
     }
 
     def substitute(envMatch: EnvironmentMatch): EnvironmentPart = envPart match {
@@ -84,7 +84,8 @@ object TyesLanguageExtensions:
       case EnvironmentPart.Variable(envVarName) =>
         envMatch.envVarSubst.get(envVarName) match {
           case None => envPart
-          case Some(env) => EnvironmentPart.Bindings(env.toSeq.map((name, typ) => Binding.BindName(name, typ)))
+          case Some(Left(newEnvVarName)) => EnvironmentPart.Variable(newEnvVarName)
+          case Some(Right(env)) => EnvironmentPart.Bindings(env.toSeq.map((name, typ) => Binding.BindName(name, typ)))
         } 
     }
 
@@ -111,14 +112,14 @@ object TyesLanguageExtensions:
   extension (metaEnv: Environment)
 
     def matches(env: Map[String, Type.Named]): Option[EnvironmentMatch] =
-      val remainingEnvVars = metaEnv.parts.collect({ case EnvironmentPart.Variable(envVarName) => envVarName })
-      if remainingEnvVars.length > 1 then
+      val remainingEnvVars = metaEnv.envVariables
+      if remainingEnvVars.size > 1 then
         throw new NotImplementedError("Environments with more than one environment variable are unsupported")
       
       val allBindingSeqs = metaEnv.parts.collect({ case EnvironmentPart.Bindings(bs) => bs })
       if allBindingSeqs.isEmpty then
         remainingEnvVars.headOption.map(envVarName => 
-          EnvironmentMatch(envVarSubst = Map(envVarName -> env))
+          EnvironmentMatch(envVarSubst = Map(envVarName -> Right(env)))
         )
       else
         EnvironmentPart.Bindings(allBindingSeqs.flatten).matches(env, remainingEnvVars.headOption)
@@ -134,6 +135,8 @@ object TyesLanguageExtensions:
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
     def termVariables: Set[String] = metaEnv.parts.flatMap(_.termVariables).toSet
+
+    def envVariables: Set[String] = metaEnv.parts.collect({ case EnvironmentPart.Variable(name) => name }).toSet
 
     def types: Set[Type] = metaEnv.parts.flatMap(_.types).toSet
 
