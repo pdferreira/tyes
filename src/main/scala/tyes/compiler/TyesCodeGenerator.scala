@@ -9,14 +9,22 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
   val defaultEnvVarExpr = getEnvFreshVarName(defaultEnvName)
 
-  def compile(term: Term): String = term match {
-    case Term.Constant(value) => value match {
+  def compileValue(value: Any, typSubst: Map[String, String]): String = value match {
       case i: Int => i.toString
       case s: String => '\"' + s + '\"'
-      case _ => throw new Exception(s"No compilation defined for constants of type ${value.getClass().getSimpleName}: $value")
-    }
+      case t: Type => t match {
+        case tn @ Type.Named(_) => compileNamedType(tn)
+        case Type.Variable(typVarName) => typSubst(typVarName)
+      }
+      case Some(tv: Type.Variable) => s"${compileValue(tv, typSubst)}.toOption"
+      case opt: Option[Any] => opt.map(compileValue(_, typSubst)).toString
+      case _ => throw new Exception(s"No compilation defined for constants of type ${value.getClass().getName()}: $value")
+  }
+
+  def compile(term: Term, typSubst: Map[String, String]): String = term match {
+    case Term.Constant(value) => compileValue(value, typSubst)
     case Term.Variable(name) => name
-    case Term.Function(name, args*) => name + args.map(compile).mkString("(", ", ", ")")
+    case Term.Function(name, args*) => name + args.map(compile(_, typSubst)).mkString("(", ", ", ")")
   }
   
   def generateBinding(binding: Binding): (String, Type) = binding match {
@@ -82,11 +90,12 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
           case Seq(r @ RuleDecl(_, Seq(), Judgement(Environment(Seq(EnvironmentPart.Variable(_))), HasType(Term.Variable(_), _)))) => 
-            compileRule(c, r, Map(), indent)
+            compileRule(c, r, Map(), Map(), indent)
           case _ =>
             val inductionDeclNames = rs.flatMap(_.premises).zipWithIndex.toMap.mapValues(idx => getFreshVarName("t", idx))
             val destructureDecls = rs.flatMap(compileDestructurings).map(line => s"\r\n$indent  $line").mkString
             val inductionDecls = new mutable.StringBuilder()
+            val typeVarsPerRule = mutable.Map[RuleDecl, Map[String, String]]()
             // TODO: Type variables are now properly scoped per rule, but now common premises don't get merged...
             // This needs a big rewrite
             for r <- rs do
@@ -97,7 +106,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
                 yield
                   typVarName -> s"$defaultEnvVarExpr.get($varNameExpr).toRight(s\"'$${$varNameExpr}' not found\")"
 
-              r.premises.foldLeft(Map.from(typeVarsFromEnv)) {
+              val ruleTypeVarEnv = r.premises.foldLeft(Map.from(typeVarsFromEnv)) {
                 case (typeVarEnv, judg @ Judgement(premEnv, HasType(premTerm, premTyp))) =>
                   val typVarName = inductionDeclNames(judg)
                   val typecheckExpr = compileInductionCall(judg, typeVarEnv, c.variables)
@@ -112,19 +121,20 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
                         typeVarEnv + (premTypVar -> typVarName) 
                   }
               }
+              typeVarsPerRule += r -> ruleTypeVarEnv
 
             val defaultCase = s"\r\n$indent    ${getTypeErrorString("exp")}"
-            val ruleEvaluations = rs.foldRight(defaultCase)((r, res) => compileRule(c, r, inductionDeclNames, indent + "  ") + " " + res)
+            val ruleEvaluations = rs.foldRight(defaultCase)((r, res) => compileRule(c, r, inductionDeclNames, typeVarsPerRule(r), indent + "  ") + " " + res)
             s"${destructureDecls}${inductionDecls}\r\n$indent  $ruleEvaluations"
         }
-        s"case ${compile(c)} => $caseBody" 
+        s"case ${compile(c, Map())} => $caseBody" 
     ).mkString(s"\r\n$indent")
 
   def getTypeErrorString(expVarName: String): String = s"Left(s\"TypeError: no type for `$$$expVarName`\")"
 
   def compileInductionCall(judg: Judgement, typeVarEnv: Map[String, String], declaredVariables: Set[String]): String =
     val Judgement(env, HasType(term, _)) = judg
-    var typecheckExpr = s"typecheck(${compile(term)}, ${compile(env, typeVarEnv)})"
+    var typecheckExpr = s"typecheck(${compile(term, typeVarEnv)}, ${compile(env, typeVarEnv)})"
 
     // TODO: Hard-coded for a single variable cases for now. Probably not worth generalizing before the generated code
     // structure (and code generation strategy) is reviewed.
@@ -153,10 +163,10 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
     case _ => Seq()
   }
 
-  def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[Judgement, String], indent: String): String =
+  def compileRule(constructor: Term, rule: RuleDecl, inductionDeclNames: PartialFunction[Judgement, String], typeVarEnv: Map[String, String], indent: String): String =
     val Judgement(conclEnv, HasType(concl, conclTyp)) = rule.conclusion
     
-    val conds = generateSyntacticConditions(constructor, concl) ++ generateEnvironmentPartConditions(conclEnv)
+    val conds = generateSyntacticConditions(constructor, concl, typeVarEnv) ++ generateEnvironmentPartConditions(conclEnv)
     
     val premises = 
       for case judg @ Judgement(_, HasType(_, premTyp)) <- rule.premises
@@ -180,7 +190,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
         s"else "
       )).mkString("\r\n" + indent)
 
-  def generateSyntacticConditions(constructor: Term, conclTerm: Term): Iterable[String] =
+  def generateSyntacticConditions(constructor: Term, conclTerm: Term, typSubst: Map[String, String]): Iterable[String] =
     val subst = constructor.matches(conclTerm).get.filter((_, v) => v match { 
       case Term.Variable(_) => false 
       case _ => true
@@ -193,7 +203,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
         val varName = v.variables.head
         s"_$varName.isRight"
       else
-        s"$n == ${compile(v)}"
+        s"$n == ${compile(v, typSubst)}"
     }
 
   def generateEnvironmentPartConditions(env: Environment): Iterable[String] =

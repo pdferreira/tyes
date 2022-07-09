@@ -2,7 +2,7 @@ package tyes.model
 
 import Parsers.*
 
-trait TyesParser(termLanguageBindings: TyesTermLanguageBindings):
+trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Term]):
 
   val keywords = Set("typesystem", "rule", "infers", "if", "and", "under")
   
@@ -50,7 +50,11 @@ trait TyesParser(termLanguageBindings: TyesTermLanguageBindings):
     then Term.Variable(ident)
     else Term.Constant(ident)
   
-  def term = termLanguageBindings.buildTermLanguageParser(metaTermVariable, newIdentifierTerm)
+  def term = buildTermLanguageParser(new TyesTermLanguageBindings {
+    def metaTermVariableParser = metaTermVariable
+    def identTermParser(ident: String) = Parsers.success(newIdentifierTerm(ident))
+    def typeParser = tpe
+  })
   
   def tpe = genericIdent ^^ { case name => 
     if metaIdent.matches(name) 

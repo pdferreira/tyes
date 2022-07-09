@@ -39,7 +39,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
 @main def tyer(args: String*): Unit = CommandLine.tyer(args*)
 
 @main def main: Unit =
-  val expParser = LExpressionParser;
+  val expParser = LExpressionParser();
   val expTexts = List("1", "2", "3", "1 + 2", "2 + 3", "1 + 1", "3 + 5", "2 + 1", "2 + 2")
   val parsedExps = for expText <- expTexts yield {
     val parseRes = expParser.parse(expText)
@@ -47,7 +47,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
     parseRes
   }
   
-  val exps = for case LExpressionParser.Success(exp, _) <- parsedExps yield exp
+  val exps = for case expParser.Success(exp, _) <- parsedExps yield exp
   if exps.isEmpty then
     println("No expressions")
     return

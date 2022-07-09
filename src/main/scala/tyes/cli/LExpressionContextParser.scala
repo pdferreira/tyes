@@ -10,32 +10,28 @@ import Parsers.*
  
   If the source parser is assumed to be in Scala, this could perfectly be generated automatically
 */
-class LExpressionContextParser(
-  metaTermVarParser: Parser[Term],
-  newIdentifierTerm: String => Term
-):
+class LExpressionContextParser(bindings: TyesTermLanguageBindings):
 
-  def ident = raw"[a-zA-Z][a-zA-Z\d_]*".r
+  def ident = raw"[a-zA-Z][a-zA-Z\d_]*".r.into(bindings.identTermParser)
 
-  def variable = ident ^^ { varName => Term.Function("LVariable", newIdentifierTerm(varName)) } 
+  def variable = ident ^^ { varTerm => Term.Function("LVariable", varTerm) } 
 
   def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => Term.Function("LNumber", Term.Constant(numStr.toInt)) }
   
-  def leaf = ("(" ~> expression <~ ")") | number | (metaTermVarParser ||| variable)
+  def leaf = ("(" ~> expression <~ ")") | number | (bindings.metaTermVariableParser ||| variable)
   
   def operator = leaf ~ ("+" ~> leaf).* ^^ { 
     case exp ~ rs => rs.foldLeft(exp) { (left, right) => Term.Function("LPlus", left, right) }
   }
+
+  def tpe = bindings.typeParser
   
-  def let = ("let" ~> ident) ~ ("=" ~> operator) ~ ("in" ~> expression) ^^ {
-    case varName ~ varExp ~ inExp => Term.Function("LLet", newIdentifierTerm(varName), varExp, inExp)
+  def let = ("let" ~> ident) ~ (":" ~> tpe).? ~ ("=" ~> operator) ~ ("in" ~> expression) ^^ {
+    case varTerm ~ varTypeOpt ~ varExp ~ inExp => Term.Function("LLet", varTerm, Term.Constant(varTypeOpt), varExp, inExp)
   }
   
   def expression: Parser[Term] = let | operator
 
-object LExpressionLanguageBindings extends TyesTermLanguageBindings:
+object LExpressionContextParser extends (TyesTermLanguageBindings => Parser[Term]):
 
-  def buildTermLanguageParser(
-    metaTermVariableParser: Parser[Term],
-    newIdentifierTerm: String => Term
-  ) = new LExpressionContextParser(metaTermVariableParser, newIdentifierTerm).expression
+  def apply(bindings: TyesTermLanguageBindings) = new LExpressionContextParser(bindings).expression

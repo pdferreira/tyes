@@ -2,7 +2,7 @@ package example
 
 import scala.util.parsing.combinator.RegexParsers
 
-object LExpressionParser extends RegexParsers:
+class LExpressionParser[TType] extends RegexParsers:
 
   def ident = raw"[a-zA-Z][a-zA-Z\d_]*".r
 
@@ -16,8 +16,10 @@ object LExpressionParser extends RegexParsers:
     case exp ~ rs => rs.foldLeft(exp) { (left, right) => LPlus(left, right) }
   }
 
-  def let = ("let" ~> ident) ~ ("=" ~> operator) ~ ("in" ~> expression) ^^ {
-    case varName ~ varExp ~ inExp => LLet(varName, varExp, inExp)
+  def tpe: Parser[TType] = failure("No parser for types defined")
+
+  def let = ("let" ~> ident) ~ (":" ~> tpe).? ~ ("=" ~> operator) ~ ("in" ~> expression) ^^ {
+    case varName ~ varTypeOpt ~ varExp ~ inExp => LLet(varName, varTypeOpt, varExp, inExp)
   }
   
   def expression: Parser[LExpression] = let | operator

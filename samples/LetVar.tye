@@ -13,6 +13,6 @@ typesystem LetVar
     and e2 : t
 
   rule Let
-    infers let x = e1 in e2 : t2
+    infers let x : t1 = e1 in e2 : t2
     if e1 : t1
     and e2 : t2 under x : t1

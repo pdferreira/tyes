@@ -82,8 +82,8 @@ object CommandLine:
     else
       Console.err.println(s"File type not recognized: $ext")   
 
-  private def parseLExpression(srcContent: String): Option[LExpression] =
-    LExpressionParser.parse(srcContent).withReadableError match {
+  private def parseLExpression[TType](srcContent: String, expParser: LExpressionParser[TType] = LExpressionParser()): Option[LExpression] =
+    expParser.parse(srcContent).withReadableError match {
       case Left(error) => 
         Console.err.println(error)
         None
@@ -135,7 +135,7 @@ object CommandLine:
         },
         expSrcOption)
 
-  private  def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String]): Unit =
+  private def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String]): Unit =
     val engineManager = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())
     val engine = engineManager.getEngineByName("scala")
     if engine == null then
@@ -143,9 +143,11 @@ object CommandLine:
     else
       val tsClassName = objName
       val rtTypeSystem = engine.eval(srcContent + s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+      val rtTypes = engine.eval(s"$tsClassName.Type.values").asInstanceOf[Array[rtTypeSystem.T]]
+      val expParser = LExpressionWithCompiledTypesParser(rtTypes.toSet)
       runInteractive(
         line => {
-          for exp <- parseLExpression(line) do 
+          for exp <- parseLExpression(line, expParser) do 
             rtTypeSystem.typecheck(exp, Map()) match {
               case Right(typ) => println(typ)
               case Left(errMsg) => Console.err.println(errMsg)

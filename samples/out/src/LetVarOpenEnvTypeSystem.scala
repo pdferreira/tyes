@@ -28,12 +28,15 @@
             Right(env(x))
           else  
             Left(s"TypeError: no type for `$exp`")
-        case LLet(x, e1, e2) => 
+        case LLet(x, _c2, e1, e2) => 
           val _t1 = typecheck(e1, env)
           val _t2 = _t1.flatMap(t1 => typecheck(e2, env ++ Map(x -> t1)))
-          if _t1.isRight && _t2.isRight then
-            _t2
-          else 
+          if _c2 == None then
+            if _t1.isRight && _t2.isRight then
+              _t2
+            else
+              Left(s"TypeError: no type for `$exp`")
+          else  
             Left(s"TypeError: no type for `$exp`")
         case _ => Left(s"TypeError: no type for `$exp`")
       }
