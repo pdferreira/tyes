@@ -20,7 +20,9 @@ object TyesInterpreter:
         // replace the vars we already unified in the term
         // TODO: review assumption that only string constants that are directly unified are variables
         val termVarSubst = termSubst.collect { case (k, Term.Constant(varName: String)) => k -> varName }
-        val refinedMetaEnv = getSelfOrDefaultIfEmpty(metaEnv, DefaultEnv).substitute(EnvironmentMatch(termVarSubst))
+        val typeVarSubst = termSubst.collect { case (k, Term.Constant(tn @ Type.Named(_))) => k -> tn }
+        val refinedMetaEnv = getSelfOrDefaultIfEmpty(metaEnv, DefaultEnv)
+          .substitute(EnvironmentMatch(termVarSubst, typeVarSubst))
 
         // match the conclusion env to the rule to see if it's applicable at all
         refinedMetaEnv.matches(termEnv).flatMap { case m @ EnvironmentMatch(envTermVarSubst, envTypeVarSubst, envVarSubst) =>
@@ -29,10 +31,11 @@ object TyesInterpreter:
 
           // build variable substitutions considering info from term and environment
           val allVarSubst = envTermVarSubst ++ termVarSubst
+          val allTypeVarSubst = envTypeVarSubst ++ typeVarSubst
           val allTermSubst = envTermSubst ++ termSubst
 
           // check all premises hold, while unifying possible type variables
-          val (premisesHold, finalTypeVarEnv) = ruleDecl.premises.foldLeft((true, envTypeVarSubst)) { 
+          val (premisesHold, finalTypeVarEnv) = ruleDecl.premises.foldLeft((true, allTypeVarSubst)) { 
             // if one of the premises failed, propagate failure
             case (acc @ (false, typeVarEnv), _) => acc 
             // otherwise, check the next premise

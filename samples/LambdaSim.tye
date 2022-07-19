@@ -1,0 +1,12 @@
+typesystem LambdaSim
+
+  rule infers 1 : one
+
+  rule infers 2 : two
+
+  rule Var
+    infers x : t under x : t
+
+  rule LambdaLet
+    infers let x : t = e1 in e2 : t2
+    if e2 : t2 under x : t

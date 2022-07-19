@@ -2,7 +2,7 @@
     import tyes.runtime.*
     import example.*
     
-    object LetVarTypeSystem extends TypeSystem[LExpression]:
+    object LambdaSimTypeSystem extends TypeSystem[LExpression]:
       type T = Type
     
       enum Type:
@@ -16,22 +16,11 @@
             Right(Type.Two)
           else  
             Left(s"TypeError: no type for `$exp`")
-        case LPlus(e1, e2) => 
-          val _t1 = typecheck(e1, env)
-          val _t2 = typecheck(e2, env)
-          if _t1.isRight && _t2 == _t1 then
+        case LLet(x, t: Option[Type], e1, e2) => 
+          val _t1 = t.toRight("No type provided").flatMap(_t => typecheck(e2, Map(x -> _t)))
+          if _t1.isRight then
             _t1
           else 
-            Left(s"TypeError: no type for `$exp`")
-        case LLet(x, t1: Option[Type], e1, e2) => 
-          val _t1 = typecheck(e1, env)
-          val _t2 = _t1.flatMap(_t1 => typecheck(e2, Map(x -> _t1)))
-          if (t1.isEmpty || t1 == _t1.toOption) then
-            if _t1.isRight && _t2.isRight then
-              _t2
-            else
-              Left(s"TypeError: no type for `$exp`")
-          else  
             Left(s"TypeError: no type for `$exp`")
         case LVariable(x) => 
           if env.size == 1 && env.contains(x) then

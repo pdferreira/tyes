@@ -162,13 +162,15 @@ object TyesLanguageExtensions:
       case Type.Variable(name) => Set(name)
     }
 
-  extension (judg: Judgement)
+  extension (term: Term)
 
-    def typeVariables: Set[String] = judg.types.flatMap(_.variables)
+    def typeVariables: Set[String] = types.flatMap(_.variables)
 
-    def termVariables: Set[String] = judg.assertion.termVariables ++ judg.env.termVariables
-
-    def types: Set[Type] = judg.assertion.types ++ judg.env.types
+    def types: Set[Type] = term match {
+      case Term.Constant(t: Type) => Set(t)
+      case Term.Variable(_) => Set()
+      case Term.Function(_, args*) => args.flatMap(_.types).toSet
+    }
 
   extension (asrt: Assertion)
 
@@ -179,8 +181,24 @@ object TyesLanguageExtensions:
     }
 
     def types: Set[Type] = Set(asrt match {
-      case HasType(_, typ) => typ
+      case HasType(term, typ) => typ
     })
+
+  extension (judg: Judgement)
+
+    def typeVariables: Set[String] = judg.types.flatMap(_.variables)
+
+    def termVariables: Set[String] = judg.assertion.termVariables ++ judg.env.termVariables
+
+    def types: Set[Type] = judg.assertion.types ++ judg.env.types
+
+  extension (ruleDecl: RuleDecl)
+
+    def typeVariables: Set[String] = types.flatMap(_.variables)
+
+    def termVariables: Set[String] = ruleDecl.conclusion.termVariables ++ ruleDecl.premises.flatMap(_.termVariables)
+
+    def types: Set[Type] = ruleDecl.conclusion.types ++ ruleDecl.premises.flatMap(_.types)
 
   extension (tsDecl: TypeSystemDecl)
 

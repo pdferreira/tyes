@@ -12,6 +12,7 @@ import dotty.tools.dotc.core.Contexts.*
 import tyes.compiler.*
 import tyes.interpreter.*
 import tyes.model.*
+import tyes.model.TyesLanguageExtensions.*
 import example.*
 import utils.parsers.ParserExtensions
 import utils.parsers.ParserExtensions.*
@@ -124,8 +125,10 @@ object CommandLine:
 
   private def invokeInterpreter(tyesSrc: String, expSrcOption: Option[String]): Unit =
     for tsDecl <- parseTypeSystem(tyesSrc) do
+      val allNamedTypes = for case tn @ Type.Named(_) <- tsDecl.types yield tn
+      val expParser = LExpressionWithModelTypesParser(allNamedTypes.toSet)
       runInteractive(line => {
-        for exp <- parseLExpression(line) do
+        for exp <- parseLExpression(line, expParser) do
           TyesInterpreter.typecheck(tsDecl, exp) match {
             case Some(Type.Named(typName)) => 
               println(typName)
