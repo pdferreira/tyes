@@ -1,6 +1,7 @@
 package tyes.cli
 
 import tyes.model.*
+import tyes.model.TermConversions.given
 
 import Parsers.*
 
@@ -27,14 +28,7 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
   def tpe = bindings.typeParser
   
   def let = ("let" ~> ident) ~ (":" ~> tpe).? ~ ("=" ~> operator) ~ ("in" ~> expression) ^^ {
-    case varTerm ~ varTypeOpt ~ varExp ~ inExp =>
-      // TODO: refactor this, probably move this into the bindings
-      val typeTerm = varTypeOpt match {
-        case None => Term.Variable("$any")
-        case Some(tn @ Type.Named(_)) => Term.Constant(tn)
-        case Some(Type.Variable(name)) => Term.Variable(name)
-      }
-      Term.Function("LLet", varTerm, typeTerm, varExp, inExp)
+    case varTerm ~ varTypeOpt ~ varExp ~ inExp => Term.Function("LLet", varTerm, varTypeOpt.convert, varExp, inExp)
   }
   
   def expression: Parser[Term] = let | operator

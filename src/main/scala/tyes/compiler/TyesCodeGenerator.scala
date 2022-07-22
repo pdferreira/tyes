@@ -17,8 +17,8 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
   }
 
   def compile(term: Term): String = term match {
+    case Constants.Terms.any => "_"
     case Term.Constant(value) => compileValue(value)
-    case Term.Variable("$any") => "_" // TODO: extract $any to a model constant instead of a compiler thing
     case Term.Variable(name) => name
     case Term.Function(name, args*) => name + args.map(compile(_)).mkString("(", ", ", ")")
   }
