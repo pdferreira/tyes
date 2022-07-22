@@ -8,7 +8,7 @@
       enum Type:
         case One, Two, Three
     
-      def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
+      def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
         case LNumber(_c1) => 
           if _c1 == 1 then
             Right(Type.One)

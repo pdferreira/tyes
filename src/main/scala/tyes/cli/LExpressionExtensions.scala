@@ -4,8 +4,10 @@ import tyes.model.*
 import example.*
 
 object LExpressionExtensions:
-  given Conversion[LExpression, Term] with
-    def apply(exp: LExpression): Term = exp match {
+
+  given Conversion[LExpression[Type], Term] with
+  
+    def apply(exp: LExpression[Type]): Term = exp match {
         case LNumber(num) => Term.Function("LNumber", Term.Constant(num))
         case LVariable(name) => Term.Function("LVariable", Term.Constant(name))
         case LPlus(left, right) => Term.Function("LPlus", left.convert, right.convert)

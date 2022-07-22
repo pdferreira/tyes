@@ -19,7 +19,6 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
   def compile(term: Term): String = term match {
     case Term.Constant(value) => compileValue(value)
     case Term.Variable("$any") => "_" // TODO: extract $any to a model constant instead of a compiler thing
-    case Term.Variable(name) if name.startsWith("t") => s"$name: Option[Type]"  // TODO: total hack, clean this up
     case Term.Variable(name) => name
     case Term.Function(name, args*) => name + args.map(compile(_)).mkString("(", ", ", ")")
   }
@@ -344,7 +343,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       enum Type:
         case ${(for case Type.Named(tname) <- tsDecl.types yield tname.capitalize).mkString(", ")}
     
-      def typecheck(exp: LExpression, $defaultEnvVarExpr: Map[String, Type]): Either[String, Type] = exp match {
+      def typecheck(exp: LExpression[Type], $defaultEnvVarExpr: Map[String, Type]): Either[String, Type] = exp match {
         ${compileTypecheck(tsDecl, "        ")}
         case _ => ${getTypeErrorString("exp")}
       }

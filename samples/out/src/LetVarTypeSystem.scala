@@ -8,7 +8,7 @@
       enum Type:
         case One, Two
     
-      def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
+      def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
         case LNumber(_c1) => 
           if _c1 == 1 then
             Right(Type.One)
@@ -23,7 +23,7 @@
             _t1
           else 
             Left(s"TypeError: no type for `$exp`")
-        case LLet(x, t1: Option[Type], e1, e2) => 
+        case LLet(x, t1, e1, e2) => 
           val _t1 = typecheck(e1, env)
           val _t2 = _t1.flatMap(_t1 => typecheck(e2, Map(x -> _t1)))
           if (t1.isEmpty || t1 == _t1.toOption) then

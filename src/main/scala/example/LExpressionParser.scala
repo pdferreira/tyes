@@ -22,6 +22,6 @@ class LExpressionParser[TType] extends RegexParsers:
     case varName ~ varTypeOpt ~ varExp ~ inExp => LLet(varName, varTypeOpt, varExp, inExp)
   }
   
-  def expression: Parser[LExpression] = let | operator
+  def expression: Parser[LExpression[TType]] = let | operator
 
   def parse(input: String) = super.parse(phrase(expression), input)

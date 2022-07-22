@@ -8,7 +8,7 @@
       enum Type:
         case Int, Real, Sumpi
     
-      def typecheck(exp: LExpression, env: Map[String, Type]): Either[String, Type] = exp match {
+      def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
         case LLet(x, _, e1, e2) => 
           val _t1 = typecheck(e1, env)
           val _t2 = _t1.flatMap(t1 => typecheck(e2, Map(x -> t1)))

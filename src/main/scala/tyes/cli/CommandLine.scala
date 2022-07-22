@@ -83,7 +83,10 @@ object CommandLine:
     else
       Console.err.println(s"File type not recognized: $ext")   
 
-  private def parseLExpression[TType](srcContent: String, expParser: LExpressionParser[TType] = LExpressionParser()): Option[LExpression] =
+  private def parseLExpression[TType](
+    srcContent: String,
+    expParser: LExpressionParser[TType] = LExpressionParser()
+  ): Option[LExpression[TType]] =
     expParser.parse(srcContent).withReadableError match {
       case Left(error) => 
         Console.err.println(error)
@@ -144,8 +147,10 @@ object CommandLine:
     if engine == null then
       Console.err.println("Unable to load scala file, no script engine found")
     else
+      engine.eval(srcContent)
+
       val tsClassName = objName
-      val rtTypeSystem = engine.eval(srcContent + s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+      val rtTypeSystem = engine.eval(s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
       val rtTypes = engine.eval(s"$tsClassName.Type.values").asInstanceOf[Array[rtTypeSystem.T]]
       val expParser = LExpressionWithCompiledTypesParser(rtTypes.toSet)
       runInteractive(
