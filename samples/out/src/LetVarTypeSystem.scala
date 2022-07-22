@@ -16,6 +16,11 @@
             Right(Type.Two)
           else  
             Left(s"TypeError: no type for `$exp`")
+        case LVariable(x) => 
+          if env.size == 1 && env.contains(x) then
+            Right(env(x))
+          else  
+            Left(s"TypeError: no type for `$exp`")
         case LPlus(e1, e2) => 
           val _t1 = typecheck(e1, env)
           val _t2 = typecheck(e2, env)
@@ -31,11 +36,6 @@
               _t2
             else
               Left(s"TypeError: no type for `$exp`")
-          else  
-            Left(s"TypeError: no type for `$exp`")
-        case LVariable(x) => 
-          if env.size == 1 && env.contains(x) then
-            Right(env(x))
           else  
             Left(s"TypeError: no type for `$exp`")
         case _ => Left(s"TypeError: no type for `$exp`")

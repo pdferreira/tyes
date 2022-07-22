@@ -82,7 +82,11 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
         (constructor, r)
       ).groupMap(_._1)(_._2)
     (
-      for (c, rs) <- rulesByConstructor
+      for (c, rs) <- rulesByConstructor.toSeq.sortBy((c, _) => c match {
+        case Term.Constant(_) => (0, "")
+        case Term.Variable(_) => (0, "")
+        case Term.Function(name, args*) => (args.length, name)  
+      })
       yield
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
