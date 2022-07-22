@@ -5,7 +5,7 @@
     object EnvRequirementTypeSystem extends TypeSystem[LExpression]:
       type T = Type
     
-      enum Type:
+      enum Type extends tyes.runtime.Type:
         case Real, Int
     
       def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {

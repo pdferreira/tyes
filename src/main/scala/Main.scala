@@ -12,7 +12,7 @@ import tyes.cli.*
 object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
   type T = Type
 
-  enum Type:
+  enum Type extends tyes.runtime.Type:
     case One, Two
 
   def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {

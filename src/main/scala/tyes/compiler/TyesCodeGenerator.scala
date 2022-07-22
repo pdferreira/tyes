@@ -344,7 +344,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
     object ${TyesCodeGenerator.getTypeSystemObjectName(tsDecl)} extends TypeSystem[LExpression]:
       type T = Type
     
-      enum Type:
+      enum Type extends tyes.runtime.Type:
         case ${(for case Type.Named(tname) <- tsDecl.types yield tname.capitalize).mkString(", ")}
     
       def typecheck(exp: LExpression[Type], $defaultEnvVarExpr: Map[String, Type]): Either[String, Type] = exp match {

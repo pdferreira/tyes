@@ -152,7 +152,7 @@ object CommandLine:
       val tsClassName = objName
       val rtTypeSystem = engine.eval(s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
       val rtTypes = engine.eval(s"$tsClassName.Type.values").asInstanceOf[Array[rtTypeSystem.T]]
-      val expParser = LExpressionWithCompiledTypesParser(rtTypes.toSet)
+      val expParser = LExpressionWithRuntimeTypesParser(rtTypes.toSet)
       runInteractive(
         line => {
           for exp <- parseLExpression(line, expParser) do 
