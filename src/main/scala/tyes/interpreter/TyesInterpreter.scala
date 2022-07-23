@@ -14,7 +14,7 @@ object TyesInterpreter:
     then default
     else env
 
-  def typecheck(tsDecl: TypeSystemDecl, ruleDecl: RuleDecl, term: Term, termEnv: Map[String, Type.Named]): Option[Type] = ruleDecl.conclusion match {
+  def typecheck(tsDecl: TypeSystemDecl, ruleDecl: RuleDecl, term: Term, termEnv: Map[String, Type]): Option[Type] = ruleDecl.conclusion match {
     case Judgement(metaEnv, HasType(metaTerm, typ)) =>
       metaTerm.matches(term).flatMap { (termSubst) =>
         // replace the vars we already unified in the term
@@ -70,7 +70,7 @@ object TyesInterpreter:
       }
   }
 
-  def typecheck(tsDecl: TypeSystemDecl, term: Term, env: Map[String, Type.Named]): Option[Type] =
+  def typecheck(tsDecl: TypeSystemDecl, term: Term, env: Map[String, Type]): Option[Type] =
     tsDecl
       .rules
       .collectFirst(Function.unlift(r => typecheck(tsDecl, r, term, env)))

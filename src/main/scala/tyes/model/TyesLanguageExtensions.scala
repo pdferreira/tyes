@@ -4,7 +4,7 @@ object TyesLanguageExtensions:
   
   extension (metaBinding: Binding)
 
-    def matches(entry: (String, Type.Named)): Option[(Map[String, String], Map[String, Type.Named])] = 
+    def matches(entry: (String, Type)): Option[(Map[String, String], Map[String, Type])] = 
       val (entryName, entryTyp) = entry
       metaBinding match {
         case Binding.BindName(name, typ) =>
@@ -16,7 +16,7 @@ object TyesLanguageExtensions:
           typ.matches(entryTyp).map((Map(name -> entryName), _))
       }
 
-    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type.Named]): Binding = metaBinding match {
+    def substitute(termVarSubst: Map[String, String], typeVarSubst: Map[String, Type]): Binding = metaBinding match {
       case Binding.BindName(name, typ) => Binding.BindName(name, typ.substitute(typeVarSubst))
       case Binding.BindVariable(name, typ) => 
         if termVarSubst.contains(name) then
@@ -25,7 +25,7 @@ object TyesLanguageExtensions:
           Binding.BindVariable(name, typ.substitute(typeVarSubst))
     }
 
-    def toConcrete: Option[(String, Type.Named)] = metaBinding match {
+    def toConcrete: Option[(String, Type)] = metaBinding match {
       case Binding.BindName(name, typ @ Type.Named(_)) => Some(name -> typ)
       case _ => None
     }
@@ -44,13 +44,13 @@ object TyesLanguageExtensions:
 
   case class EnvironmentMatch(
     termVarSubst: Map[String, String] = Map(),
-    typeVarSubst: Map[String, Type.Named] = Map(),
-    envVarSubst: Map[String, Either[String, Map[String, Type.Named]]] = Map()
+    typeVarSubst: Map[String, Type] = Map(),
+    envVarSubst: Map[String, Either[String, Map[String, Type]]] = Map()
   )
 
   extension (envPart: EnvironmentPart)
 
-    def matches(env: Map[String, Type.Named], remainingEnvVar: Option[String]): Option[EnvironmentMatch] = envPart match {
+    def matches(env: Map[String, Type], remainingEnvVar: Option[String]): Option[EnvironmentMatch] = envPart match {
       case EnvironmentPart.Bindings(bindings) =>
         if bindings.isEmpty != env.isEmpty then
           None
@@ -89,9 +89,9 @@ object TyesLanguageExtensions:
         } 
     }
 
-    def toConcrete: Option[Map[String, Type.Named]] = envPart match {
+    def toConcrete: Option[Map[String, Type]] = envPart match {
       case EnvironmentPart.Bindings(bindings) => 
-        bindings.foldLeft(Option(Map[String, Type.Named]())) { (envOpt, binding) =>
+        bindings.foldLeft(Option(Map[String, Type]())) { (envOpt, binding) =>
           binding.toConcrete.zip(envOpt).map { (entry, env) => env + entry }
         }
       case EnvironmentPart.Variable(_) => Some(Map())
@@ -111,7 +111,7 @@ object TyesLanguageExtensions:
 
   extension (metaEnv: Environment)
 
-    def matches(env: Map[String, Type.Named]): Option[EnvironmentMatch] =
+    def matches(env: Map[String, Type]): Option[EnvironmentMatch] =
       val remainingEnvVars = metaEnv.envVariables
       if remainingEnvVars.size > 1 then
         throw new NotImplementedError("Environments with more than one environment variable are unsupported")
@@ -127,8 +127,8 @@ object TyesLanguageExtensions:
     def substitute(envMatch: EnvironmentMatch): Environment =
       Environment(metaEnv.parts.map(_.substitute(envMatch)))
 
-    def toConcrete: Option[Map[String, Type.Named]] =
-      metaEnv.parts.map(_.toConcrete).foldLeft(Option(Map[String, Type.Named]())) { (prevEnvOpt, currEnvOpt) =>
+    def toConcrete: Option[Map[String, Type]] =
+      metaEnv.parts.map(_.toConcrete).foldLeft(Option(Map[String, Type]())) { (prevEnvOpt, currEnvOpt) =>
         prevEnvOpt.zip(currEnvOpt).map(_ ++ _)
       }
 
@@ -139,28 +139,6 @@ object TyesLanguageExtensions:
     def envVariables: Set[String] = metaEnv.parts.collect({ case EnvironmentPart.Variable(name) => name }).toSet
 
     def types: Set[Type] = metaEnv.parts.flatMap(_.types).toSet
-
-  extension (typ: Type)
-
-    def matches(other: Type.Named): Option[Map[String, Type.Named]] = typ match {
-      case t @ Type.Named(_) => 
-        if t == other then
-          Some(Map())
-        else
-          None
-      case Type.Variable(typVarName) =>
-        Some(Map(typVarName -> other))
-    }
-
-    def substitute(typeVarEnv: Map[String, Type.Named]): Type = typ match {
-      case Type.Named(_) => typ
-      case Type.Variable(name) => typeVarEnv.getOrElse(name, typ)
-    }
-
-    def variables: Set[String] = typ match {
-      case Type.Named(_) => Set()
-      case Type.Variable(name) => Set(name)
-    }
 
   extension (term: Term)
 

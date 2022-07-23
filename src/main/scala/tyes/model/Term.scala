@@ -5,7 +5,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
   case Variable(name: String)
   case Function(name: String, args: Term*)
 
-object TermBuilder extends terms.TermBuilder[Term, Any]:
+private object TermBuilder extends terms.TermBuilder[Term, Any]:
   
   override def applyConstant(value: Any): Term = Term.Constant(value)
 
