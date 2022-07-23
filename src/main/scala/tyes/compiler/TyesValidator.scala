@@ -35,8 +35,13 @@ object TyesValidator:
       if !unknownConclEnvTermVariables.isEmpty then
         errors += s"Error: $ruleName conclusion environment uses some identifiers not bound in its term: ${unknownConclEnvTermVariables.mkString(", ")}"
         
-      for cTypeVar <- concl.assertion.typeVariables do 
-        if r.premises.isEmpty && concl.env.parts.isEmpty then
+      val HasType(conclTerm, conclTyp) = concl.assertion
+      for cTypeVar <- conclTyp.variables do
+        if conclTerm.variables.contains(cTypeVar) then
+          () // ok, bound in concl term
+          // TODO: we don't really know that's a type, could we know?
+
+        else if r.premises.isEmpty && concl.env.parts.isEmpty then
           errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVar"
         
         else if !r.premises.exists(judg => judg.assertion.typeVariables.contains(cTypeVar)) then
