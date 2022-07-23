@@ -35,11 +35,11 @@ object TyesInterpreter:
           val allTermSubst = envTermSubst ++ termSubst
 
           // check all premises hold, while unifying possible type variables
-          val (premisesHold, finalTypeVarEnv) = ruleDecl.premises.foldLeft((true, allTypeVarSubst)) { 
+          val premTypeCheckResult = ruleDecl.premises.foldLeft(Option(allTypeVarSubst)) { 
             // if one of the premises failed, propagate failure
-            case (acc @ (false, typeVarEnv), _) => acc 
+            case (None, _) => None 
             // otherwise, check the next premise
-            case ((true, typeVarEnv), Judgement(premMetaEnv, HasType(premTerm, premTyp))) => 
+            case (Some(typeVarEnv), Judgement(premMetaEnv, HasType(premTerm, premTyp))) => 
               // replace the term and type variables we already know in the premise env and then produce an
               // actual term env out of it
               val premEnvMatch = EnvironmentMatch(allVarSubst, typeVarEnv, envVarSubst)
@@ -47,25 +47,15 @@ object TyesInterpreter:
 
               val refinedPremTerm = premTerm.substitute(allTermSubst)
               val resTyp = premEnvOpt.flatMap(premEnv => typecheck(tsDecl, refinedPremTerm, premEnv))
-              premTyp match {
-                // if we expect a named type, just compare directly
-                case t @ Type.Named(_) => (resTyp == Some(t), typeVarEnv)
-                // otherwise, check if we already know what to match the type variable against
-                // and if we don't then associate the premise result type
-                case Type.Variable(name) =>
-                  if typeVarEnv.contains(name) 
-                  then (resTyp == Some(typeVarEnv(name)), typeVarEnv)
-                  else resTyp match {
-                    case Some(t @ Type.Named(_)) => (true, typeVarEnv + (name -> t))
-                    case _ => (false, typeVarEnv)
-                  }
-              }
+              for
+                resT <- resTyp
+                premTypeSubst <- premTyp.substitute(typeVarEnv).matches(resT)
+              yield
+                // if the premise expected type matched the obtained, update the type env with any new unifications
+                typeVarEnv ++ premTypeSubst
           }
 
-          if premisesHold then
-            Some(typ.substitute(finalTypeVarEnv))
-          else
-            None
+          premTypeCheckResult.map(typ.substitute(_))
         }
       }
   }
