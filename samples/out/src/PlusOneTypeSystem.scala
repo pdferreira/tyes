@@ -6,7 +6,8 @@
       type T = Type
     
       enum Type extends tyes.runtime.Type:
-        case One, SumOne
+        case One
+        case SumOne
     
       def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
         case LNumber(_c1) => 

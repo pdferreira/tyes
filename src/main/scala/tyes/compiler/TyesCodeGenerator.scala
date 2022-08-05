@@ -12,7 +12,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
   def compileValue(value: Any): String = value match {
       case i: Int => i.toString
       case s: String => '\"' + s + '\"'
-      case tn @ Type.Named(_) => compileNamedType(tn)
+      case tn @ Type.Named(_) => compileType(tn)
       case _ => throw new Exception(s"No compilation defined for constants of type ${value.getClass().getName()}: $value")
   }
 
@@ -30,13 +30,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
   def compile(binding: Binding, typSubst: Map[String, String]): String =
     val (varNameExpr, typ) = generateBinding(binding)
-    typ match {
-      case t @ Type.Named(_) => 
-        s"$varNameExpr -> ${compileNamedType(t)}"
-      case Type.Variable(typeVarName) =>
-        val varValueExpr = typSubst.getOrElse(typeVarName, throw new Exception(s"Unbound type variable: $typeVarName"))
-        s"$varNameExpr -> $varValueExpr"
-    }
+    s"$varNameExpr -> ${compileType(typ, typSubst)}"
 
   def compile(env: EnvironmentPart, typSubst: Map[String, String]): String = env match {
     case EnvironmentPart.Bindings(bindings) =>
@@ -53,7 +47,10 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
     assert(!env.parts.isEmpty)
     env.parts.map(compile(_, typSubst)).mkString(" ++ ")
 
-  def compileNamedType(typ: Type.Named): String = s"Type.${typ.name.capitalize}"
+  def compileType(typ: Type, typSubst: Map[String, String] = Map()): String = typ match {
+    case Type.Named(name) => s"Type.${name.capitalize}"
+    case Type.Variable(name) => typSubst.getOrElse(name, throw new Exception(s"Unbound type variable: $name"))
+  }
 
   def getEnvFreshVarName(base: String): String = base.decapitalize
 
@@ -257,7 +254,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
         b <- bindings
         (varNameExpr, typ) = generateBinding(b)
       yield typ match {
-        case t @ Type.Named(_) => s"$defaultEnvVarExpr.get($varNameExpr) == Some(${compileNamedType(t)})"
+        case t @ Type.Named(_) => s"$defaultEnvVarExpr.get($varNameExpr) == Some(${compileType(t)})"
         case Type.Variable(_) => s"$defaultEnvVarExpr.contains($varNameExpr)"
       }
     case EnvironmentPart.Variable(_) => 
@@ -300,7 +297,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       case ((conds, typeVarEnv), (typCheckRes, premTyp)) =>
         premTyp match {
           case t @ Type.Named(_) => 
-            (conds :+ s"$typCheckRes == Right(${compileNamedType(t)})", typeVarEnv)
+            (conds :+ s"$typCheckRes == Right(${compileType(t, typeVarEnv)})", typeVarEnv)
           
           case Type.Variable(typVarName) =>
             if typeVarEnv.contains(typVarName) then
@@ -315,10 +312,12 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
         }
     }
     
-    val conclTypRes = conclTyp match {
-      case t @ Type.Named(_) => s"Right(${compileNamedType(t)})"
-      case Type.Variable(name) => typeVarEnv(name)
-    }
+    val conclTypRes = 
+      val typStr = compileType(conclTyp, typeVarEnv)
+      conclTyp match {
+        case tv @ Type.Variable(_) => typStr
+        case _ => s"Right($typStr)"
+      }
 
     if premConds.isEmpty 
       || (premConds.length == 1 && !typeVarEnv.isEmpty && !leaveOpen) // simplification of the special case of a single "isRight" condition
@@ -336,6 +335,16 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       
       ifCode ++ elseCode
 
+  private def getTypeConstructors(types: Iterable[Type]): Set[Type] = types.flatMap({
+    case tn @ Type.Named(_) => Set(tn)
+    case Type.Variable(_) => Set()
+  }).toSet
+
+  private def compileTypeConstructor(typ: Type): String = typ match {
+    case Type.Named(name) => name.capitalize
+    case _ => throw new Exception(s"Not a type constructor: $typ")
+  }
+
   private def compileTypeSystem(tsDecl: TypeSystemDecl): String =
     s"""
     import tyes.runtime.*
@@ -345,7 +354,10 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       type T = Type
     
       enum Type extends tyes.runtime.Type:
-        case ${(for case Type.Named(tname) <- tsDecl.types yield tname.capitalize).mkString(", ")}
+        ${getTypeConstructors(tsDecl.types).toSeq.sortBy({
+          case Type.Named(name) => (0, name)
+          case Type.Variable(_) => (0, "")
+        }).map(compileTypeConstructor).mkString("case ", "\r\n        case ", "")}
     
       def typecheck(exp: LExpression[Type], $defaultEnvVarExpr: Map[String, Type]): Either[String, Type] = exp match {
         ${compileTypecheck(tsDecl, "        ")}
