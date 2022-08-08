@@ -2,6 +2,6 @@ package tyes.model
 
 object Constants:
   
-  object Terms:
+  object Types:
 
-    val any = Term.Variable("$any")
+    val any = Type.Variable("$any")

@@ -27,7 +27,10 @@
             else
               Left(s"TypeError: no type for `$exp`")
           else  if _e2 == LNumber(1) && _e1 == LVariable("const") && env.size == 1 && env.contains("pi") then
-            Right(Type.Sumpi)
+            if _t2 == Right(Type.Int) then
+              Right(Type.Sumpi)
+            else
+              Left(s"TypeError: no type for `$exp`")
           else  
             Left(s"TypeError: no type for `$exp`")
         case LLet(x, _, e1, e2) => 

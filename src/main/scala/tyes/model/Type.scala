@@ -3,6 +3,7 @@ package tyes.model
 enum Type extends terms.TermOps[Type, String](TypeBuilder):
   case Named(name: String)
   case Variable(name: String)
+  case Composite(name: String, args: Type*)
 
 private object TypeBuilder extends terms.TermBuilder[Type, String]:
 
@@ -20,6 +21,9 @@ private object TypeBuilder extends terms.TermBuilder[Type, String]:
     case _ => None
   }
 
-  override def applyFunction(name: String, args: Type*): Type = ???
+  override def applyFunction(name: String, args: Type*): Type = Type.Composite(name, args*)
 
-  override def unapplyFunction(term: Type): Option[(String, Seq[Type])] = ???
+  override def unapplyFunction(term: Type): Option[(String, Seq[Type])] = term match {
+    case Type.Composite(name, args*) => Some((name, args))
+    case _ => None
+  }

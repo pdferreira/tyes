@@ -1,7 +1,6 @@
 package tyes.cli
 
 import tyes.model.*
-import tyes.model.TermConversions.given
 import example.*
 
 object LExpressionExtensions:
@@ -16,7 +15,7 @@ object LExpressionExtensions:
           Term.Function(
             "LLet",
             Term.Constant(varName),
-            varTypeOpt.convert,
+            Term.Type(varTypeOpt.getOrElse(Constants.Types.any)),
             varExp.convert,
             inExp.convert
           )

@@ -4,6 +4,54 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
   case Constant[T](value: T)
   case Variable(name: String)
   case Function(name: String, args: Term*)
+  case Type(typ: tyes.model.Type)
+
+  private def ifBothTypes[B](otherTerm: Term, default: => B)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
+    case (Term.Type(thisType), Term.Type(otherType)) => Some(fn(thisType, otherType))
+    case (Term.Type(_), _) => Some(default)
+    case (_, Term.Type(_)) => Some(default)
+    case _ => None
+  }
+
+  private def ifType[B](fn: tyes.model.Type => B): Option[B] = this match {
+    case Term.Type(typ) => Some(fn(typ))
+    case _ => None
+  }
+
+  override def matches(otherTerm: Term): Option[Map[String, Term]] = 
+    ifBothTypes(otherTerm, None) { (thisType, otherType) =>
+      thisType.matches(otherType).map(_.mapValues(Term.Type.apply).toMap)
+    }.getOrElse { 
+      super.matches(otherTerm) 
+    }
+
+  override def overlaps(otherTerm: Term): Boolean = 
+    ifBothTypes(otherTerm, false) { 
+      _.overlaps(_) 
+    }.getOrElse { 
+      super.overlaps(otherTerm) 
+    }
+
+  override def isGround: Boolean = ifType(_.isGround).getOrElse { super.isGround }
+
+  override def substitute(subst: Map[String, Term]): Term = 
+    ifType { typ =>
+      val typSubst = Map.from(for case (k, Term.Type(t)) <- subst yield k -> t)
+      Term.Type(typ.substitute(typSubst))
+    } getOrElse {
+      super.substitute(subst)
+    }
+
+  override def unifies(otherTerm: Term): Option[Map[String, Term]] =
+    ifBothTypes(otherTerm, None) { (thisType, otherType) =>
+      thisType.unifies(otherType).map(_.mapValues(Term.Type.apply).toMap)
+    }.getOrElse { 
+      super.unifies(otherTerm) 
+    }
+
+  override def variables: Set[String] = ifType(_.variables).getOrElse { super.variables }
+
+  override def toString(): String = ifType(typ => s"T:$typ").getOrElse { super.toString }
 
 private object TermBuilder extends terms.TermBuilder[Term, Any]:
   

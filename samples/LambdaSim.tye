@@ -8,5 +8,10 @@ typesystem LambdaSim
     infers x : t under x : t
 
   rule LambdaLet
-    infers let x : t = e1 in e2 : t2
-    if e2 : t2 under x : t
+    infers let x : t = e in noop : t -> t2
+    if e : t2 under x : t
+
+  rule AppPlus
+    infers e1 + e2 : t2
+    if e1 : t -> t2
+    and e2 : t

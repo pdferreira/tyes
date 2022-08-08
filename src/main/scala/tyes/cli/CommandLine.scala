@@ -133,13 +133,26 @@ object CommandLine:
       runInteractive(line => {
         for exp <- parseLExpression(line, expParser) do
           TyesInterpreter.typecheck(tsDecl, exp) match {
-            case Some(Type.Named(typName)) => 
-              println(typName)
+            case Some(typ) if typ.isGround => 
+              println(prettyPrintType(typ))
             case _ => 
               Console.err.println("No type for expression")
           }
         },
         expSrcOption)
+
+  private def prettyPrintType(typ: Type): String = typ match {
+    case Type.Named(name) => name
+    // Special case for functions while they are a special case
+    case Type.Composite("$FunType", argTyp, retTyp) =>
+      val argTypStr = argTyp match {
+        case Type.Composite("$FunType", _, _) => "(" + prettyPrintType(argTyp) + ")"
+        case _ => prettyPrintType(argTyp)
+      }
+      s"$argTypStr -> ${prettyPrintType(retTyp)}"
+    case Type.Composite(name, args*) => name + args.map(prettyPrintType).mkString("(", ", ", ")")
+    case Type.Variable(name) => s"$name (free)"  
+  }
 
   private def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String]): Unit =
     val engineManager = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())

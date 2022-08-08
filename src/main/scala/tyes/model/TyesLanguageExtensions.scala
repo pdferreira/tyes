@@ -145,10 +145,10 @@ object TyesLanguageExtensions:
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
     def types: Set[Type] = term match {
-      case Term.Constant(t: Type) => Set(t)
       case Term.Constant(_) => Set()
       case Term.Variable(_) => Set()
       case Term.Function(_, args*) => args.flatMap(_.types).toSet
+      case Term.Type(t) => Set(t)
     }
 
   extension (asrt: Assertion)

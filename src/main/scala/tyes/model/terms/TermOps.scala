@@ -87,6 +87,8 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
     val freshOtherTerm = otherTerm.substitute(freshNamesSubst)
     this.unifies(freshOtherTerm).isDefined
 
+  def isGround: Boolean = this.variables.isEmpty
+
   override def toString(): String = this match {
     case Constant(value) => s"C:$value"
     case Variable(name) =>  s"V:$name"

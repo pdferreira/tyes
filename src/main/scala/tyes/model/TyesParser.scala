@@ -56,10 +56,17 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
     def typeParser = tpe
   })
   
-  def tpe = genericIdent ^^ { case name => 
-    if metaIdent.matches(name) 
-    then Type.Variable(name) 
-    else Type.Named(name) 
+  def leafType = 
+    genericIdent ^^ { case name => 
+      if metaIdent.matches(name) 
+      then Type.Variable(name) 
+      else Type.Named(name) 
+    }
+    | ("(" ~> tpe <~ ")")
+
+  def tpe: Parser[Type] = leafType ~ ("->" ~> tpe).? ^^ { 
+    case argTpe ~ None => argTpe
+    case argTpe ~ Some(retTpe) => Type.Composite("$FunType", argTpe, retTpe)
   }
 
   def parse(input: String) = Parsers.parse(phrase(typesystem), input)
