@@ -17,3 +17,6 @@ typesystem InvalidIdentifier
   rule TypeVarInConclOnlyBoundInPremContext
     infers 1 : t
     if 1 : any under util : t
+
+  rule TypeVarBoundToTermVar
+    infers e : e
