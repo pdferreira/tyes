@@ -73,8 +73,8 @@ object TypeCodeGenerator:
         case Type.Composite(name, args*) => (args.length, name)
       }).map(compileTypeConstructor).mkString("case ", s"\r\n      case ", "")}
     """
-      .stripPrefix("\n")
-      .stripSuffix("\n    ")
+      .stripPrefix("\r\n")
+      .stripSuffix("\r\n    ")
       .stripIndent()
       .linesIterator
       .mkString("\r\n" + indent)
