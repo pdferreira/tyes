@@ -64,9 +64,9 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
     }
     | ("(" ~> tpe <~ ")")
 
-  def tpe: Parser[Type] = leafType ~ ("->" ~> tpe).? ^^ { 
+  def tpe: Parser[Type] = leafType ~ (Constants.Types.Function.operator ~> tpe).? ^^ { 
     case argTpe ~ None => argTpe
-    case argTpe ~ Some(retTpe) => Type.Composite("$FunType", argTpe, retTpe)
+    case argTpe ~ Some(retTpe) => Constants.Types.Function(argTpe, retTpe)
   }
 
   def parse(input: String) = Parsers.parse(phrase(typesystem), input)

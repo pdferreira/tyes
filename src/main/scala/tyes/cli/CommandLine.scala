@@ -128,8 +128,7 @@ object CommandLine:
 
   private def invokeInterpreter(tyesSrc: String, expSrcOption: Option[String]): Unit =
     for tsDecl <- parseTypeSystem(tyesSrc) do
-      val allNamedTypes = for case tn @ Type.Named(_) <- tsDecl.types yield tn
-      val expParser = LExpressionWithModelTypesParser(allNamedTypes.toSet)
+      val expParser = LExpressionWithModelTypesParser(tsDecl.types)
       runInteractive(line => {
         for exp <- parseLExpression(line, expParser) do
           TyesInterpreter.typecheck(tsDecl, exp) match {
@@ -144,12 +143,12 @@ object CommandLine:
   private def prettyPrintType(typ: Type): String = typ match {
     case Type.Named(name) => name
     // Special case for functions while they are a special case
-    case Type.Composite("$FunType", argTyp, retTyp) =>
+    case Constants.Types.Function(argTyp, retTyp) =>
       val argTypStr = argTyp match {
-        case Type.Composite("$FunType", _, _) => "(" + prettyPrintType(argTyp) + ")"
+        case Constants.Types.Function(_, _) => "(" + prettyPrintType(argTyp) + ")"
         case _ => prettyPrintType(argTyp)
       }
-      s"$argTypStr -> ${prettyPrintType(retTyp)}"
+      s"$argTypStr ${Constants.Types.Function.operator} ${prettyPrintType(retTyp)}"
     case Type.Composite(name, args*) => name + args.map(prettyPrintType).mkString("(", ", ", ")")
     case Type.Variable(name) => s"$name (free)"  
   }

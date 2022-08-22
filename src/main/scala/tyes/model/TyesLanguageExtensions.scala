@@ -26,7 +26,7 @@ object TyesLanguageExtensions:
     }
 
     def toConcrete: Option[(String, Type)] = metaBinding match {
-      case Binding.BindName(name, typ @ Type.Named(_)) => Some(name -> typ)
+      case Binding.BindName(name, typ) if typ.isGround => Some(name -> typ)
       case _ => None
     }
 
@@ -74,7 +74,8 @@ object TyesLanguageExtensions:
             matchRes
           else
             remainingEnvVar.zip(matchRes).map { (remEnvVarName, m) => 
-              m.copy(envVarSubst = Map(remEnvVarName -> Right(Map.from(remEntries))))
+              val remEntriesUpdated = remEntries.map((name, typ) => name -> typ.substitute(m.typeVarSubst))
+              m.copy(envVarSubst = Map(remEnvVarName -> Right(Map.from(remEntriesUpdated))))
             }
       case EnvironmentPart.Variable(envVarName) => Some(EnvironmentMatch(envVarSubst = Map(envVarName -> Right(env))))
     }
