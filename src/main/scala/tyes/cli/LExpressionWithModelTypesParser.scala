@@ -28,3 +28,15 @@ class LExpressionWithModelTypesParser(types: Set[Type]) extends LExpressionParse
     then functionType
     else leafType
     
+  def prettyPrint(typ: Type): String = typ match {
+    case Type.Named(name) => name
+    // Special case for functions while they are a special case
+    case Constants.Types.Function(argTyp, retTyp) =>
+      val argTypStr = argTyp match {
+        case Constants.Types.Function(_, _) => "(" + prettyPrint(argTyp) + ")"
+        case _ => prettyPrint(argTyp)
+      }
+      s"$argTypStr ${Constants.Types.Function.operator} ${prettyPrint(retTyp)}"
+    case Type.Composite(name, args*) => name + args.map(prettyPrint).mkString("(", ", ", ")")
+    case Type.Variable(name) => s"$name (free)"  
+  }

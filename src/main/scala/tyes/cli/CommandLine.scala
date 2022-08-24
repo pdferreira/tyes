@@ -17,6 +17,7 @@ import example.*
 import utils.parsers.ParserExtensions
 import utils.parsers.ParserExtensions.*
 import LExpressionExtensions.given
+import utils.StringExtensions.decapitalize
 
 object CommandLine:
 
@@ -133,25 +134,12 @@ object CommandLine:
         for exp <- parseLExpression(line, expParser) do
           TyesInterpreter.typecheck(tsDecl, exp) match {
             case Some(typ) if typ.isGround => 
-              println(prettyPrintType(typ))
+              println(expParser.prettyPrint(typ))
             case _ => 
               Console.err.println("No type for expression")
           }
         },
         expSrcOption)
-
-  private def prettyPrintType(typ: Type): String = typ match {
-    case Type.Named(name) => name
-    // Special case for functions while they are a special case
-    case Constants.Types.Function(argTyp, retTyp) =>
-      val argTypStr = argTyp match {
-        case Constants.Types.Function(_, _) => "(" + prettyPrintType(argTyp) + ")"
-        case _ => prettyPrintType(argTyp)
-      }
-      s"$argTypStr ${Constants.Types.Function.operator} ${prettyPrintType(retTyp)}"
-    case Type.Composite(name, args*) => name + args.map(prettyPrintType).mkString("(", ", ", ")")
-    case Type.Variable(name) => s"$name (free)"  
-  }
 
   private def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String]): Unit =
     val engineManager = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())
@@ -163,13 +151,14 @@ object CommandLine:
 
       val tsClassName = objName
       val rtTypeSystem = engine.eval(s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
-      val rtTypes = engine.eval(s"$tsClassName.Type.values").asInstanceOf[Array[rtTypeSystem.T]]
-      val expParser = LExpressionWithRuntimeTypesParser(rtTypes.toSet)
+      val rtTypeEnumClass = engine.eval(s"classOf[$tsClassName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
+      val rtTypeObjectClass = engine.eval(s"$tsClassName.Type.getClass").asInstanceOf[Class[_]]
+      val expParser = LExpressionWithRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass)
       runInteractive(
         line => {
           for exp <- parseLExpression(line, expParser) do 
             rtTypeSystem.typecheck(exp, Map()) match {
-              case Right(typ) => println(typ)
+              case Right(typ) => println(expParser.prettyPrint(typ))
               case Left(errMsg) => Console.err.println(errMsg)
             }
         }, 
@@ -185,4 +174,3 @@ object CommandLine:
           if !line.isBlank then
             processLine(line)
     }
-      
