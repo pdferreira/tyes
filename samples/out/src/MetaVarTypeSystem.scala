@@ -2,7 +2,7 @@
     import tyes.runtime.*
     import example.*
     
-    object MetaVarTypeSystem extends TypeSystem[LExpression]:
+    object MetaVarTypeSystem extends TypeSystem[LExpression], TypeOperations:
       type T = Type
     
       enum Type extends tyes.runtime.Type:
@@ -23,7 +23,7 @@
         case LPlus(_e1, _e2) => 
           val _x = _e1 match { case LVariable(v) => Right(v) ; case _ => Left("Not a LVariable") }
           val _t1 = _x.flatMap(x => typecheck(LVariable(x), env))
-          if _e2 == LNumber(1) && _x.isRight then
+          if _e2 == LNumber(1) then
             _t1
           else  
             Left(s"TypeError: no type for `$exp`")

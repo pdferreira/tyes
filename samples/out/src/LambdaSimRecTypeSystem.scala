@@ -2,12 +2,13 @@
     import tyes.runtime.*
     import example.*
     
-    object LetVarTypeSystem extends TypeSystem[LExpression], TypeOperations:
+    object LambdaSimRecTypeSystem extends TypeSystem[LExpression], TypeOperations:
       type T = Type
     
       enum Type extends tyes.runtime.Type:
         case One
         case Two
+        case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
     
       def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
         case LNumber(_c1) => 
@@ -23,18 +24,18 @@
           else  
             Left(s"TypeError: no type for `$exp`")
         case LPlus(e1, e2) => 
-          val _t1 = typecheck(e1, env)
+          val _t1 = typecheck(e1, env).flatMap(cast[Type.$FunType])
           val _t2 = typecheck(e2, env)
-          if _t1.isRight && _t2 == _t1 then
-            _t1
+          if _t1.isRight && _t2 == _t1.map(_.t1) then
+            _t1.map(_.t2)
           else 
             Left(s"TypeError: no type for `$exp`")
-        case LLet(x, t1, e1, e2) => 
-          val _t1 = typecheck(e1, env)
-          val _t2 = t1.toRight("No type provided").flatMap(_t1 => typecheck(e2, Map(x -> _t1)))
-          if t1.toRight("No type provided") == _t1 then
-            if _t1.isRight && _t2.isRight then
-              _t2
+        case LLet(f, _ct2, e, _e4) => 
+          val Seq(_t, _t2) = destructure[Type.$FunType](_ct2)
+          val _t1 = _t.flatMap(t => _t2.flatMap(t2 => typecheck(e, Map(f -> Type.$FunType(t, t2))))).flatMap(cast[Type.$FunType])
+          if _e4 == LVariable("rec") && _t == _t1.map(_.t1) && _t2 == _t1.map(_.t2) then
+            if _t1.isRight then
+              Right(Type.$FunType(_t.getOrElse(???), _t2.getOrElse(???)))
             else
               Left(s"TypeError: no type for `$exp`")
           else  

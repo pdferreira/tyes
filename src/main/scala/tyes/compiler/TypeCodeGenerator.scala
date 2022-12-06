@@ -16,15 +16,15 @@ object TypeCodeGenerator:
 
   def genSpecializationFunction(typ: Type.Composite): String =
     val name = typ.name.capitalize
-    s"{ case t: $typeEnumName.$name => Right(t); case _ => Left(\"TypeError: not a $name\") }"
+    s"cast[$typeEnumName.$name]"
 
-  def genTypeVariableGetters(typ: Type): Seq[(Type.Variable, String)] = typ match {
-    case tv @ Type.Variable(_) => Seq((tv, ".getOrElse(???)"))
+  def genTypeVariableGetters(typ: Type, baseGetter: String = ".getOrElse(???)"): Seq[(Type.Variable, String)] = typ match {
+    case tv @ Type.Variable(_) => Seq((tv, baseGetter))
     case Type.Named(_) => Seq()
     case Type.Composite(_, args*) =>
       for 
         (t, idx) <- args.zipWithIndex
-        (tv, getter) <- genTypeVariableGetters(t)
+        (tv, getter) <- genTypeVariableGetters(t, baseGetter)
       yield
         (tv, s"${genArgumentTypeGetter(idx)}$getter")
   }
@@ -60,7 +60,9 @@ object TypeCodeGenerator:
   private def compileTypeConstructor(typ: Type): String = typ match {
     case Type.Named(name) => name.capitalize
     case Type.Composite(name, args*) =>
-      name.capitalize + args.map(t => s"${t.asInstanceOf[Type.Variable].name}: $typeEnumName").mkString("(", ", ", ")")
+      val argNames = args.map(t => t.asInstanceOf[Type.Variable].name)
+      name.capitalize + argNames.map(argName => s"$argName: $typeEnumName").mkString("(", ", ", ")")
+        + s" extends $typeEnumName, " + argNames.mkString("tyes.runtime.CompositeType(", ", ", ")")
     case _ => throw new Exception(s"Not a type constructor: $typ")
   }
 

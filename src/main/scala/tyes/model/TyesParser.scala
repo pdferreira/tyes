@@ -13,7 +13,7 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
   def metaIdent = raw"[a-z](\d+|'+)?".r
 
   // Meta variables conventioned to match (synctatic) variables: x, y', z2
-  def metaVarIdent = raw"[x-z](\d+|'+)?".r
+  def metaVarIdent = raw"[f-hx-z](\d+|'+)?".r
   
   // Names: 
   def declIdent = genericIdent.filter(id => !metaIdent.matches(id))

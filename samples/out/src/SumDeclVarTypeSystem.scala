@@ -2,7 +2,7 @@
     import tyes.runtime.*
     import example.*
     
-    object SumDeclVarTypeSystem extends TypeSystem[LExpression]:
+    object SumDeclVarTypeSystem extends TypeSystem[LExpression], TypeOperations:
       type T = Type
     
       enum Type extends tyes.runtime.Type:
@@ -28,9 +28,9 @@
         case LPlus(_e1, e) => 
           val _x = _e1 match { case LVariable(v) => Right(v) ; case _ => Left("Not a LVariable") }
           val _t1 = _x.flatMap(x => typecheck(e, Map(x -> Type.Two)))
-          if _x.isRight then
+          if _t1.isRight then
             _t1
-          else  
+          else 
             Left(s"TypeError: no type for `$exp`")
         case _ => Left(s"TypeError: no type for `$exp`")
       }

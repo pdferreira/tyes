@@ -2,7 +2,7 @@
     import tyes.runtime.*
     import example.*
     
-    object SumAccVarTypeSystem extends TypeSystem[LExpression]:
+    object SumAccVarTypeSystem extends TypeSystem[LExpression], TypeOperations:
       type T = Type
     
       enum Type extends tyes.runtime.Type:

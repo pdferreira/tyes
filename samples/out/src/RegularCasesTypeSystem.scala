@@ -2,7 +2,7 @@
     import tyes.runtime.*
     import example.*
     
-    object RegularCasesTypeSystem extends TypeSystem[LExpression]:
+    object RegularCasesTypeSystem extends TypeSystem[LExpression], TypeOperations:
       type T = Type
     
       enum Type extends tyes.runtime.Type:

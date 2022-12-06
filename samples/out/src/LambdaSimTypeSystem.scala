@@ -2,13 +2,13 @@
     import tyes.runtime.*
     import example.*
     
-    object LambdaSimTypeSystem extends TypeSystem[LExpression]:
+    object LambdaSimTypeSystem extends TypeSystem[LExpression], TypeOperations:
       type T = Type
     
       enum Type extends tyes.runtime.Type:
         case One
         case Two
-        case $FunType(t1: Type, t2: Type)
+        case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
     
       def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
         case LNumber(_c1) => 
@@ -24,7 +24,7 @@
           else  
             Left(s"TypeError: no type for `$exp`")
         case LPlus(e1, e2) => 
-          val _t1 = typecheck(e1, env).flatMap({ case t: Type.$FunType => Right(t); case _ => Left("TypeError: not a $FunType") })
+          val _t1 = typecheck(e1, env).flatMap(cast[Type.$FunType])
           val _t2 = typecheck(e2, env)
           if _t1.isRight && _t2 == _t1.map(_.t1) then
             _t1.map(_.t2)
