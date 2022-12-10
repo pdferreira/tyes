@@ -168,9 +168,8 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       val typStr = typeVarEnv.getOrElse(typeVarName, throw new Exception(s"Unbound type variable: $typeVarName"))  
       typecheckExpr = s"$typStr.flatMap($lambdaVarName => ${typecheckExpr})"
 
-    // TODO: Hard-coded for a single variable cases for now. Probably not worth generalizing before the generated code
-    // structure (and code generation strategy) is reviewed.
-    for case Term.Function(_, Term.Variable(varName)) <- Seq(term) do
+    // Destructure the variables from the term *if* they are not already declared
+    for varName <- term.variables.diff(declaredVariables) do
       typecheckExpr = s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
     
     // Destructure the variables from the environment *if* they are not already declared
