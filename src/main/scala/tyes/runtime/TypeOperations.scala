@@ -17,7 +17,7 @@ trait TypeOperations:
   
   def destructure
     [TargetT <: CompositeType[T]]
-    (typOpt: Option[T])
+    (typOpt: Option[T], errorMessage: String = "no type provided")
     (using tt: TypeTest[T, TargetT], ct: ClassTag[TargetT])
   : Seq[Either[String, T]] =
     val typArity = getCompositeTypeArity(ct.runtimeClass)
@@ -28,7 +28,7 @@ trait TypeOperations:
           case Left(err) => Seq.fill(typArity)(Left(err)) 
         }
       case None =>
-        Seq.fill(typArity)(Left(s"TypeError: no type provided"))
+        Seq.fill(typArity)(Left(s"TypeError: $errorMessage"))
     }
 
   def cast

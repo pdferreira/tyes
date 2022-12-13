@@ -4,6 +4,7 @@ import scala.collection.mutable
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
+import utils.CollectionExtensions.*
 
 private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
@@ -88,23 +89,31 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
           case Seq(r @ RuleDecl(_, Seq(), Judgement(Environment(Seq(EnvironmentPart.Variable(_))), HasType(Term.Variable(_), _)))) => 
-            compileRule(r, Map(), Seq(), indent)
+            compileRule(r, Map(), Seq(), Map(), indent)
           case _ =>
             val inductionDeclNames = rs.flatMap(_.premises).zipWithIndex.toMap.mapValues(idx => getFreshVarName("t", idx))
-            val destructureDecls = rs.flatMap(compileDestructurings).map(line => s"\r\n$indent  $line").mkString
+            val (destructureDeclsRaw, typeVarsFromDestructuring) = rs.foldLeft((Seq[String](), Map[String, String]())) { 
+              case ((decls, typeVarMap), r) => {
+                val (extraDecls, extraTypeVars) = compileDestructurings(r)
+                (decls ++ extraDecls, typeVarMap ++ extraTypeVars)
+              }
+            }
+            val destructureDecls = destructureDeclsRaw.map(CodeSimplifier.simplify).map(line => s"\r\n$indent  $line").mkString
             val inductionDecls = new mutable.StringBuilder()
             val condsPerRule = mutable.Map[RuleDecl, Iterable[String]]()
+            val typeVarEnvPerRule = mutable.Map[RuleDecl, Map[String, String]]()
             // TODO: Type variables are now properly scoped per rule, but now common premises don't get merged...
             // This needs a big rewrite
             for r <- rs do
               val Judgement(conclEnv, HasType(concl, conclTyp)) = r.conclusion
 
-              val typeVarsFromEnv = 
+              val typeVarsFromEnv = Map.from(
                 for
                   case EnvironmentPart.Bindings(bindings) <- r.conclusion.env.parts
                   case (varNameExpr, Type.Variable(typVarName)) <- bindings.map(generateBinding)
                 yield
                   typVarName -> s"$defaultEnvVarExpr.get($varNameExpr).toRight(s\"'$${$varNameExpr}' not found\")"
+              )
 
               val typeVarsFromTerm = Map.from(
                 (for 
@@ -113,41 +122,43 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
                 yield typ match {
                     case Type.Named(name) => throw new Exception(s"Unexpected ground type: $name")
                     case Type.Variable(name) => Seq(name -> s"$name.toRight(\"No type provided\")")
-                    case _: Type.Composite => 
-                      for typVarName <- typ.variables
-                      yield typVarName -> getFreshVarName(typVarName)
+                    case _: Type.Composite => Seq() // type vars already yielded by destructuring
                   }
                 ).flatten
               )
 
-              val ruleTypeVarEnv = r.premises.foldLeft(Map.from(typeVarsFromEnv)) {
+              val declaredTypeVars = typeVarsFromTerm ++ typeVarsFromDestructuring
+
+              val ruleTypeVarEnv = r.premises.foldLeft(typeVarsFromEnv) {
                 case (typeVarEnv, judg @ Judgement(premEnv, HasType(premTerm, premTyp))) =>
                   val premTypVarName = inductionDeclNames(judg)
-                  val premTypecheckExpr = compileInductionCall(judg, typeVarsFromTerm ++ typeVarEnv, c.variables)
+                  val premTypecheckExpr = compileInductionCall(judg, declaredTypeVars ++ typeVarEnv, c.variables)
                   
                   inductionDecls ++= s"\r\n$indent  val $premTypVarName = $premTypecheckExpr"
 
                   val premTypVarEnv = Map.from(
                     for (Type.Variable(typVarName), getter) <- TypeCodeGenerator.genTypeVariableGetters(premTyp, baseGetter = "")
-                    yield typeVarsFromTerm.getOrElse(typVarName, typVarName) -> s"$premTypVarName$getter"
+                    yield declaredTypeVars.getOrElse(typVarName, typVarName) -> s"$premTypVarName$getter"
                   )
                   
                   // Add envs together preserving the oldest entries
                   premTypVarEnv ++ typeVarEnv
               }
 
-              val conds = generateSyntacticConditions(c, concl, ruleTypeVarEnv)
-                ++ generateEnvironmentPartConditions(conclEnv)
-                ++ generateTermTypeConditions(typeVarsFromTerm, ruleTypeVarEnv)
+              val conds = generateSyntacticConditions(c, concl, typeVarsFromDestructuring ++ ruleTypeVarEnv)
+                ++ generateEnvironmentPartConditions(conclEnv, typeVarsFromDestructuring ++ ruleTypeVarEnv)
+                ++ generateTermTypeConditions(declaredTypeVars, ruleTypeVarEnv)
 
               condsPerRule += r -> conds
+              typeVarEnvPerRule += r -> (typeVarsFromDestructuring ++ ruleTypeVarEnv)
 
             val defaultCase = s"\r\n$indent    ${getTypeErrorString("exp")}"
             val ruleEvaluations = rs.foldRight(defaultCase) { (r, res) =>
-              compileRule(r, inductionDeclNames, condsPerRule(r), indent + "  ") + " " + res
+              compileRule(r, inductionDeclNames, condsPerRule(r), typeVarEnvPerRule(r), indent + "  ") + " " + res
             }
             s"${destructureDecls}${inductionDecls}\r\n$indent  $ruleEvaluations"
         }
+
         s"case ${compile(c, Map.from(for v <- c.typeVariables yield v -> v))} => $caseBody" 
     ).mkString(s"\r\n$indent")
 
@@ -187,17 +198,59 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
     return typecheckExpr
 
-  def compileDestructurings(rule: RuleDecl): Seq[String] = rule.conclusion.assertion match {
+
+  def compileDestructurings(rule: RuleDecl): (Seq[String], Map[String, String]) = 
+    val concl = rule.conclusion
+    val (asrtDecls, asrtDeclsTypeVars) = compileDestructurings(concl.assertion).distribute
+    val (envDecls, envDeclsTypeVars) = compileDestructurings(concl.env).distribute
+    (
+      asrtDecls ++ envDecls, 
+      (asrtDeclsTypeVars ++ envDeclsTypeVars).flatten.toMap
+    )
+  
+  def compileDestructurings(asrt: Assertion): Seq[(String, Map[String, String])] = asrt match {
     case HasType(Term.Function(_, fnArgs*), _) if fnArgs.exists(_.isInstanceOf[Term.Type]) =>
-      for case (Term.Type(Type.Composite(typName, typArgs*)), idx) <- fnArgs.zipWithIndex if typArgs.exists(!_.isGround) yield
-        val constructorMetaVar = getFreshVarName("ct", idx)
-        val typArgsVarNames = for case Type.Variable(name) <- typArgs yield name
-        s"val Seq(${typArgsVarNames.map(getFreshVarName).mkString(", ")}) = destructure[Type.$typName]($constructorMetaVar)"
+      for 
+        case (Term.Type(typ: Type.Composite), idx) <- fnArgs.zipWithIndex
+        res <- compileDestructuring(typ, getFreshVarName("ct", idx))
+      yield
+        res
+
     case HasType(Term.Function(_, fnArgs*), _) if fnArgs.exists(_.variables.nonEmpty) =>
       for case (Term.Function(fnName, Term.Variable(metaVarName)), idx) <- fnArgs.zipWithIndex yield
-        s"val ${getFreshVarName(metaVarName)} = ${getFreshVarName("e", idx)} match { case $fnName(v) => Right(v) ; case _ => Left(\"Not a $fnName\") }"
+        (
+          s"val ${getFreshVarName(metaVarName)} = ${getFreshVarName("e", idx)} match { case $fnName(v) => Right(v) ; case _ => Left(\"Not a $fnName\") }",
+          Map()
+        )
     case _ => Seq()
   }
+
+  def compileDestructurings(env: Environment): Seq[(String, Map[String, String])] =
+    for 
+      case EnvironmentPart.Bindings(bs) <- env.parts
+      case (varNameExpr, typ: Type.Composite) <- bs.map(generateBinding)
+
+      envAccessExpr = s"$defaultEnvVarExpr.get($varNameExpr)"
+      errorMessageExpr = s"s\"'$${$varNameExpr}' is not in scope\""
+      res <- compileDestructuring(typ, envAccessExpr, Some(errorMessageExpr))
+    yield
+      res
+
+  def compileDestructuring(
+    compositeTyp: Type.Composite,
+    targetObjExpr: String,
+    errorExprOpt: Option[String] = None
+  ): Option[(String, Map[String, String])] =
+    if compositeTyp.args.forall(_.isGround) then
+      None
+    else
+      val typGenName = TypeCodeGenerator.genName(compositeTyp.name)
+      val typArgsVarNames = for case Type.Variable(name) <- compositeTyp.args yield name -> getFreshVarName(name)
+      var errorArgExpr = errorExprOpt.map(", " + _).getOrElse("") 
+      Some((
+        s"val Seq(${typArgsVarNames.map(_._2).mkString(", ")}) = destructure[$typGenName]($targetObjExpr$errorArgExpr)",
+        Map.from(typArgsVarNames)
+      ))
 
   private def getTypeEnvForRule(rule: RuleDecl, inductionDeclNames: PartialFunction[Judgement, String]): Map[String, String] =
     val Judgement(conclEnv, HasType(conclTerm, _)) = rule.conclusion
@@ -233,7 +286,13 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
     
     Map.from(typeVarsFromPremises ++ typeVarsFromTerm ++ typeVarsFromEnv)
 
-  def compileRule(rule: RuleDecl, inductionDeclNames: PartialFunction[Judgement, String], conds: Iterable[String], indent: String): String =
+  def compileRule(
+    rule: RuleDecl,
+    inductionDeclNames: PartialFunction[Judgement, String],
+    conds: Iterable[String],
+    typeVarEnv: Map[String, String],
+    indent: String
+  ): String =
     val Judgement(conclEnv, HasType(_, conclTyp)) = rule.conclusion
     
     val premises = 
@@ -247,7 +306,9 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       yield 
         (s"Right($defaultEnvVarExpr($nameVarExpr))", typ)
 
-    val typVarSubst = getTypeEnvForRule(rule, inductionDeclNames)
+    var typVarSubst = getTypeEnvForRule(rule, inductionDeclNames)
+    for (k, v) <- typeVarEnv if !typVarSubst.contains(k) do
+      typVarSubst += k -> s"$v.getOrElse(???)"
 
     val body = generateTypeCheckIf(premises ++ extraPremises, conclTyp, typVarSubst, leaveOpen = conds.isEmpty)
     
@@ -265,7 +326,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
     subst.map { (n, v) => s"$n == ${compile(v, typSubst)}" }
 
-  def generateEnvironmentPartConditions(env: Environment): Iterable[String] =
+  def generateEnvironmentPartConditions(env: Environment, typEnv: Map[String, String]): Iterable[String] =
     assert(!env.parts.isEmpty)
 
     val sizeOpt = 
@@ -279,25 +340,33 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       else s"$defaultEnvVarExpr.size == $size"
     )
 
-    sizeCondition.toSeq ++ env.parts.flatMap(generateEnvironmentPartConditions)
+    sizeCondition.toSeq ++ env.parts.flatMap(part => generateEnvironmentPartConditions(part, typEnv))
 
-  def generateEnvironmentPartConditions(env: EnvironmentPart): Iterable[String] = env match {
+  def generateEnvironmentPartConditions(env: EnvironmentPart, typEnv: Map[String, String]): Iterable[String] = env match {
     case EnvironmentPart.Bindings(bindings) =>  
       // For each binding, if we have an expected type, check right away, otherwise just check for containment
       for 
         b <- bindings
         (varNameExpr, typ) = generateBinding(b)
-      yield typ match {
-        case t @ Type.Named(_) => s"$defaultEnvVarExpr.get($varNameExpr) == Some(${TypeCodeGenerator.compile(t)})"
-        case Type.Variable(_) => s"$defaultEnvVarExpr.contains($varNameExpr)"
-      }
+        cond <- typ match {
+          case t: Type.Named => Seq(s"$defaultEnvVarExpr.get($varNameExpr) == Some(${TypeCodeGenerator.compile(t)})")
+          case Type.Variable(_) => Seq(s"$defaultEnvVarExpr.contains($varNameExpr)")
+          case t: Type.Composite =>
+            for 
+              v <- t.variables
+              if typEnv.contains(v)
+            yield
+              s"${typEnv(v)}.isRight"
+        }
+      yield
+        cond
     case EnvironmentPart.Variable(_) => 
       Seq()
   }
 
   def generateTermTypeConditions(termTypeVars: Map[String, String], ruleTypeEnv: Map[String, String]): Iterable[String] =
     // For all conclusion term variables that are also used in the rule's expected type
-    // generate the equality check between both 
+    // generate the equality check between both
     for case (termTypeVar, Some(ruleTypeValue)) <- termTypeVars.mapValues(ruleTypeEnv.get) 
     yield s"${termTypeVars(termTypeVar)} == $ruleTypeValue"
 

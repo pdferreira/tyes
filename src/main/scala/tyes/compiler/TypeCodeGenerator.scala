@@ -7,11 +7,13 @@ object TypeCodeGenerator:
 
   val typeEnumName = "Type"
 
+  def genName(typName: String): String = s"$typeEnumName.${typName.capitalize}"
+
   def compile(typ: Type, typSubst: Map[String, String] = Map()): String = typ match {
     case Constants.Types.any => "_"
-    case Type.Named(name) => s"$typeEnumName.${name.capitalize}"
+    case Type.Named(name) => genName(name)
     case Type.Variable(name) => typSubst.getOrElse(name, throw new Exception(s"Unbound type variable: $name"))
-    case Type.Composite(name, args*) => args.map(compile(_, typSubst)).mkString(s"$typeEnumName.${name.capitalize}(", ", ", ")")
+    case Type.Composite(name, args*) => args.map(compile(_, typSubst)).mkString(s"${genName(name)}(", ", ", ")")
   }
 
   def genSpecializationFunction(typ: Type.Composite): String =

@@ -18,9 +18,10 @@
             Right(Type.Two)
           else  
             Left(s"TypeError: no type for `$exp`")
-        case LVariable(x) => 
-          if env.size == 1 && env.contains(x) then
-            Right(env(x))
+        case LVariable(f) => 
+          val Seq(_t2, _t) = destructure[Type.$FunType](env.get(f), s"'$f' is not in scope")
+          if _t2.isRight && _t.isRight then
+            Right(Type.$FunType(_t.getOrElse(???), _t2.getOrElse(???)))
           else  
             Left(s"TypeError: no type for `$exp`")
         case LPlus(e1, e2) => 
@@ -32,7 +33,7 @@
             Left(s"TypeError: no type for `$exp`")
         case LLet(f, _ct2, e, _e4) => 
           val Seq(_t, _t2) = destructure[Type.$FunType](_ct2)
-          val _t1 = _t.flatMap(t => _t2.flatMap(t2 => typecheck(e, Map(f -> Type.$FunType(t, t2))))).flatMap(cast[Type.$FunType])
+          val _t1 = _t2.flatMap(t2 => _t.flatMap(t => typecheck(e, env ++ Map(f -> Type.$FunType(t2, t))))).flatMap(cast[Type.$FunType])
           if _e4 == LVariable("rec") && _t == _t1.map(_.t1) && _t2 == _t1.map(_.t2) then
             if _t1.isRight then
               Right(Type.$FunType(_t.getOrElse(???), _t2.getOrElse(???)))

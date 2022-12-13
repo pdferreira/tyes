@@ -5,11 +5,11 @@ typesystem LambdaSimRec
   rule infers 2 : two
 
   rule Var
-    infers x : t under x : t
+    infers f : t -> t2 under Env, f : t2 -> t
 
   rule LambdaLetRec
     infers let f : t -> t2 = e in rec : t -> t2
-    if e : t -> t2 under f : t -> t2
+    if e : t -> t2 under Env, f : t2 -> t
 
   rule AppPlus
     infers e1 + e2 : t2
