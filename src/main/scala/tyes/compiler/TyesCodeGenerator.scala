@@ -4,7 +4,6 @@ import scala.collection.mutable
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
-import utils.CollectionExtensions.*
 
 private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
@@ -201,8 +200,8 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
   def compileDestructurings(rule: RuleDecl): (Seq[String], Map[String, String]) = 
     val concl = rule.conclusion
-    val (asrtDecls, asrtDeclsTypeVars) = compileDestructurings(concl.assertion).distribute
-    val (envDecls, envDeclsTypeVars) = compileDestructurings(concl.env).distribute
+    val (asrtDecls, asrtDeclsTypeVars) = compileDestructurings(concl.assertion).unzip
+    val (envDecls, envDeclsTypeVars) = compileDestructurings(concl.env).unzip
     (
       asrtDecls ++ envDecls, 
       (asrtDeclsTypeVars ++ envDeclsTypeVars).flatten.toMap
