@@ -28,7 +28,7 @@ class LExpressionParser[TType] extends RegexParsers:
     case varName ~ varTypeOpt ~ varExp ~ inExp => LLet(varName, varTypeOpt, varExp, inExp)
   }
 
-  def fun: Parser[LExpression[TType]] = ("fun" ~> ident) ~ (":" ~> tpe).? ~ ("->" ~> expression) ^^ {
+  def fun: Parser[LExpression[TType]] = ("fun" ~> ident) ~ (":" ~> tpe).? ~ ("=>" ~> expression) ^^ {
     case argName ~ argTypeOpt ~ bodyExp => LFun(argName, argTypeOpt, bodyExp)
   }
 

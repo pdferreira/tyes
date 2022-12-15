@@ -12,21 +12,35 @@ import Parsers.*
 */
 class LExpressionContextParser(bindings: TyesTermLanguageBindings):
 
-  def ident = raw"[a-zA-Z][a-zA-Z\d_]*".r.into(bindings.identTermParser)
+  val keywords = Set("let", "in", "fun")
 
-  def variable = ident ^^ { varTerm => Term.Function("LVariable", varTerm) } 
+  def ident = raw"[a-zA-Z][a-zA-Z\d_]*".r
+    .filter(id => !keywords.contains(id))
+    .into(bindings.identTermParser)
+
+  def variable = (
+    (bindings.metaTermVariableParser - oneOf(keywords))
+    ||| ident ^^ { varTerm => Term.Function("LVariable", varTerm) }
+  )
 
   def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => Term.Function("LNumber", Term.Constant(numStr.toInt)) }
   
-  def leaf = ("(" ~> expression <~ ")") | number | (bindings.metaTermVariableParser ||| variable)
-  
-  def operator = leaf ~ ("+" ~> leaf).* ^^ { 
+  def leaf = 
+    ("(" ~> expression <~ ")") 
+    | number 
+    | variable
+
+  def app = leaf ~ leaf.* ^^ {
+    case exp ~ rs => rs.foldLeft(exp) { (left, right) => Term.Function("LApp", left, right) }
+  }
+
+  def operator = app ~ ("+" ~> app).* ^^ { 
     case exp ~ rs => rs.foldLeft(exp) { (left, right) => Term.Function("LPlus", left, right) }
   }
 
   def tpe = bindings.typeParser
   
-  def let = ("let" ~> ident) ~ (":" ~> tpe).? ~ ("=" ~> operator) ~ ("in" ~> expression) ^^ {
+  def let: Parser[Term] = ("let" ~> ident) ~ (":" ~> tpe).? ~ ("=" ~> (expression - let)) ~ ("in" ~> expression) ^^ {
     case varTerm ~ varTypeOpt ~ varExp ~ inExp => 
       Term.Function(
         "LLet",
@@ -35,8 +49,17 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
         varExp,
         inExp)
   }
+
+  def fun: Parser[Term] = ("fun" ~> ident) ~ (":" ~> tpe).? ~ ("=>" ~> expression) ^^ {
+    case argTerm ~ argTypeOpt ~ bodyExp =>
+      Term.Function(
+        "LFun",
+        argTerm,
+        Term.Type(argTypeOpt.getOrElse(Constants.Types.any)), 
+        bodyExp)
+  }
   
-  def expression: Parser[Term] = let | operator
+  def expression: Parser[Term] = let | fun | operator
 
 object LExpressionContextParser extends (TyesTermLanguageBindings => Parser[Term]):
 

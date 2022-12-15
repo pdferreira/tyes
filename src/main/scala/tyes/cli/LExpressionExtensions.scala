@@ -19,4 +19,12 @@ object LExpressionExtensions:
             varExp.convert,
             inExp.convert
           )
+        case LFun(argName, argTypeOpt, bodyExp) =>
+          Term.Function(
+            "LFun",
+            Term.Constant(argName),
+            Term.Type(argTypeOpt.getOrElse(Constants.Types.any)),
+            bodyExp.convert
+          )
+        case LApp(funExp, argExp) => Term.Function("LApp", funExp.convert, argExp.convert)
     }

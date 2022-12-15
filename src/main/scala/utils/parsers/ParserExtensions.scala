@@ -10,6 +10,12 @@ trait ParserExtensions extends Parsers:
     else Success(in.first, in.rest)
   }
 
+  def oneOf[T](parsers: Iterable[Parser[T]]): Parser[T] =
+    parsers.foldLeft[Parser[T]](failure("must match one"))((p1, p2) => p1 | p2)
+
+  implicit def toParserIterable[T](it: Iterable[T])(using toParser: T => Parser[T]): Iterable[Parser[T]] =
+    it.map(toParser)
+
   def parse[T](parser: Parser[T], elems: Seq[Elem]): ParseResult[T] =
     parser(new SeqReader(elems))
 
@@ -53,3 +59,4 @@ object ParserExtensions:
       case s: Parsers#Success[T] => 
         Right(s.result)
     }
+  
