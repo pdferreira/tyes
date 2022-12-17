@@ -1,0 +1,16 @@
+typesystem LambdaCalculus
+
+  rule Const
+    infers 1 : const
+
+  rule Var
+    infers x : t under Env, x : t
+
+  rule Lam
+    infers fun x : t => e : t -> t2 under Env
+    if e : t2 under Env, x : t
+
+  rule App
+    infers e1 e2 : t
+    if e1 : t2 -> t
+    and e2 : t2
