@@ -112,5 +112,35 @@ def compile(irInstr: IRInstr[String]): String = irInstr match {
     if canFail then 
       s"$resVar <- ${compile(exp)}"
     else
-      s"$resVar = ${compile(exp)}"
+      s"$resVar = ${compile(exp, canFail = false)}"
+}
+
+def compileToIfs(irNode: IRNode[String], canFail: Boolean = true): String = irNode match {
+  case IRNode.Error(err) => s"Left(\"$err\")"
+  case IRNode.Result(res) => if canFail then s"Right($res)" else res
+  case IRNode.And(cs :+ IRInstr.Decl(resVar, exp, expCanFail), IRNode.Result(resVar2)) if resVar == resVar2 && canFail == expCanFail =>
+    // Example of special case rule
+    compileToIfs(IRNode.And(cs, exp), !canFail)
+  case IRNode.And(IRInstr.Decl(resVar, exp, canFail) +: cs, next) =>
+    (if canFail then
+      s"val $resVar = ${compileToIfs(exp)} match { case Right(v) => v ; case left => return left }\n"
+    else
+      s"val $resVar = ${compileToIfs(exp, canFail = false)}\n") + compileToIfs(IRNode.And(cs, next))
+  case IRNode.And(Seq(), next) => compileToIfs(next, canFail)
+  case IRNode.And(instrs, next) =>
+    // Because of the previous cases, when we reach here there's at least one IRInstr.Cond
+    val isCond: IRInstr[String] => Boolean = { case IRInstr.Cond(_, _) => true ; case _ => false }
+    val conditions =
+      (
+        for case IRInstr.Cond(cond, err) <- instrs.takeWhile(isCond) 
+        yield
+          val negCond = if cond.contains(' ') then s"!($cond)" else s"!$cond"
+          s"if $negCond then Left(\"$err\")"
+      ).mkString("", "\nelse ", "\nelse {\n")
+
+    val remInstr = instrs.dropWhile(isCond)
+    conditions + compileToIfs(IRNode.And(remInstr, next)) + "\n}"
+  case IRNode.Switch(branches, otherwise) =>
+    (for (cond, next) <- branches yield
+      s"if $cond then {\n  " + compileToIfs(next) + "\n}").mkString("", " else ", " else {\n") + compileToIfs(otherwise) + "\n}"
 }
