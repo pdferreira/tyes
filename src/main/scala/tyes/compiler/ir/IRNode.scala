@@ -90,10 +90,26 @@ val exampleOptimizedV2 = IRNode.Switch(
   otherwise = IRNode.Error("s\"No type for ${_c1}, should be one of: 1, 3\"")
 )
 
+val plusExample = IRNode.Switch(
+  branches = Seq(
+    ("_e2 == LNumber(1)", IRNode.Result("typecheck(e, Map(\"pi\" -> Type.Real))", canFail = true)),
+    ("_e2 == LNumber(2)", IRNode.Result("typecheck(e, Map(\"pi\" -> Type.Int))", canFail = true)),
+    ("_e2 == LNumber(3)", IRNode.And(
+      conds = Seq(
+        IRInstr.Decl("t3", IRNode.Result("typecheck(e, env)", canFail = true)),
+        IRInstr.Decl("t4", IRNode.Result("typecheck(LNumber(1), Map(\"pi\" -> t3))", canFail = true)),
+        IRInstr.Cond("t4 == t3", "s\"TypeError: types `$t4` and `$t3` don't match\"")
+      ),
+      next = IRNode.Result("t3", canFail = false)
+    ))
+  ),
+  otherwise = IRNode.Error("s\"TypeError: no type for `LPlus(_, $_e2)`\"")
+)
+
 def compile(irNode: IRNode[String]): String = irNode match {
   case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
   case IRNode.Error(err) => s"Left($err)"
-  case IRNode.Result(res, canFail) => if canFail then s"Right($res)" else res
+  case IRNode.Result(res, _) => res
   case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
     // Example of special case rule
     compile(IRNode.And(cs, exp))
@@ -119,20 +135,20 @@ def compile(irInstr: IRInstr[String]): String = irInstr match {
       s"$resVar = ${compile(exp)}"
 }
 
-// TODO: find better name for needsToHandleFailure param and canFail field
-def compileToIfs(irNode: IRNode[String], needsToHandleFailure: Boolean = false): String = irNode match {
+// TODO: find better name for failureIsPossible param and canFail field
+def compileToIfs(irNode: IRNode[String], failureIsPossible: Boolean = false): String = irNode match {
   case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
   case IRNode.Error(err) => s"Left($err)"
-  case IRNode.Result(res, canFail) => if canFail || needsToHandleFailure then s"Right($res)" else res
+  case IRNode.Result(res, canFail) => if failureIsPossible && !canFail then s"Right($res)" else res
   case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 =>
     // Example of special case rule
-    compileToIfs(IRNode.And(cs, exp), needsToHandleFailure || canFail(exp) != resCanFail)
+    compileToIfs(IRNode.And(cs, exp), failureIsPossible || canFail(exp) != resCanFail)
   case IRNode.And(IRInstr.Decl(resVar, exp) +: cs, next) =>
     (if canFail(exp) then
       s"val $resVar = ${compileToIfs(exp)} match { case Right(v) => v ; case left => return left }\n"
     else
-      s"val $resVar = ${compileToIfs(exp)}\n") + compileToIfs(IRNode.And(cs, next), needsToHandleFailure)
-  case IRNode.And(Seq(), next) => compileToIfs(next, needsToHandleFailure)
+      s"val $resVar = ${compileToIfs(exp)}\n") + compileToIfs(IRNode.And(cs, next), failureIsPossible)
+  case IRNode.And(Seq(), next) => compileToIfs(next, failureIsPossible)
   case IRNode.And(instrs, next) =>
     // Because of the previous cases, when we reach here there's at least one IRInstr.Cond
     val isCond: IRInstr[String] => Boolean = { case IRInstr.Cond(_, _) => true ; case _ => false }
@@ -145,12 +161,12 @@ def compileToIfs(irNode: IRNode[String], needsToHandleFailure: Boolean = false):
       ).mkString("", "\nelse ", "\nelse {\n")
 
     val remInstr = instrs.dropWhile(isCond)
-    conditions + compileToIfs(IRNode.And(remInstr, next), needsToHandleFailure) + "\n}"
+    conditions + compileToIfs(IRNode.And(remInstr, next), failureIsPossible) + "\n}"
   case IRNode.Switch(branches, otherwise) =>
-    val needsToHandleFailure = branches.exists((_, n) => canFail(n)) || canFail(otherwise)
+    val failureIsPossible = branches.exists((_, n) => canFail(n)) || canFail(otherwise)
     (for (cond, next) <- branches yield
-      s"if $cond then {\n  " + compileToIfs(next, needsToHandleFailure) + "\n}"
-    ).mkString("", " else ", " else {\n") + compileToIfs(otherwise, needsToHandleFailure) + "\n}"
+      s"if $cond then {\n  " + compileToIfs(next, failureIsPossible) + "\n}"
+    ).mkString("", " else ", " else {\n") + compileToIfs(otherwise, failureIsPossible) + "\n}"
 }
 
 def canFail[TCode](irNode: IRNode[TCode]): Boolean = irNode match {
