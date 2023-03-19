@@ -2,51 +2,51 @@ package tyes.compiler.ir
 
 enum IRNode[+TCode]:
   case Unexpected
-  case Error(err: String)
+  case Error(err: TCode)
   case Result(code: TCode, canFail: Boolean)
   case Switch(branches: Seq[(String, IRNode[TCode])], otherwise: IRNode[TCode])
   case And(conds: Seq[IRInstr[TCode]], next: IRNode[TCode])
 
 enum IRInstr[+TCode]:
-  case Cond(cond: TCode, err: String)
+  case Cond(cond: TCode, err: TCode)
   case Decl(resVar: String, exp: IRNode[TCode])
 
 val example = IRNode.Switch(
   branches = Seq(
     ("_c1 == LNumber(1)", IRNode.And(
       conds = Seq(
-        IRInstr.Cond("env.size == 1", "Env must have exactly one identifier"),
-        IRInstr.Cond("env.contains(\"pi\")", "Env must contain 'pi'"),
+        IRInstr.Cond("env.size == 1", "\"Env must have exactly one identifier\""),
+        IRInstr.Cond("env.contains(\"pi\")", "\"Env must contain 'pi'\""),
         IRInstr.Decl("piT", IRNode.Result("env(\"pi\")", canFail = false)),
-        IRInstr.Cond("piT == Type.Real", "Expected type of 'pi' to be Real")
+        IRInstr.Cond("piT == Type.Real", "\"Expected type of 'pi' to be Real\"")
       ),
       next = IRNode.Result("Type.Real", canFail = false)
     )),
     ("_c1 == LNumber(3)", IRNode.And(
       conds = Seq(
-        IRInstr.Cond("env.size == 1", "Env must have exactly one identifier"),
-        IRInstr.Cond("env.contains(\"pi\")", "Env must contain 'pi'"),
+        IRInstr.Cond("env.size == 1", "\"Env must have exactly one identifier\""),
+        IRInstr.Cond("env.contains(\"pi\")", "\"Env must contain 'pi'\""),
         IRInstr.Decl("piT", IRNode.Result("env(\"pi\")", canFail = false)),
       ),
       next = IRNode.Result("piT", canFail = false)
     ))
   ),
-  otherwise = IRNode.Error("No type for ${_c1}, should be one of: 1, 3")
+  otherwise = IRNode.Error("s\"No type for ${_c1}, should be one of: 1, 3\"")
 )
 
 val exampleOptimized = IRNode.Switch(
   branches = Seq(
     ("_c1 == LNumber(1) || _c1 == LNumber(3)", IRNode.And(
       conds = Seq(
-        IRInstr.Cond("env.size == 1", "Env must have exactly one identifier"),
-        IRInstr.Cond("env.contains(\"pi\")", "Env must contain 'pi'"),
+        IRInstr.Cond("env.size == 1", "\"Env must have exactly one identifier\""),
+        IRInstr.Cond("env.contains(\"pi\")", "\"Env must contain 'pi'\""),
         IRInstr.Decl("piT", IRNode.Result("env(\"pi\")", canFail = false)),
         IRInstr.Decl("resT", 
           exp = IRNode.Switch(
             branches = Seq(
               ("_c1 == LNumber(1)", IRNode.And(
                 conds = Seq(
-                  IRInstr.Cond("piT == Type.Real", "Expected type of 'pi' to be Real")
+                  IRInstr.Cond("piT == Type.Real", "\"Expected type of 'pi' to be Real\"")
                 ),
                 next = IRNode.Result("Type.Real", canFail = false)
               )),
@@ -59,15 +59,15 @@ val exampleOptimized = IRNode.Switch(
       next = IRNode.Result("resT", canFail = false)  
     ))
   ),
-  otherwise = IRNode.Error("No type for ${_c1}, should be one of: 1, 3")
+  otherwise = IRNode.Error("s\"No type for ${_c1}, should be one of: 1, 3\"")
 )
 
 val exampleOptimizedV2 = IRNode.Switch(
   branches = Seq(
     ("_c1 == LNumber(1) || _c1 == LNumber(3)", IRNode.And(
       conds = Seq(
-        IRInstr.Cond("env.size == 1", "Env must have exactly one identifier"),
-        IRInstr.Cond("env.contains(\"pi\")", "Env must contain 'pi'"),
+        IRInstr.Cond("env.size == 1", "\"Env must have exactly one identifier\""),
+        IRInstr.Cond("env.contains(\"pi\")", "\"Env must contain 'pi'\""),
         IRInstr.Decl("piT", IRNode.Result("env(\"pi\")", canFail = false)),
         IRInstr.Decl("resT", 
           exp = IRNode.Switch(
@@ -76,7 +76,7 @@ val exampleOptimizedV2 = IRNode.Switch(
                 branches = Seq(
                   ("piT == Type.Real", IRNode.Result("Type.Real", canFail = false))
                 ),
-                otherwise = IRNode.Error("Expected type of 'pi' to be Real")
+                otherwise = IRNode.Error("\"Expected type of 'pi' to be Real\"")
               )),
               ("_c1 == LNumber(3)", IRNode.Result("piT", canFail = false))
             ),
@@ -87,12 +87,12 @@ val exampleOptimizedV2 = IRNode.Switch(
       next = IRNode.Result("resT", canFail = false)  
     ))
   ),
-  otherwise = IRNode.Error("No type for ${_c1}, should be one of: 1, 3")
+  otherwise = IRNode.Error("s\"No type for ${_c1}, should be one of: 1, 3\"")
 )
 
 def compile(irNode: IRNode[String]): String = irNode match {
   case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
-  case IRNode.Error(err) => s"Left(\"$err\")"
+  case IRNode.Error(err) => s"Left($err)"
   case IRNode.Result(res, canFail) => if canFail then s"Right($res)" else res
   case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
     // Example of special case rule
@@ -100,7 +100,7 @@ def compile(irNode: IRNode[String]): String = irNode match {
   case IRNode.And(conds, next) => "for\n" + conds.map(compile).mkString(" ", "\n  ", "\n") + "yield " + compile(next)
   case IRNode.Switch(Seq((cond, IRNode.Result(res, false))), IRNode.Error(err)) =>
     // Example of special case rule
-    s"Either.cond($cond, $res, \"$err\")"
+    s"Either.cond($cond, $res, $err)"
   case IRNode.Switch(branches, otherwise) =>
     val needsToHandleFailure = branches.exists((_, n) => canFail(n)) || canFail(otherwise)
     (for (cond, next) <- branches yield
@@ -111,7 +111,7 @@ def compile(irNode: IRNode[String]): String = irNode match {
 }
 
 def compile(irInstr: IRInstr[String]): String = irInstr match {
-  case IRInstr.Cond(cond, err) => s"_ <- Either.cond($cond, (), \"$err\")"
+  case IRInstr.Cond(cond, err) => s"_ <- Either.cond($cond, (), $err)"
   case IRInstr.Decl(resVar, exp) =>
     if canFail(exp) then 
       s"$resVar <- ${compile(exp)}"
@@ -122,7 +122,7 @@ def compile(irInstr: IRInstr[String]): String = irInstr match {
 // TODO: find better name for needsToHandleFailure param and canFail field
 def compileToIfs(irNode: IRNode[String], needsToHandleFailure: Boolean = false): String = irNode match {
   case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
-  case IRNode.Error(err) => s"Left(\"$err\")"
+  case IRNode.Error(err) => s"Left($err)"
   case IRNode.Result(res, canFail) => if canFail || needsToHandleFailure then s"Right($res)" else res
   case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 =>
     // Example of special case rule
@@ -141,7 +141,7 @@ def compileToIfs(irNode: IRNode[String], needsToHandleFailure: Boolean = false):
         for case IRInstr.Cond(cond, err) <- instrs.takeWhile(isCond) 
         yield
           val negCond = if cond.contains(' ') then s"!($cond)" else s"!$cond"
-          s"if $negCond then Left(\"$err\")"
+          s"if $negCond then Left($err)"
       ).mkString("", "\nelse ", "\nelse {\n")
 
     val remInstr = instrs.dropWhile(isCond)
