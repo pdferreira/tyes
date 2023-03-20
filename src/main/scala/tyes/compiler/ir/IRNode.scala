@@ -181,3 +181,27 @@ def canFail[TCode](irInstr: IRInstr[TCode]): Boolean = irInstr match {
   case IRInstr.Cond(_, _) => true
   case IRInstr.Decl(_, exp) => canFail(exp) 
 }
+
+def compileToExceptions(irNode: IRNode[String]): String = irNode match {
+  case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
+  case IRNode.Error(err) => s"throw new TypeError($err)"
+  case IRNode.Result(res, _) => res
+  case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 =>
+    // Example of special case rule
+    compileToExceptions(IRNode.And(cs, exp))
+  case IRNode.And(conds, next) =>
+    conds.map(compileToExceptions).mkString("  ", "\n  ", "\n") + compileToExceptions(next)
+  case IRNode.Switch(branches, otherwise) =>
+    (for (cond, next) <- branches yield
+      s"if $cond then {\n  " + compileToExceptions(next) + "\n}"
+    ).mkString("", " else ", " else {\n") + compileToExceptions(otherwise) + "\n}"
+}
+
+def compileToExceptions(irInstr: IRInstr[String]): String = irInstr match {
+  case IRInstr.Cond(cond, err) =>
+    val negCond = if cond.contains(' ') then s"!($cond)" else s"!$cond"
+    s"if $negCond then throw new TypeError($err)"
+  case IRInstr.Decl(resVar, exp) =>
+    s"val $resVar = ${compileToExceptions(exp)}"
+}
+
