@@ -4,7 +4,7 @@ enum IRNode[+TCode]:
   case Unexpected
   case Error(err: TCode)
   case Result(code: TCode, canFail: Boolean)
-  case Switch(branches: Seq[(String, IRNode[TCode])], otherwise: IRNode[TCode])
+  case Switch(branches: Seq[(TCode, IRNode[TCode])], otherwise: IRNode[TCode])
   case And(conds: Seq[IRInstr[TCode]], next: IRNode[TCode])
 
 enum IRInstr[+TCode]:
@@ -104,4 +104,38 @@ val plusExample = IRNode.Switch(
     ))
   ),
   otherwise = IRNode.Error("s\"TypeError: no type for `LPlus(_, $_e2)`\"")
+)
+
+def codeGenLNumber(i: Int) = CodeGenNode.Apply(CodeGenNode.Var("LNumber"), CodeGenNode.Integer(i))
+
+def codeGenCompoundVar(components: String*) = components.foldLeft(None: Option[CodeGenNode]) { (currNode, c) =>
+  Some(currNode match {
+    case None => CodeGenNode.Var(c)
+    case Some(n) => CodeGenNode.Field(n, c)
+  })
+}.get
+
+def codeGenType(typeName: String) = CodeGenNode.Field(CodeGenNode.Var("Type"), typeName)
+
+val exampleWithCodeGen: IRNode[CodeGenNode] = IRNode.Switch(
+  branches = Seq(
+    (CodeGenNode.Equals(CodeGenNode.Var("_c1"), codeGenLNumber(1)), IRNode.And(
+      conds = Seq(
+        IRInstr.Cond(CodeGenNode.Equals(codeGenCompoundVar("env", "size"), CodeGenNode.Integer(1)), CodeGenNode.Text("Env must have exactly one identifier")),
+        IRInstr.Cond(CodeGenNode.Apply(codeGenCompoundVar("env", "contains"), CodeGenNode.Text("pi")), CodeGenNode.Text("Env must contain 'pi'")),
+        IRInstr.Decl("piT", IRNode.Result(CodeGenNode.Apply(CodeGenNode.Var("env"), CodeGenNode.Text("pi")), canFail = false)),
+        IRInstr.Cond(CodeGenNode.Equals(CodeGenNode.Var("piT"), codeGenType("Real")), CodeGenNode.Text("Expected type of 'pi' to be Real"))
+      ),
+      next = IRNode.Result(codeGenType("Real"), canFail = false)
+    )),
+    (CodeGenNode.Equals(CodeGenNode.Var("_c1"), codeGenLNumber(3)), IRNode.And(
+      conds = Seq(
+        IRInstr.Cond(CodeGenNode.Equals(codeGenCompoundVar("env", "size"), CodeGenNode.Integer(1)), CodeGenNode.Text("Env must have exactly one identifier")),
+        IRInstr.Cond(CodeGenNode.Apply(codeGenCompoundVar("env", "contains"), CodeGenNode.Text("pi")), CodeGenNode.Text("Env must contain 'pi'")),
+        IRInstr.Decl("piT", IRNode.Result(CodeGenNode.Apply(CodeGenNode.Var("env"), CodeGenNode.Text("pi")), canFail = false)),
+      ),
+      next = IRNode.Result(CodeGenNode.Var("piT"), canFail = false)
+    ))
+  ),
+  otherwise = IRNode.Error(CodeGenNode.FormattedText("No type for ", CodeGenNode.Var("_c1"), ", should be one of: 1, 3"))
 )
