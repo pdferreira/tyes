@@ -52,28 +52,30 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
   def getFreshVarName(base: String, index: Int): String = s"${getFreshVarName(base)}${index + 1}"
 
+  def extractTemplate(term: Term): Term = term match {
+    case Term.Function(fnName, args*) =>
+      val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
+        arg match {
+          case Term.Variable(_) => arg
+          case Term.Constant(_) => Term.Variable(getFreshVarName("c", idx))
+          case Term.Function(_, _*) => Term.Variable(getFreshVarName("e", idx))
+          case Term.Type(typ) => Term.Type(typ match {
+            case Type.Variable(_) => typ
+            case Type.Named(_) => Type.Variable(getFreshVarName("ct", idx))
+            case Type.Composite(_, _*) => Type.Variable(getFreshVarName("ct", idx))
+          })
+        }
+      }
+      Term.Function(fnName, argsAsVariables*)
+    case _ => term
+  }
+
   def getRulesByConstructor(tsDecl: TypeSystemDecl): Map[Term, Seq[RuleDecl]] =
     (for
       r <- tsDecl.rules
       HasType(term, _) = r.conclusion.assertion
     yield
-      val constructor = term match {
-        case Term.Function(fnName, args*) =>
-          val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
-            arg match {
-              case Term.Variable(_) => arg
-              case Term.Constant(_) => Term.Variable(getFreshVarName("c", idx))
-              case Term.Function(_, _*) => Term.Variable(getFreshVarName("e", idx))
-              case Term.Type(typ) => Term.Type(typ match {
-                case Type.Variable(_) => typ
-                case Type.Named(_) => Type.Variable(getFreshVarName("ct", idx))
-                case Type.Composite(_, _*) => Type.Variable(getFreshVarName("ct", idx))
-              })
-            }
-          }
-          Term.Function(fnName, argsAsVariables*)
-        case _ => term
-      }
+      val constructor = extractTemplate(term)
       (constructor, r)
     ).groupMap(_._1)(_._2)
 

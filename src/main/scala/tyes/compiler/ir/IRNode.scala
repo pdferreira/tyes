@@ -1,5 +1,6 @@
 package tyes.compiler.ir
 
+
 enum IRNode[+TCode]:
   case Unexpected
   case Error(err: TCode)
@@ -139,3 +140,72 @@ val exampleWithCodeGen: IRNode[CodeGenNode] = IRNode.Switch(
   ),
   otherwise = IRNode.Error(CodeGenNode.FormattedText("No type for ", CodeGenNode.Var("_c1"), ", should be one of: 1, 3"))
 )
+
+val numRule = RuleDecl(
+  Some("Const"),
+  Seq.empty,
+  Judgement(
+    Environment(Seq(EnvironmentPart.Variable("env"))),
+    HasType(Term.Function("LNumber", Term.Constant(1)), Type.Named("const"))
+  )
+)
+
+val numRuleTargetIR = IRNode.Switch(
+  branches = Seq(
+    CodeGenNode.Equals(CodeGenNode.Var("c"), CodeGenNode.Integer(1)) -> IRNode.Result(codeGenType("const"), canFail = false)
+  ),
+  otherwise = IRNode.Error(CodeGenNode.FormattedText("TypeError: no type for ", CodeGenNode.Var("exp")))
+)
+
+def extractTemplate(term: Term): Term = term match {
+  case Term.Function(fnName, args*) =>
+    val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
+      arg match {
+        case Term.Variable(_) => arg
+        case Term.Constant(_) => Term.Variable("c" + idx)
+        case Term.Function(_, _*) => Term.Variable("e" + idx)
+        case Term.Type(typ) => Term.Type(typ match {
+          case Type.Variable(_) => typ
+          case Type.Named(_) => Type.Variable("ct" + idx)
+          case Type.Composite(_, _*) => Type.Variable("ct" + idx)
+        })
+      }
+    }
+    Term.Function(fnName, argsAsVariables*)
+  case _ => term
+}
+
+def termToCodeGenNode(term: Term): CodeGenNode = term match {
+  case Term.Constant(value: Int) => CodeGenNode.Integer(value)
+  case Term.Function(name, args*) => 
+    CodeGenNode.Apply(
+      CodeGenNode.Var(name),
+      args.map(termToCodeGenNode)*
+    )
+  case Term.Type(typ) => typ match {
+    case Type.Named(name) => codeGenType(name)
+    case Type.Composite(name, args*) => 
+      CodeGenNode.Apply(
+        codeGenType(name),
+        args.map(Term.Type.apply).map(termToCodeGenNode)*
+      )
+  }
+}
+
+def compileToIR(rule: RuleDecl): IRNode[CodeGenNode] =
+  val HasType(cTerm, cType) = rule.conclusion.assertion
+  val constructor = extractTemplate(cTerm)
+  val constructorReqs = constructor.matches(cTerm).get
+  
+  IRNode.Switch(
+    branches = Seq(
+      constructorReqs
+        .filter((_, v) => v.isGround)
+        .map((k, v) => CodeGenNode.Equals(CodeGenNode.Var(k), termToCodeGenNode(v)))
+        .foldLeft(CodeGenNode.Boolean(true))(CodeGenNode.And.apply)
+      ->
+      IRNode.Result(termToCodeGenNode(Term.Type(cType)), canFail = false)
+    ),
+    otherwise = IRNode.Error(CodeGenNode.FormattedText("TypeError: no type for ", CodeGenNode.Var("exp")))
+  )
+       

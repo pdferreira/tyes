@@ -7,12 +7,15 @@ enum CodeGenNode:
   case Text(str: String)
   case FormattedText(formattingStr: (String | CodeGenNode)*)
   case Integer(n: Int)
+  case Boolean(b: scala.Boolean)
   case Unit
   case Var(str: String)
   case Field(obj: CodeGenNode, field: String)
   case Not(exp: CodeGenNode)
   case Equals(left: CodeGenNode, right: CodeGenNode)
   case NotEquals(left: CodeGenNode, right: CodeGenNode)
+  case And(left: CodeGenNode, right: CodeGenNode)
+  case Or(left: CodeGenNode, right: CodeGenNode)
   case Apply(fun: CodeGenNode, args: CodeGenNode*)
   case Let(varName: String, varExp: CodeGenNode, bodyExp: CodeGenNode)
   case Match(matchedExp: CodeGenNode, branches: Seq[(CodeGenNode, CodeGenNode)])
@@ -60,10 +63,13 @@ def compile(cgNode: CodeGenNode, indentLevel: Int = 0): String =
         })
         .mkString(s"${indent}s\"", "", "\"")
     case CodeGenNode.Integer(n) => s"${indent}$n"
+    case CodeGenNode.Boolean(b) => s"${indent}$b"
     case CodeGenNode.Unit => s"${indent}()"
     case CodeGenNode.Not(exp) => s"${indent}!${compile(exp)}"
     case CodeGenNode.Equals(l, r) => s"${indent}${compile(l)} == ${compile(r)}"
     case CodeGenNode.NotEquals(l, r) => s"${indent}${compile(l)} != ${compile(r)}"
+    case CodeGenNode.And(l, r) => s"${indent}${compile(l)} && ${compile(r)}"
+    case CodeGenNode.Or(l, r) => s"${indent}${compile(l)} || ${compile(r)}"
     case CodeGenNode.Apply(fun, args*) => 
       val funStr = compile(fun, indentLevel)
       val argsStr = args.map(compile(_)).mkString(", ")
