@@ -58,7 +58,7 @@ class IfBasedCodeCompiler extends IRNodeCompiler[CodeGenNode](CodeGenNodeOperati
           ))
         else
           compile(exp)
-      val letBody = compile(IRNode.And(cs, next), failureIsPossible)
+      val letBody = compile(IRNode.And(cs, next), failureIsPossible || canFail(exp))
       CodeGenNode.Let(resVar, letExp, letBody)
     case IRNode.And(Seq(), next) => compile(next, failureIsPossible)
     case IRNode.And(instrs, next) =>
@@ -66,7 +66,7 @@ class IfBasedCodeCompiler extends IRNodeCompiler[CodeGenNode](CodeGenNodeOperati
       val isCond: IRInstr[CodeGenNode] => Boolean = { case IRInstr.Cond(_, _) => true ; case _ => false }
       val conditions = instrs.takeWhile(isCond)
       val remInstrs = instrs.dropWhile(isCond)
-      val remNode = compile(IRNode.And(remInstrs, next), failureIsPossible)
+      val remNode = compile(IRNode.And(remInstrs, next), failureIsPossible = true)
       
       conditions.foldRight(remNode) { case (IRInstr.Cond(cond, err), elseNode) =>
           CodeGenNode.If(codeOps.negate(cond), wrapAsLeft(err), elseNode)
