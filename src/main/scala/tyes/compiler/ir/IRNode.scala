@@ -151,11 +151,27 @@ val numRule = RuleDecl(
   )
 )
 
-val numRuleTargetIR = IRNode.Switch(
-  branches = Seq(
-    CodeGenNode.Equals(CodeGenNode.Var("c"), CodeGenNode.Integer(1)) -> IRNode.Result(codeGenType("const"), canFail = false)
+val altNumRule = RuleDecl(
+  Some("Const2"),
+  Seq.empty,
+  Judgement(
+    Environment(Seq(EnvironmentPart.Variable("env"))),
+    HasType(Term.Function("LNumber", Term.Constant(2)), Type.Named("const"))
+  )
+)
+
+val conditionalNumRule = RuleDecl(
+  Some("ConstCond"),
+  Seq(
+    Judgement(
+      Environment(Seq(EnvironmentPart.Variable("env"))),
+      HasType(Term.Function("LVariable", Term.Constant("num")), Type.Named("const"))
+    )
   ),
-  otherwise = IRNode.Error(CodeGenNode.FormattedText("TypeError: no type for ", CodeGenNode.Var("exp")))
+  Judgement(
+    Environment(Seq(EnvironmentPart.Variable("env"))),
+    HasType(Term.Function("LNumber", Term.Variable("n")), Type.Named("const"))
+  )
 )
 
 val appRule = RuleDecl(
@@ -176,37 +192,7 @@ val appRule = RuleDecl(
   )
 )
 
-val appRuleTargetIR = IRNode.And(
-  conds = Seq(
-    IRInstr.Decl(
-      "a",
-      IRNode.Result(
-        CodeGenNode.Apply(
-          CodeGenNode.Var("typecheck"),
-          CodeGenNode.Var("e1"),
-          CodeGenNode.Var("env")
-        ), 
-        canFail = true
-      )
-    ),
-    IRInstr.Decl(
-      "b",
-      IRNode.Result(
-        CodeGenNode.Apply(
-          CodeGenNode.Var("typecheck"),
-          CodeGenNode.Var("e2"),
-          CodeGenNode.Var("env")
-        ), 
-        canFail = true
-      )
-    ),
-    IRInstr.Cond(
-      CodeGenNode.Equals(CodeGenNode.Field(CodeGenNode.Var("a"), "t1"), CodeGenNode.Var("b")),
-      CodeGenNode.FormattedText("TypeError: types ", CodeGenNode.Var("b"), " and ", CodeGenNode.Field(CodeGenNode.Var("a"), "t1"), " don't match")
-    )
-  ),
-  next = IRNode.Result(CodeGenNode.Var("b"), canFail = false)
-)
+val exampleTypeSystem = TypeSystemDecl(None, Seq(numRule, appRule))
 
 def extractTemplate(term: Term): Term = term match {
   case Term.Function(fnName, args*) =>
@@ -269,13 +255,54 @@ def compileInductionToIR(declVar: String, inductionTerm: Term): IRInstr[CodeGenN
     )
   )
 
+def getConclusionTerm(rule: RuleDecl): Term = rule.conclusion.assertion.asInstanceOf[HasType].term
+
+def compileToIR(rules: Seq[RuleDecl]): IRNode[CodeGenNode] =
+  val distinctConstructors = rules
+    .map(getConclusionTerm)
+    .map(extractTemplate)
+    .combinations(2)
+    .filterNot(cs => cs(0).overlaps(cs(1)))
+    .flatten
+    .toSeq
+
+  assert(distinctConstructors.isEmpty, s"Expected all rules to share their constructor: $distinctConstructors")
+
+  // val r1Match = constructor.matches(getConclusionTerm(rules(0))).get
+  // val r2Match = constructor.matches(getConclusionTerm(rules(1))).get
+  // val commonKeys = r1Match.keySet.intersect(r2Match.keySet)
+  // if commonKeys.isEmpty then
+  //   ???
+  // else if commonKeys.forall(k => r1Match(k).overlaps(r2Match(k)))
+  if getConclusionTerm(rules(0)).overlaps(getConclusionTerm(rules(1))) then
+    ???
+  else
+    // If they do not overlap, there's at least one fixed criteria that leads to a switch
+    // in one of them
+    val irNode0 = compileToIR(rules(0))
+    val irNode1 = compileToIR(rules(1))
+    val resNode = (irNode0, irNode1) match { 
+      case (IRNode.Switch(bs, _), _) => IRNode.Switch(bs, irNode1) 
+      case (_, IRNode.Switch(bs, _)) => IRNode.Switch(bs, irNode0)
+      case _ => ???
+    }
+    if rules.length == 2 then
+      resNode
+    else if getConclusionTerm(rules(0)).overlaps(getConclusionTerm(rules(2)))
+      || getConclusionTerm(rules(1)).overlaps(getConclusionTerm(rules(2))) 
+    then
+      ???
+    else
+      val irNode2 = compileToIR(rules(2))
+      (resNode, irNode2) match { 
+        case (IRNode.Switch(bs, _), _) => IRNode.Switch(bs, irNode2) 
+        case (_, IRNode.Switch(bs, _)) => IRNode.Switch(bs, resNode)
+        case _ => ???
+      }
+
 def compileToIR(rule: RuleDecl): IRNode[CodeGenNode] =
   val HasType(cTerm, cType) = rule.conclusion.assertion
-  val constructor = extractTemplate(cTerm)
-  val constructorReqs = constructor.matches(cTerm)
-    .get
-    .filter((_, v) => v.isGround)
-
+  
   val premiseTypeDecls = rule.premises
     .map(j => j.assertion.asInstanceOf[HasType].typ)
     .collect({ case Type.Variable(name) => name })
@@ -345,6 +372,11 @@ def compileToIR(rule: RuleDecl): IRNode[CodeGenNode] =
       next = result
     )
 
+  val constructor = extractTemplate(cTerm)
+  val constructorReqs = constructor.matches(cTerm)
+    .get
+    .filter((_, v) => v.isGround)
+  
   if constructorReqs.isEmpty then
     result
   else
@@ -358,4 +390,3 @@ def compileToIR(rule: RuleDecl): IRNode[CodeGenNode] =
       ),
       otherwise = IRNode.Error(CodeGenNode.FormattedText("TypeError: no type for ", CodeGenNode.Var("exp")))
     )
-       
