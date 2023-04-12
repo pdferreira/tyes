@@ -4,6 +4,7 @@ enum CodeGenNode:
   case If(cond: CodeGenNode, thenBranch: CodeGenNode, elseBranch: CodeGenNode)
   case For(cursors: Seq[CodeGenForCursor], body: CodeGenNode)
   case Throw(excClass: String, excMessage: CodeGenNode)
+  case Try(tryBody: CodeGenNode, excClass: String, catchBody: CodeGenNode)
   case Text(str: String)
   case FormattedText(formattingStr: (String | CodeGenNode)*)
   case Integer(n: Int)
@@ -34,6 +35,14 @@ object CodeGenNodeOperations extends CodeOperations[CodeGenNode]:
     case _ => CodeGenNode.Not(code)
   }
 
+def indentIfMultiline(codeStr: String, indentLevel: Int): String =
+  val lines = codeStr.linesWithSeparators.toSeq
+  if lines.length <= 1 then
+    codeStr
+  else
+    val indent = "  ".repeat(indentLevel)
+    lines.map(_.prependedAll(indent)).mkString("\r\n", "", "\r\n")
+
 def compile(cgNode: CodeGenNode, indentLevel: Int = 0): String = 
   val indent = "  ".repeat(indentLevel)
   cgNode match {
@@ -52,6 +61,10 @@ def compile(cgNode: CodeGenNode, indentLevel: Int = 0): String =
     case CodeGenNode.Throw(excClass, excMessage) =>
       val msgStr = compile(excMessage)
       s"${indent}throw new $excClass($msgStr)"
+    case CodeGenNode.Try(tryBody, excClass, catchBody) =>
+      val tryStr = compile(tryBody, indentLevel + 1)
+      val catchStr = compile(catchBody, indentLevel + 1)
+      s"${indent}try\r\n$tryStr\r\n${indent}catch case _: $excClass =>\r\n$catchStr"
     case CodeGenNode.Text(str) => s"${indent}\"$str\""
     case CodeGenNode.FormattedText(formattingStrs*) =>
       formattingStrs
@@ -72,8 +85,8 @@ def compile(cgNode: CodeGenNode, indentLevel: Int = 0): String =
     case CodeGenNode.Or(l, r) => s"${indent}${compile(l)} || ${compile(r)}"
     case CodeGenNode.Apply(fun, args*) => 
       val funStr = compile(fun, indentLevel)
-      val argsStr = args.map(compile(_)).mkString(", ")
-      s"${funStr}(${argsStr})"
+      val argsStr = args.map(a => indentIfMultiline(compile(a), indentLevel + 1)).mkString(", ")
+      s"${funStr}(${argsStr})" 
     case CodeGenNode.Let(name, exp, body) =>
       val expStr = compile(exp)
       val bodyStr = compile(body, indentLevel)
@@ -81,7 +94,10 @@ def compile(cgNode: CodeGenNode, indentLevel: Int = 0): String =
     case CodeGenNode.Var(name) => s"${indent}$name"
     case CodeGenNode.Field(obj, field) =>
       val objStr = compile(obj, indentLevel)
-      s"$objStr.$field"
+      if objStr.linesIterator.length <= 1 then
+        s"$objStr.$field"
+      else
+        s"${indent}(${indentIfMultiline(objStr, 1)}).$field"
     case CodeGenNode.Match(matchedExp, branches) =>
       val matchedStr = compile(matchedExp, indentLevel)
       val matchesStr = 

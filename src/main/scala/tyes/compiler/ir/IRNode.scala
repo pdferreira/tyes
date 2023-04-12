@@ -8,6 +8,7 @@ enum IRNode[+TCode]:
   case Result(code: TCode, canFail: Boolean)
   case Switch(branches: Seq[(TCode, IRNode[TCode])], otherwise: IRNode[TCode])
   case And(conds: Seq[IRInstr[TCode]], next: IRNode[TCode])
+  case Or(main: IRNode[TCode], alternative: IRNode[TCode])
 
 enum IRInstr[+TCode]:
   case Cond(cond: TCode, err: TCode)
@@ -214,6 +215,7 @@ def extractTemplate(term: Term): Term = term match {
 
 def termToCodeGenNode(term: Term, typeEnv: Map[String, CodeGenNode] = Map()): CodeGenNode = term match {
   case Term.Constant(value: Int) => CodeGenNode.Integer(value)
+  case Term.Constant(value: String) => CodeGenNode.Text(value)
   case Term.Variable(name) => CodeGenNode.Var(name)
   case Term.Function(name, args*) => 
     CodeGenNode.Apply(
@@ -275,7 +277,7 @@ def compileToIR(rules: Seq[RuleDecl]): IRNode[CodeGenNode] =
   //   ???
   // else if commonKeys.forall(k => r1Match(k).overlaps(r2Match(k)))
   if getConclusionTerm(rules(0)).overlaps(getConclusionTerm(rules(1))) then
-    ???
+    rules.map(compileToIR).foldLeft1(IRNode.Or.apply)
   else
     // If they do not overlap, there's at least one fixed criteria that leads to a switch
     // in one of them
@@ -291,7 +293,8 @@ def compileToIR(rules: Seq[RuleDecl]): IRNode[CodeGenNode] =
     else if getConclusionTerm(rules(0)).overlaps(getConclusionTerm(rules(2)))
       || getConclusionTerm(rules(1)).overlaps(getConclusionTerm(rules(2))) 
     then
-      ???
+      val irNode2 = compileToIR(rules(2))
+      IRNode.Or(resNode, irNode2)
     else
       val irNode2 = compileToIR(rules(2))
       (resNode, irNode2) match { 

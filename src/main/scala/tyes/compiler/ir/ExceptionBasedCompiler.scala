@@ -40,6 +40,11 @@ class ExceptionBasedCodeCompiler extends IRNodeCompiler[CodeGenNode](CodeGenNode
       branches.foldRight(otherwiseNode) { case ((cond, next), elseNode) =>
         CodeGenNode.If(cond, compile(next), elseNode)
       }
+    case IRNode.Or(main, _) if !canFail(main) => compile(main)
+    case IRNode.Or(main, alt) =>
+      val mainNode = compile(main)
+      val altNode = compile(alt)
+      CodeGenNode.Try(mainNode, "TypeError", altNode)
   }
 
   def compile(irInstr: IRInstr[CodeGenNode]): CodeGenNode => CodeGenNode = irInstr match {

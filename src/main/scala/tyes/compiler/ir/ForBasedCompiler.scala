@@ -64,6 +64,17 @@ class ForBasedCodeCompiler extends IRNodeCompiler[CodeGenNode](CodeGenNodeOperat
           elseNode
         )
       }
+    case IRNode.Or(main, _) if !canFail(main) => compile(main)
+    case IRNode.Or(main, alt) =>
+      val mainNode = compile(main)
+      val altNode = if !canFail(alt) then wrapAsRight(compile(alt)) else compile(alt)
+      CodeGenNode.Apply(
+        CodeGenNode.Field(
+          mainNode,
+          "orElse"
+        ),
+        altNode
+      )
   }
 
   def compile(irInstr: IRInstr[CodeGenNode]): CodeGenForCursor = irInstr match {
