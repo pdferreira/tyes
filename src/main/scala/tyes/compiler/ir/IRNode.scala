@@ -193,7 +193,70 @@ val appRule = RuleDecl(
   )
 )
 
+val revAppRule = RuleDecl(
+  Some("RevApp"),
+  Seq(
+    Judgement(
+      Environment(Seq(EnvironmentPart.Variable("env"))),
+      HasType(Term.Variable("v"), Type.Variable("b"))
+    ),
+    Judgement(
+      Environment(Seq(EnvironmentPart.Variable("env"))),
+      HasType(Term.Variable("f"), Type.Composite("$Fun", Type.Variable("b"), Type.Variable("a")))
+    )
+  ),
+  Judgement(
+    Environment(Seq(EnvironmentPart.Variable("env"))),
+    HasType(Term.Function("LApp", Term.Variable("v"), Term.Variable("f")), Type.Variable("a"))
+  )
+)
+
 val exampleTypeSystem = TypeSystemDecl(None, Seq(numRule, appRule))
+
+class CodeEnv(private val parent: Option[CodeEnv] = None):
+
+  private val identifiers = scala.collection.mutable.Set[String]()
+  
+  private val nameToCode = scala.collection.mutable.Map[String, CodeGenNode]()
+  
+  private def nameclash(id: String): String =
+    val id0 = parent.map(_.nameclash(id)).getOrElse(id)
+    if identifiers.contains(id0) then
+      val digitSuffix = id0.reverse.takeWhile(_.isDigit).reverse
+      if digitSuffix.isEmpty then
+        id0 + "2"
+      else
+        val baseName = id0.dropRight(digitSuffix.length)
+        baseName + (digitSuffix.toInt + 1)
+    else
+      id0
+
+  def registerIdentifier(name: String, idCode: CodeGenNode): Boolean =
+    if contains(name) then
+      false
+    else
+      nameToCode += name -> idCode
+      true
+
+  def requestIdentifier(name: String): (String, CodeGenNode) =
+    val id = nameclash(name)
+    val idCode = CodeGenNode.Var(id)
+    if registerIdentifier(name, idCode) then
+      identifiers += name
+      (id, idCode)
+    else
+      (name, this(name))
+
+  def apply(name: String): CodeGenNode =
+    nameToCode.get(name).orElse(parent.map(_(name))).get
+
+  def contains(name: String): Boolean = nameToCode.contains(name) || parent.map(_.contains(name)).getOrElse(false)
+
+  def toMap: Map[String, CodeGenNode] = 
+    val parentMap = parent.map(_.toMap).getOrElse(Map())
+    parentMap ++ nameToCode.toMap
+
+  override def toString(): String = s"CodeEnv(${toMap})"
 
 def extractTemplate(term: Term): Term = term match {
   case Term.Function(fnName, args*) =>
@@ -213,22 +276,22 @@ def extractTemplate(term: Term): Term = term match {
   case _ => term
 }
 
-def termToCodeGenNode(term: Term, typeEnv: Map[String, CodeGenNode] = Map()): CodeGenNode = term match {
+def termToCodeGenNode(term: Term, codeEnv: Map[String, CodeGenNode] = Map()): CodeGenNode = term match {
   case Term.Constant(value: Int) => CodeGenNode.Integer(value)
   case Term.Constant(value: String) => CodeGenNode.Text(value)
-  case Term.Variable(name) => CodeGenNode.Var(name)
+  case Term.Variable(name) => codeEnv.getOrElse(name, CodeGenNode.Var(name))
   case Term.Function(name, args*) => 
     CodeGenNode.Apply(
       CodeGenNode.Var(name),
-      args.map(termToCodeGenNode(_, typeEnv))*
+      args.map(termToCodeGenNode(_, codeEnv))*
     )
   case Term.Type(typ) => typ match {
     case Type.Named(name) => codeGenType(name)
-    case Type.Variable(name) => typeEnv.getOrElse(name, CodeGenNode.Var(name))
+    case Type.Variable(name) => codeEnv.getOrElse(name, CodeGenNode.Var(name))
     case Type.Composite(name, args*) => 
       CodeGenNode.Apply(
         codeGenType(name),
-        args.map(Term.Type.apply).map(termToCodeGenNode(_, typeEnv))*
+        args.map(Term.Type.apply).map(termToCodeGenNode(_, codeEnv))*
       )
   }
 }
@@ -244,18 +307,21 @@ extension [A](it: Iterable[A])
       b +: next.mapWithContext(newCtx)(f)
   }
 
-def compileInductionToIR(declVar: String, inductionTerm: Term): IRInstr[CodeGenNode] =
-  IRInstr.Decl(
-    declVar,
+def compileInductionToIR(declVar: String, inductionTerm: Term, codeEnv: CodeEnv): (IRInstr[CodeGenNode], CodeGenNode) =
+  val preDeclEnv = codeEnv.toMap
+  val (realDeclVar, realDeclVarCode) = codeEnv.requestIdentifier(declVar)
+  val instr = IRInstr.Decl(
+    realDeclVar,
     IRNode.Result(
       CodeGenNode.Apply(
         CodeGenNode.Var("typecheck"),
-        termToCodeGenNode(inductionTerm),
+        termToCodeGenNode(inductionTerm, preDeclEnv),
         CodeGenNode.Var("env")
       ), 
       canFail = true
     )
   )
+  (instr, realDeclVarCode)
 
 def getConclusionTerm(rule: RuleDecl): Term = rule.conclusion.assertion.asInstanceOf[HasType].term
 
@@ -270,19 +336,18 @@ def compileToIR(rules: Seq[RuleDecl]): IRNode[CodeGenNode] =
 
   assert(distinctConstructors.isEmpty, s"Expected all rules to share their constructor: $distinctConstructors")
 
-  // val r1Match = constructor.matches(getConclusionTerm(rules(0))).get
-  // val r2Match = constructor.matches(getConclusionTerm(rules(1))).get
-  // val commonKeys = r1Match.keySet.intersect(r2Match.keySet)
-  // if commonKeys.isEmpty then
-  //   ???
-  // else if commonKeys.forall(k => r1Match(k).overlaps(r2Match(k)))
+  val overallTemplate = extractTemplate(getConclusionTerm(rules.head)).asInstanceOf[Term.Function]
+  val commonCodeEnv = new CodeEnv
+  for v <- overallTemplate.variables do
+    commonCodeEnv.registerIdentifier(v, CodeGenNode.Var(v))
+
   if getConclusionTerm(rules(0)).overlaps(getConclusionTerm(rules(1))) then
-    rules.map(compileToIR).foldLeft1(IRNode.Or.apply)
+    rules.map(r => compileToIR(r, commonCodeEnv, overallTemplate)).foldLeft1(IRNode.Or.apply)
   else
     // If they do not overlap, there's at least one fixed criteria that leads to a switch
     // in one of them
-    val irNode0 = compileToIR(rules(0))
-    val irNode1 = compileToIR(rules(1))
+    val irNode0 = compileToIR(rules(0), commonCodeEnv, overallTemplate)
+    val irNode1 = compileToIR(rules(1), commonCodeEnv, overallTemplate)
     val resNode = (irNode0, irNode1) match { 
       case (IRNode.Switch(bs, _), _) => IRNode.Switch(bs, irNode1) 
       case (_, IRNode.Switch(bs, _)) => IRNode.Switch(bs, irNode0)
@@ -293,81 +358,87 @@ def compileToIR(rules: Seq[RuleDecl]): IRNode[CodeGenNode] =
     else if getConclusionTerm(rules(0)).overlaps(getConclusionTerm(rules(2)))
       || getConclusionTerm(rules(1)).overlaps(getConclusionTerm(rules(2))) 
     then
-      val irNode2 = compileToIR(rules(2))
+      val irNode2 = compileToIR(rules(2), commonCodeEnv, overallTemplate)
       IRNode.Or(resNode, irNode2)
     else
-      val irNode2 = compileToIR(rules(2))
+      val irNode2 = compileToIR(rules(2), commonCodeEnv, overallTemplate)
       (resNode, irNode2) match { 
         case (IRNode.Switch(bs, _), _) => IRNode.Switch(bs, irNode2) 
         case (_, IRNode.Switch(bs, _)) => IRNode.Switch(bs, resNode)
         case _ => ???
       }
 
-def compileToIR(rule: RuleDecl): IRNode[CodeGenNode] =
+def compileToIR(rule: RuleDecl, parentCodeEnv: CodeEnv, overallTemplate: Term.Function): IRNode[CodeGenNode] =
   val HasType(cTerm, cType) = rule.conclusion.assertion
   
-  val premiseTypeDecls = rule.premises
-    .map(j => j.assertion.asInstanceOf[HasType].typ)
-    .collect({ case Type.Variable(name) => name })
-    .toSet
+  val constructor = extractTemplate(cTerm)
+  val codeEnv = new CodeEnv(Some(parentCodeEnv))
   
+  for case (name, Term.Variable(varName)) <- overallTemplate.matches(constructor).get do
+    if name != varName then
+      codeEnv.registerIdentifier(varName, codeEnv(name))
+
+  // Pre-register the simple type names for the premises 
+  for case Judgement(_, HasType(_, Type.Variable(name))) <- rule.premises do
+    codeEnv.requestIdentifier(name)
+
   val premiseReqs = rule.premises
     .zipWithIndex
     .map((j, idx) => {
       val HasType(pTerm, pType) = j.assertion
       pType match {
-        case Type.Variable(name) => (Seq(compileInductionToIR(name, pTerm)), Seq.empty, Seq(name -> CodeGenNode.Var(name)))
+        case Type.Variable(name) =>
+          val (declInstr, _) = compileInductionToIR(name, pTerm, codeEnv) 
+          (Seq(declInstr), Seq.empty)
         case Type.Named(name) =>
-          val resTName = "t" + (idx + 1)
+          val (declInstr, declVarCode) = compileInductionToIR("t" + (idx + 1), pTerm, codeEnv)
           val cond = IRInstr.Cond(
-            CodeGenNode.Equals(CodeGenNode.Var(resTName), codeGenType(name)),
-            CodeGenNode.FormattedText("TypeError: types ", codeGenType(name), " and ", CodeGenNode.Var(resTName), " don't match")
+            CodeGenNode.Equals(declVarCode, codeGenType(name)),
+            CodeGenNode.FormattedText("TypeError: types ", codeGenType(name), " and ", declVarCode, " don't match")
           )
-          (Seq(compileInductionToIR(resTName, pTerm)), Seq(cond), Seq.empty)
+          (Seq(declInstr), Seq(cond))
         case Type.Composite("$Fun", args*) =>
-          val resTName = "t" + (idx + 1)
-          val innerResTName = s"_$resTName"
+          val (innerResTDeclInstr, innerResTDeclVarCode) = compileInductionToIR("_t" + (idx + 1), pTerm, codeEnv)
+          val (resTId, resTIdCode) = codeEnv.requestIdentifier("t" + (idx + 1))
           val argTypeReqs = args
             .zipWithIndex
             .withFilter((arg, argIdx) => arg match {
-              case Type.Variable(name) => premiseTypeDecls.contains(name)
+              case Type.Variable(name) => codeEnv.contains(name)
               case _ => true
             })
             .map((arg, argIdx) => {
-              val leftTypeNode = CodeGenNode.Field(CodeGenNode.Var(resTName), "t" + (argIdx + 1))
-              val rightTypeNode = termToCodeGenNode(Term.Type(arg))
+              val leftTypeNode = CodeGenNode.Field(resTIdCode, "t" + (argIdx + 1))
+              val rightTypeNode = termToCodeGenNode(Term.Type(arg), codeEnv.toMap)
               IRInstr.Cond(
                 CodeGenNode.Equals(leftTypeNode, rightTypeNode),
                 CodeGenNode.FormattedText("TypeError: types ", leftTypeNode, " and ", rightTypeNode, " don't match")
               )
             })
-          val argTypeDecls = args
-            .zipWithIndex
-            .collect {
-              case (Type.Variable(name), argIdx) if !premiseTypeDecls.contains(name) =>
-                name -> CodeGenNode.Field(CodeGenNode.Var(resTName), "t" + (argIdx + 1))
-            }
+          
+          for case (Type.Variable(name), argIdx) <- args.zipWithIndex if !codeEnv.contains(name) do
+            codeEnv.registerIdentifier(name, CodeGenNode.Field(resTIdCode, "t" + (argIdx + 1)))
+
           val inductionDecls = Seq(
-            compileInductionToIR(innerResTName, pTerm),
+            innerResTDeclInstr,
             IRInstr.Decl(
-              resTName,
+              resTId,
               IRNode.Result(
                 CodeGenNode.Apply(
                   CodeGenNode.Var("cast[Type.$Fun]"), // small hack, just for poc's sake
-                  CodeGenNode.Var(innerResTName),
-                  CodeGenNode.FormattedText("expected ", termToCodeGenNode(pTerm), " to have type ")
+                  innerResTDeclVarCode,
+                  CodeGenNode.FormattedText("expected ", termToCodeGenNode(pTerm, codeEnv.toMap), " to have type ")
                 ),
                 canFail = true
               )
             )
           )
 
-          (inductionDecls, argTypeReqs, argTypeDecls)
+          (inductionDecls, argTypeReqs)
       }
     })
 
-  val typeEnv = premiseReqs.flatMap(_._3).toMap
-  var result = IRNode.Result(termToCodeGenNode(Term.Type(cType), typeEnv), canFail = false)
+  println(codeEnv)
+  var result = IRNode.Result(termToCodeGenNode(Term.Type(cType), codeEnv.toMap), canFail = false)
   
   if !premiseReqs.isEmpty then
     result = IRNode.And(
@@ -375,7 +446,6 @@ def compileToIR(rule: RuleDecl): IRNode[CodeGenNode] =
       next = result
     )
 
-  val constructor = extractTemplate(cTerm)
   val constructorReqs = constructor.matches(cTerm)
     .get
     .filter((_, v) => v.isGround)
