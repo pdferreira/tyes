@@ -178,40 +178,43 @@ def freeNames(cgNode: CodeGenNode): Multiset[String] = cgNode match {
       .foldLeft(Multiset())(_ ++ _)     
 }
 
-def map(cgNode: CodeGenNode, pf: PartialFunction[CodeGenNode, CodeGenNode]): CodeGenNode = pf.applyOrElse(cgNode, {
+def applyUntil(cgNode: CodeGenNode, pf: PartialFunction[CodeGenNode, CodeGenNode]): CodeGenNode =
+  pf.applyOrElse(cgNode, applyToChildren(_, c => applyUntil(c, pf)))
+
+def applyToChildren(cgNode: CodeGenNode, f: CodeGenNode => CodeGenNode): CodeGenNode = cgNode match {
   case CodeGenNode.Unit
     | CodeGenNode.Boolean(_)
     | CodeGenNode.Text(_)
     | CodeGenNode.Var(_)
     | CodeGenNode.Integer(_)
     => cgNode
-  case CodeGenNode.And(l, r) => CodeGenNode.And(map(l, pf), map(r, pf))
-  case CodeGenNode.Apply(fun, args*) => CodeGenNode.Apply(map(fun, pf), args.map(map(_, pf))*)
-  case CodeGenNode.Equals(l, r) => CodeGenNode.Equals(map(l, pf), map(r, pf)) 
-  case CodeGenNode.Field(obj, field) => CodeGenNode.Field(map(obj, pf), field)
-  case CodeGenNode.For(cs, body) => CodeGenNode.For(cs.map(map(_, pf)), map(body, pf))
+  case CodeGenNode.And(l, r) => CodeGenNode.And(f(l), f(r))
+  case CodeGenNode.Apply(fun, args*) => CodeGenNode.Apply(f(fun), args.map(f(_))*)
+  case CodeGenNode.Equals(l, r) => CodeGenNode.Equals(f(l), f(r)) 
+  case CodeGenNode.Field(obj, field) => CodeGenNode.Field(f(obj), field)
+  case CodeGenNode.For(cs, body) => CodeGenNode.For(cs.map(applyToChildren(_, f)), f(body))
   case CodeGenNode.FormattedText(fs*) => CodeGenNode.FormattedText(fs.map({ 
-    case n: CodeGenNode => map(n, pf)
+    case n: CodeGenNode => f(n)
     case s: String => s
   })*)
-  case CodeGenNode.If(c, t, e) => CodeGenNode.If(map(c, pf), map(t, pf), map(e, pf))
-  case CodeGenNode.Let(n, e, b) => CodeGenNode.Let(n, map(e, pf), map(b, pf))
-  case CodeGenNode.Match(e, bs) => CodeGenNode.Match(map(e, pf), bs.map((k, v) => (k, map(v, pf))))
-  case CodeGenNode.Not(e) => CodeGenNode.Not(map(e, pf))
-  case CodeGenNode.NotEquals(l, r) => CodeGenNode.NotEquals(map(l, pf), map(r, pf))
-  case CodeGenNode.Or(l, r) => CodeGenNode.Or(map(l, pf), map(r, pf))
-  case CodeGenNode.Return(e) => CodeGenNode.Return(map(e, pf))
-  case CodeGenNode.Throw(exc, err) => CodeGenNode.Throw(exc, map(err, pf))
-  case CodeGenNode.Try(t, exc, c) => CodeGenNode.Try(map(t, pf), exc, map(c, pf))
-})
-
-def map(cgCursor: CodeGenForCursor, pf: PartialFunction[CodeGenNode, CodeGenNode]): CodeGenForCursor = cgCursor match {
-  case CodeGenForCursor.Filter(exp) => CodeGenForCursor.Filter(map(exp, pf))
-  case CodeGenForCursor.Iterate(name, col) => CodeGenForCursor.Iterate(name, map(col, pf))
-  case CodeGenForCursor.Let(name, exp) => CodeGenForCursor.Let(name, map(exp, pf))
+  case CodeGenNode.If(c, t, e) => CodeGenNode.If(f(c), f(t), f(e))
+  case CodeGenNode.Let(n, e, b) => CodeGenNode.Let(n, f(e), f(b))
+  case CodeGenNode.Match(e, bs) => CodeGenNode.Match(f(e), bs.map((k, v) => (k, f(v))))
+  case CodeGenNode.Not(e) => CodeGenNode.Not(f(e))
+  case CodeGenNode.NotEquals(l, r) => CodeGenNode.NotEquals(f(l), f(r))
+  case CodeGenNode.Or(l, r) => CodeGenNode.Or(f(l), f(r))
+  case CodeGenNode.Return(e) => CodeGenNode.Return(f(e))
+  case CodeGenNode.Throw(exc, err) => CodeGenNode.Throw(exc, f(err))
+  case CodeGenNode.Try(t, exc, c) => CodeGenNode.Try(f(t), exc, f(c))
 }
 
-def replace(cgNode: CodeGenNode, key: String, value: CodeGenNode): CodeGenNode = map(cgNode, {
+def applyToChildren(cgCursor: CodeGenForCursor, f: CodeGenNode => CodeGenNode): CodeGenForCursor = cgCursor match {
+  case CodeGenForCursor.Filter(exp) => CodeGenForCursor.Filter(f(exp))
+  case CodeGenForCursor.Iterate(name, col) => CodeGenForCursor.Iterate(name, f(col))
+  case CodeGenForCursor.Let(name, exp) => CodeGenForCursor.Let(name, f(exp))
+}
+
+def replace(cgNode: CodeGenNode, key: String, value: CodeGenNode): CodeGenNode = applyUntil(cgNode, {
   case CodeGenNode.Var(name) if name == key => value 
   case CodeGenNode.Let(varName, varExp, bodyExp) =>
     val newBodyExp = if varName == key then bodyExp else replace(bodyExp, key, value)
@@ -239,8 +242,8 @@ def replace(cgNode: CodeGenNode, key: String, value: CodeGenNode): CodeGenNode =
     CodeGenNode.For(c +: newCs, newBodyExp)
 })
 
-def simplify(cgNode: CodeGenNode): CodeGenNode = map(cgNode, {
-  case CodeGenNode.Let(name1, exp1, n2 @ CodeGenNode.Let(name2, exp2, body)) if name1 != name2 =>
+def simplify(cgNode: CodeGenNode): CodeGenNode = applyUntil(cgNode, {
+  case n1 @ CodeGenNode.Let(name1, exp1, n2 @ CodeGenNode.Let(name2, exp2, body)) if name1 != name2 =>
     val exp2FNs = freeNames(exp2).count(name1)
     val bodyFNs = freeNames(body).count(name1)
     if exp2FNs + bodyFNs == 1 then
@@ -249,5 +252,5 @@ def simplify(cgNode: CodeGenNode): CodeGenNode = map(cgNode, {
       else
         simplify(CodeGenNode.Let(name2, exp2, replace(body, name1, exp1)))
     else
-      CodeGenNode.Let(name1, simplify(exp1), simplify(n2))
+      n1
 })
