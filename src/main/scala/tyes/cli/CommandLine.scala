@@ -55,7 +55,11 @@ object CommandLine:
       for dirPath <- Seq(scalaDstDirPath, binDstDirPath) do
         Files.createDirectories(dirPath)
 
-      invokeCompiler(path, scalaDstDirPath, binDstDirPath)
+      val compiler = options.versionId.getOrElse("old") match {
+        case "old" => TyesCodeGenerator
+        case "new" => ???
+      }
+      invokeCompiler(compiler, path, scalaDstDirPath, binDstDirPath)
 
   def tyer(args: String*): Unit =
     val options = InterpreterOptions.parse(args) match {
@@ -110,14 +114,14 @@ object CommandLine:
           None
     }
 
-  private def invokeCompiler(srcPath: Path, scalaDstDirPath: Path, binDstDirPath: Path): Unit = 
+  private def invokeCompiler(compiler: TyesCompiler, srcPath: Path, scalaDstDirPath: Path, binDstDirPath: Path): Unit = 
     val srcContent = Files.readString(srcPath)
     
     for tsDecl <- parseTypeSystem(srcContent) do
       println(s"\tGenerating scala sources...")
-      val generatedCode = TyesCodeGenerator.compile(tsDecl)
+      val generatedCode = compiler.compile(tsDecl)
 
-      val dstFileName = s"${TyesCodeGenerator.getTypeSystemObjectName(tsDecl)}.scala"
+      val dstFileName = compiler.getFileName(tsDecl)
       val scalaDstFilePath = scalaDstDirPath.resolve(dstFileName)
       Files.write(scalaDstFilePath, generatedCode.getBytes)
 

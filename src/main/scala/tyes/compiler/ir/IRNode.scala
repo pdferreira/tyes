@@ -213,51 +213,6 @@ val revAppRule = RuleDecl(
 
 val exampleTypeSystem = TypeSystemDecl(None, Seq(numRule, appRule))
 
-class CodeEnv(private val parent: Option[CodeEnv] = None):
-
-  private val identifiers = scala.collection.mutable.Set[String]()
-  
-  private val nameToCode = scala.collection.mutable.Map[String, CodeGenNode]()
-  
-  private def nameclash(id: String): String =
-    val id0 = parent.map(_.nameclash(id)).getOrElse(id)
-    if identifiers.contains(id0) then
-      val digitSuffix = id0.reverse.takeWhile(_.isDigit).reverse
-      if digitSuffix.isEmpty then
-        id0 + "2"
-      else
-        val baseName = id0.dropRight(digitSuffix.length)
-        baseName + (digitSuffix.toInt + 1)
-    else
-      id0
-
-  def registerIdentifier(name: String, idCode: CodeGenNode): Boolean =
-    if contains(name) then
-      false
-    else
-      nameToCode += name -> idCode
-      true
-
-  def requestIdentifier(name: String): (String, CodeGenNode) =
-    val id = nameclash(name)
-    val idCode = CodeGenNode.Var(id)
-    if registerIdentifier(name, idCode) then
-      identifiers += name
-      (id, idCode)
-    else
-      (name, this(name))
-
-  def apply(name: String): CodeGenNode =
-    nameToCode.get(name).orElse(parent.map(_(name))).get
-
-  def contains(name: String): Boolean = nameToCode.contains(name) || parent.map(_.contains(name)).getOrElse(false)
-
-  def toMap: Map[String, CodeGenNode] = 
-    val parentMap = parent.map(_.toMap).getOrElse(Map())
-    parentMap ++ nameToCode.toMap
-
-  override def toString(): String = s"CodeEnv(${toMap})"
-
 def extractTemplate(term: Term): Term = term match {
   case Term.Function(fnName, args*) =>
     val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
@@ -296,16 +251,8 @@ def termToCodeGenNode(term: Term, codeEnv: Map[String, CodeGenNode] = Map()): Co
   }
 }
 
-extension [A](it: Iterable[A])
-
-  def foldLeft1(op: (A, A) => A): A = it.tail.foldLeft(it.head)(op)
-
-  def mapWithContext[B, C](ctx: C)(f: (C, A) => (C, B)): Seq[B] = it match {
-    case Nil => Nil
-    case head :: next => 
-      val (newCtx, b) = f(ctx, head)
-      b +: next.mapWithContext(newCtx)(f)
-  }
+import tyes.compiler.CodeEnv
+import utils.collections.*
 
 def compileInductionToIR(declVar: String, inductionTerm: Term, codeEnv: CodeEnv): (IRInstr[CodeGenNode], CodeGenNode) =
   val preDeclEnv = codeEnv.toMap

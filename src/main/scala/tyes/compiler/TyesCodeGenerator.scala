@@ -443,7 +443,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       }
     """
 
-object TyesCodeGenerator:
+object TyesCodeGenerator extends TyesCompiler:
 
   def compile(tsDecl: TypeSystemDecl): String =
     val commonEnvName = TyesEnvDesugarer.inferEnvVarName(tsDecl).getOrElse("env")
@@ -451,3 +451,5 @@ object TyesCodeGenerator:
     TyesCodeGenerator(commonEnvName).compileTypeSystem(desugaredTsDecl)
 
   def getTypeSystemObjectName(tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"
+
+  def getFileName(tsDecl: TypeSystemDecl) = s"${getTypeSystemObjectName(tsDecl)}.scala"
