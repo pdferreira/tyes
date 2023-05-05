@@ -109,38 +109,38 @@ val plusExample = IRNode.Switch(
   otherwise = IRNode.Error("s\"TypeError: no type for `LPlus(_, $_e2)`\"")
 )
 
-def codeGenLNumber(i: Int) = CodeGenNode.Apply(CodeGenNode.Var("LNumber"), CodeGenNode.Integer(i))
+def codeGenLNumber(i: Int) = TargetCodeNode.Apply(TargetCodeNode.Var("LNumber"), TargetCodeNode.Integer(i))
 
-def codeGenCompoundVar(components: String*) = components.foldLeft(None: Option[CodeGenNode]) { (currNode, c) =>
+def codeGenCompoundVar(components: String*) = components.foldLeft(None: Option[TargetCodeNode]) { (currNode, c) =>
   Some(currNode match {
-    case None => CodeGenNode.Var(c)
-    case Some(n) => CodeGenNode.Field(n, c)
+    case None => TargetCodeNode.Var(c)
+    case Some(n) => TargetCodeNode.Field(n, c)
   })
 }.get
 
-def codeGenType(typeName: String) = CodeGenNode.Field(CodeGenNode.Var("Type"), typeName)
+def codeGenType(typeName: String) = TargetCodeNode.Field(TargetCodeNode.Var("Type"), typeName)
 
-val exampleWithCodeGen: IRNode[CodeGenNode] = IRNode.Switch(
+val exampleWithCodeGen: IRNode[TargetCodeNode] = IRNode.Switch(
   branches = Seq(
-    (CodeGenNode.Equals(CodeGenNode.Var("_c1"), codeGenLNumber(1)), IRNode.And(
+    (TargetCodeNode.Equals(TargetCodeNode.Var("_c1"), codeGenLNumber(1)), IRNode.And(
       conds = Seq(
-        IRInstr.Cond(CodeGenNode.Equals(codeGenCompoundVar("env", "size"), CodeGenNode.Integer(1)), CodeGenNode.Text("Env must have exactly one identifier")),
-        IRInstr.Cond(CodeGenNode.Apply(codeGenCompoundVar("env", "contains"), CodeGenNode.Text("pi")), CodeGenNode.Text("Env must contain 'pi'")),
-        IRInstr.Decl("piT", IRNode.Result(CodeGenNode.Apply(CodeGenNode.Var("env"), CodeGenNode.Text("pi")), canFail = false)),
-        IRInstr.Cond(CodeGenNode.Equals(CodeGenNode.Var("piT"), codeGenType("Real")), CodeGenNode.Text("Expected type of 'pi' to be Real"))
+        IRInstr.Cond(TargetCodeNode.Equals(codeGenCompoundVar("env", "size"), TargetCodeNode.Integer(1)), TargetCodeNode.Text("Env must have exactly one identifier")),
+        IRInstr.Cond(TargetCodeNode.Apply(codeGenCompoundVar("env", "contains"), TargetCodeNode.Text("pi")), TargetCodeNode.Text("Env must contain 'pi'")),
+        IRInstr.Decl("piT", IRNode.Result(TargetCodeNode.Apply(TargetCodeNode.Var("env"), TargetCodeNode.Text("pi")), canFail = false)),
+        IRInstr.Cond(TargetCodeNode.Equals(TargetCodeNode.Var("piT"), codeGenType("Real")), TargetCodeNode.Text("Expected type of 'pi' to be Real"))
       ),
       next = IRNode.Result(codeGenType("Real"), canFail = false)
     )),
-    (CodeGenNode.Equals(CodeGenNode.Var("_c1"), codeGenLNumber(3)), IRNode.And(
+    (TargetCodeNode.Equals(TargetCodeNode.Var("_c1"), codeGenLNumber(3)), IRNode.And(
       conds = Seq(
-        IRInstr.Cond(CodeGenNode.Equals(codeGenCompoundVar("env", "size"), CodeGenNode.Integer(1)), CodeGenNode.Text("Env must have exactly one identifier")),
-        IRInstr.Cond(CodeGenNode.Apply(codeGenCompoundVar("env", "contains"), CodeGenNode.Text("pi")), CodeGenNode.Text("Env must contain 'pi'")),
-        IRInstr.Decl("piT", IRNode.Result(CodeGenNode.Apply(CodeGenNode.Var("env"), CodeGenNode.Text("pi")), canFail = false)),
+        IRInstr.Cond(TargetCodeNode.Equals(codeGenCompoundVar("env", "size"), TargetCodeNode.Integer(1)), TargetCodeNode.Text("Env must have exactly one identifier")),
+        IRInstr.Cond(TargetCodeNode.Apply(codeGenCompoundVar("env", "contains"), TargetCodeNode.Text("pi")), TargetCodeNode.Text("Env must contain 'pi'")),
+        IRInstr.Decl("piT", IRNode.Result(TargetCodeNode.Apply(TargetCodeNode.Var("env"), TargetCodeNode.Text("pi")), canFail = false)),
       ),
-      next = IRNode.Result(CodeGenNode.Var("piT"), canFail = false)
+      next = IRNode.Result(TargetCodeNode.Var("piT"), canFail = false)
     ))
   ),
-  otherwise = IRNode.Error(CodeGenNode.FormattedText("No type for ", CodeGenNode.Var("_c1"), ", should be one of: 1, 3"))
+  otherwise = IRNode.Error(TargetCodeNode.FormattedText("No type for ", TargetCodeNode.Var("_c1"), ", should be one of: 1, 3"))
 )
 
 val numRule = RuleDecl(
@@ -231,39 +231,39 @@ def extractTemplate(term: Term): Term = term match {
   case _ => term
 }
 
-def termToCodeGenNode(term: Term, codeEnv: Map[String, CodeGenNode] = Map()): CodeGenNode = term match {
-  case Term.Constant(value: Int) => CodeGenNode.Integer(value)
-  case Term.Constant(value: String) => CodeGenNode.Text(value)
-  case Term.Variable(name) => codeEnv.getOrElse(name, CodeGenNode.Var(name))
+def termToCodeGenNode(term: Term, codeEnv: Map[String, TargetCodeNode] = Map()): TargetCodeNode = term match {
+  case Term.Constant(value: Int) => TargetCodeNode.Integer(value)
+  case Term.Constant(value: String) => TargetCodeNode.Text(value)
+  case Term.Variable(name) => codeEnv.getOrElse(name, TargetCodeNode.Var(name))
   case Term.Function(name, args*) => 
-    CodeGenNode.Apply(
-      CodeGenNode.Var(name),
+    TargetCodeNode.Apply(
+      TargetCodeNode.Var(name),
       args.map(termToCodeGenNode(_, codeEnv))*
     )
   case Term.Type(typ) => typ match {
     case Type.Named(name) => codeGenType(name)
-    case Type.Variable(name) => codeEnv.getOrElse(name, CodeGenNode.Var(name))
+    case Type.Variable(name) => codeEnv.getOrElse(name, TargetCodeNode.Var(name))
     case Type.Composite(name, args*) => 
-      CodeGenNode.Apply(
+      TargetCodeNode.Apply(
         codeGenType(name),
         args.map(Term.Type.apply).map(termToCodeGenNode(_, codeEnv))*
       )
   }
 }
 
-import tyes.compiler.CodeEnv
+import tyes.compiler.TargetCodeEnv
 import utils.collections.*
 
-def compileInductionToIR(declVar: String, inductionTerm: Term, codeEnv: CodeEnv): (IRInstr[CodeGenNode], CodeGenNode) =
+def compileInductionToIR(declVar: String, inductionTerm: Term, codeEnv: TargetCodeEnv): (IRInstr[TargetCodeNode], TargetCodeNode) =
   val preDeclEnv = codeEnv.toMap
   val (realDeclVar, realDeclVarCode) = codeEnv.requestIdentifier(declVar)
   val instr = IRInstr.Decl(
     realDeclVar,
     IRNode.Result(
-      CodeGenNode.Apply(
-        CodeGenNode.Var("typecheck"),
+      TargetCodeNode.Apply(
+        TargetCodeNode.Var("typecheck"),
         termToCodeGenNode(inductionTerm, preDeclEnv),
-        CodeGenNode.Var("env")
+        TargetCodeNode.Var("env")
       ), 
       canFail = true
     )
@@ -272,7 +272,7 @@ def compileInductionToIR(declVar: String, inductionTerm: Term, codeEnv: CodeEnv)
 
 def getConclusionTerm(rule: RuleDecl): Term = rule.conclusion.assertion.asInstanceOf[HasType].term
 
-def compileToIR(rules: Seq[RuleDecl]): IRNode[CodeGenNode] =
+def compileToIR(rules: Seq[RuleDecl]): IRNode[TargetCodeNode] =
   val distinctConstructors = rules
     .map(getConclusionTerm)
     .map(extractTemplate)
@@ -284,9 +284,9 @@ def compileToIR(rules: Seq[RuleDecl]): IRNode[CodeGenNode] =
   assert(distinctConstructors.isEmpty, s"Expected all rules to share their constructor: $distinctConstructors")
 
   val overallTemplate = extractTemplate(getConclusionTerm(rules.head)).asInstanceOf[Term.Function]
-  val commonCodeEnv = new CodeEnv
+  val commonCodeEnv = new TargetCodeEnv
   for v <- overallTemplate.variables do
-    commonCodeEnv.registerIdentifier(v, CodeGenNode.Var(v))
+    commonCodeEnv.registerIdentifier(v, TargetCodeNode.Var(v))
 
   if getConclusionTerm(rules(0)).overlaps(getConclusionTerm(rules(1))) then
     rules.map(r => compileToIR(r, commonCodeEnv, overallTemplate)).foldLeft1(IRNode.Or.apply)
@@ -315,11 +315,11 @@ def compileToIR(rules: Seq[RuleDecl]): IRNode[CodeGenNode] =
         case _ => ???
       }
 
-def compileToIR(rule: RuleDecl, parentCodeEnv: CodeEnv, overallTemplate: Term.Function): IRNode[CodeGenNode] =
+def compileToIR(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term.Function): IRNode[TargetCodeNode] =
   val HasType(cTerm, cType) = rule.conclusion.assertion
   
   val constructor = extractTemplate(cTerm)
-  val codeEnv = new CodeEnv(Some(parentCodeEnv))
+  val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
   
   for case (name, Term.Variable(varName)) <- overallTemplate.matches(constructor).get do
     if name != varName then
@@ -340,8 +340,8 @@ def compileToIR(rule: RuleDecl, parentCodeEnv: CodeEnv, overallTemplate: Term.Fu
         case Type.Named(name) =>
           val (declInstr, declVarCode) = compileInductionToIR("t" + (idx + 1), pTerm, codeEnv)
           val cond = IRInstr.Cond(
-            CodeGenNode.Equals(declVarCode, codeGenType(name)),
-            CodeGenNode.FormattedText("TypeError: types ", codeGenType(name), " and ", declVarCode, " don't match")
+            TargetCodeNode.Equals(declVarCode, codeGenType(name)),
+            TargetCodeNode.FormattedText("TypeError: types ", codeGenType(name), " and ", declVarCode, " don't match")
           )
           (Seq(declInstr), Seq(cond))
         case Type.Composite("$Fun", args*) =>
@@ -354,26 +354,26 @@ def compileToIR(rule: RuleDecl, parentCodeEnv: CodeEnv, overallTemplate: Term.Fu
               case _ => true
             })
             .map((arg, argIdx) => {
-              val leftTypeNode = CodeGenNode.Field(resTIdCode, "t" + (argIdx + 1))
+              val leftTypeNode = TargetCodeNode.Field(resTIdCode, "t" + (argIdx + 1))
               val rightTypeNode = termToCodeGenNode(Term.Type(arg), codeEnv.toMap)
               IRInstr.Cond(
-                CodeGenNode.Equals(leftTypeNode, rightTypeNode),
-                CodeGenNode.FormattedText("TypeError: types ", leftTypeNode, " and ", rightTypeNode, " don't match")
+                TargetCodeNode.Equals(leftTypeNode, rightTypeNode),
+                TargetCodeNode.FormattedText("TypeError: types ", leftTypeNode, " and ", rightTypeNode, " don't match")
               )
             })
           
           for case (Type.Variable(name), argIdx) <- args.zipWithIndex if !codeEnv.contains(name) do
-            codeEnv.registerIdentifier(name, CodeGenNode.Field(resTIdCode, "t" + (argIdx + 1)))
+            codeEnv.registerIdentifier(name, TargetCodeNode.Field(resTIdCode, "t" + (argIdx + 1)))
 
           val inductionDecls = Seq(
             innerResTDeclInstr,
             IRInstr.Decl(
               resTId,
               IRNode.Result(
-                CodeGenNode.Apply(
-                  CodeGenNode.Var("cast[Type.$Fun]"), // small hack, just for poc's sake
+                TargetCodeNode.Apply(
+                  TargetCodeNode.Var("cast[Type.$Fun]"), // small hack, just for poc's sake
                   innerResTDeclVarCode,
-                  CodeGenNode.FormattedText("expected ", termToCodeGenNode(pTerm, codeEnv.toMap), " to have type ")
+                  TargetCodeNode.FormattedText("expected ", termToCodeGenNode(pTerm, codeEnv.toMap), " to have type ")
                 ),
                 canFail = true
               )
@@ -403,10 +403,10 @@ def compileToIR(rule: RuleDecl, parentCodeEnv: CodeEnv, overallTemplate: Term.Fu
     IRNode.Switch(
       branches = Seq(
         constructorReqs
-          .map((k, v) => CodeGenNode.Equals(CodeGenNode.Var(k), termToCodeGenNode(v)))
-          .foldLeft1(CodeGenNode.And.apply)
+          .map((k, v) => TargetCodeNode.Equals(TargetCodeNode.Var(k), termToCodeGenNode(v)))
+          .foldLeft1(TargetCodeNode.And.apply)
         ->
         result
       ),
-      otherwise = IRNode.Error(CodeGenNode.FormattedText("TypeError: no type for ", CodeGenNode.Var("exp")))
+      otherwise = IRNode.Error(TargetCodeNode.FormattedText("TypeError: no type for ", TargetCodeNode.Var("exp")))
     )

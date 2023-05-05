@@ -1,13 +1,13 @@
 package tyes.compiler
 
 import tyes.model.*
-import tyes.compiler.ir.CodeGenNode
+import tyes.compiler.ir.TargetCodeNode
 
-class CodeEnv(private val parent: Option[CodeEnv] = None):
+class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
 
   private val identifiers = scala.collection.mutable.Set[String]()
   
-  private val nameToCode = scala.collection.mutable.Map[String, CodeGenNode]()
+  private val nameToCode = scala.collection.mutable.Map[String, TargetCodeNode]()
   
   private def nameclash(id: String): String =
     val id0 = parent.map(_.nameclash(id)).getOrElse(id)
@@ -21,29 +21,29 @@ class CodeEnv(private val parent: Option[CodeEnv] = None):
     else
       id0
 
-  def registerIdentifier(name: String, idCode: CodeGenNode): Boolean =
+  def registerIdentifier(name: String, idCode: TargetCodeNode): Boolean =
     if contains(name) then
       false
     else
       nameToCode += name -> idCode
       true
 
-  def requestIdentifier(name: String): (String, CodeGenNode) =
+  def requestIdentifier(name: String): (String, TargetCodeNode) =
     val id = nameclash(name)
-    val idCode = CodeGenNode.Var(id)
+    val idCode = TargetCodeNode.Var(id)
     if registerIdentifier(name, idCode) then
       identifiers += name
       (id, idCode)
     else
       (name, this(name))
 
-  def apply(name: String): CodeGenNode =
+  def apply(name: String): TargetCodeNode =
     nameToCode.get(name).orElse(parent.map(_(name))).get
 
   def contains(name: String): Boolean = nameToCode.contains(name) || parent.map(_.contains(name)).getOrElse(false)
 
-  def toMap: Map[String, CodeGenNode] = 
+  def toMap: Map[String, TargetCodeNode] = 
     val parentMap = parent.map(_.toMap).getOrElse(Map())
     parentMap ++ nameToCode.toMap
 
-  override def toString(): String = s"CodeEnv(${toMap})"
+  override def toString(): String = s"TargetCodeEnv(${toMap})"

@@ -1,4 +1,4 @@
-package tyes.compiler
+package tyes.compiler.old
 
 object CodeSimplifier:
     

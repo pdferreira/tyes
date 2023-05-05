@@ -1,6 +1,8 @@
-package tyes.compiler
+package tyes.compiler.old
 
 import scala.collection.mutable
+import tyes.compiler.TyesCompiler
+import tyes.compiler.TyesEnvDesugarer
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*

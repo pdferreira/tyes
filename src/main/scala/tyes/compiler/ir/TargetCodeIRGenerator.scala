@@ -1,9 +1,9 @@
 package tyes.compiler.ir
 
-trait IRNodeCompiler[TCode](
+trait TargetCodeIRGenerator[TCode](
   protected val codeOps: CodeOperations[TCode]
 ):
-  def compile(irNode: IRNode[TCode]): TCode
+  def generate(irNode: IRNode[TCode]): TCode
 
 
 def canFail[TCode](irNode: IRNode[TCode]): Boolean = irNode match {

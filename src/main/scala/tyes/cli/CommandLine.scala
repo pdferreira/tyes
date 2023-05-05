@@ -56,8 +56,8 @@ object CommandLine:
         Files.createDirectories(dirPath)
 
       val compiler = options.versionId.getOrElse("old") match {
-        case "old" => TyesCodeGenerator
-        case "new" => ???
+        case "old" => old.TyesCodeGenerator
+        case "new" => new TyesCompilerImpl
       }
       invokeCompiler(compiler, path, scalaDstDirPath, binDstDirPath)
 
