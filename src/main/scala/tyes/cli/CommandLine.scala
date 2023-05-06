@@ -119,9 +119,8 @@ object CommandLine:
     
     for tsDecl <- parseTypeSystem(srcContent) do
       println(s"\tGenerating scala sources...")
-      val generatedCode = compiler.compile(tsDecl)
+      val (dstFileName, generatedCode) = compiler.compile(tsDecl)
 
-      val dstFileName = compiler.getFileName(tsDecl)
       val scalaDstFilePath = scalaDstDirPath.resolve(dstFileName)
       Files.write(scalaDstFilePath, generatedCode.getBytes)
 

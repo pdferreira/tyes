@@ -1,5 +1,9 @@
 package tyes.compiler.ir
 
+import java.nio.file.Path
+
+val TCD = TargetCodeDecl
+
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
   
   private def indentIfMultiline(codeStr: String, indentLevel: Int): String =
@@ -9,6 +13,39 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     else
       val indent = "  ".repeat(indentLevel)
       lines.map(_.prependedAll(indent)).mkString("\r\n", "", "\r\n")
+
+  def getFileName(tcUnit: TargetCodeUnit): Path = Path.of{tcUnit.name + ".scala"}
+
+  def generate(tcUnit: TargetCodeUnit): String =
+    val (imports, others) = tcUnit.decls.partition(d => d.isInstanceOf[TargetCodeDecl.Import])
+    val importsStr = imports.map(i => generate(i, 0)).mkString("\r\n")
+    val othersStr = others.map(o => generate(o, 0)).mkString("\r\n".repeat(2))
+    s"$importsStr\r\n\r\n$othersStr"
+
+  def generate(tcDecl: TargetCodeDecl, indentLevel: Int): String = 
+    val indent = "  ".repeat(indentLevel)
+    tcDecl match {
+      case TCD.Import(ns, all) =>
+        val nsStr = ns.mkString(".") + (if all then ".*" else "")
+        s"${indent}import $nsStr"
+      case TCD.Type(alias, tn) =>
+        s"${indent}type $alias = ${generate(tn)}"
+      case TCD.Class(name, inherits, decls) =>
+        val extendsStr = 
+          if inherits.isEmpty 
+          then ""
+          else inherits.map(generate).mkString(" extends ", ", ", "") 
+        
+        val declsStr = decls.map(generate(_, indentLevel + 1)).mkString("\r\n".repeat(2))
+        s"${indent}class ${name}${extendsStr}:\r\n${declsStr}"
+    }
+
+  def generate(tcTypeName: TargetCodeTypeName): String =
+    if tcTypeName.params.isEmpty then
+      tcTypeName.name
+    else
+      val paramsStr = tcTypeName.params.map(generate).mkString("[", ",", "]")
+      tcTypeName.name + paramsStr
 
   def generate(tcNode: TargetCodeNode): String = generate(tcNode, indentLevel = 0)
 

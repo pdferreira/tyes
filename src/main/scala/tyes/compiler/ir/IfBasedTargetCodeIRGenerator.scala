@@ -43,7 +43,7 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode]
 
   // TODO: find better name for failureIsPossible param and canFail field
   def generate(irNode: IRNode[TargetCodeNode], failureIsPossible: Boolean): TargetCodeNode = irNode match {
-    case IRNode.Unexpected => TargetCodeNode.Throw("Exception", TargetCodeNode.Text("unexpected"))
+    case IRNode.Unexpected => TargetCodeNode.Throw(TargetCodeTypeName("Exception"), TargetCodeNode.Text("unexpected"))
     case IRNode.Error(err) => wrapAsLeft(err)
     case IRNode.Result(res, canFail) => if failureIsPossible && !canFail then wrapAsRight(res) else res
     case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail)) if resVar == resVar2 =>

@@ -75,7 +75,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
     
       println()
       println("### Run code generation")
-      val src = old.TyesCodeGenerator.compile(tsDecl.get)
+      val (_, src) = old.TyesCodeGenerator.compile(tsDecl.get)
       println(src)
       println()
 

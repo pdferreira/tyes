@@ -1,5 +1,6 @@
 package tyes.compiler.old
 
+import java.nio.file.Path
 import scala.collection.mutable
 import tyes.compiler.TyesCompiler
 import tyes.compiler.TyesEnvDesugarer
@@ -447,11 +448,14 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
 object TyesCodeGenerator extends TyesCompiler:
 
-  def compile(tsDecl: TypeSystemDecl): String =
+  def compile(tsDecl: TypeSystemDecl): (Path, String) =
     val commonEnvName = TyesEnvDesugarer.inferEnvVarName(tsDecl).getOrElse("env")
     val desugaredTsDecl = TyesEnvDesugarer(commonEnvName).desugar(tsDecl)
-    TyesCodeGenerator(commonEnvName).compileTypeSystem(desugaredTsDecl)
+    (
+      getFileName(desugaredTsDecl),
+      TyesCodeGenerator(commonEnvName).compileTypeSystem(desugaredTsDecl)
+    )
 
   def getTypeSystemObjectName(tsDecl: TypeSystemDecl): String = tsDecl.name.getOrElse("") + "TypeSystem"
 
-  def getFileName(tsDecl: TypeSystemDecl) = s"${getTypeSystemObjectName(tsDecl)}.scala"
+  private def getFileName(tsDecl: TypeSystemDecl) = Path.of(s"${getTypeSystemObjectName(tsDecl)}.scala")
