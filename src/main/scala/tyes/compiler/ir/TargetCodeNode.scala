@@ -10,7 +10,7 @@ enum TargetCodeNode:
   case Integer(n: Int)
   case Boolean(b: scala.Boolean)
   case Unit
-  case Var(str: String)
+  case Var(name: String)
   case Field(obj: TargetCodeNode, field: String)
   case Not(exp: TargetCodeNode)
   case Equals(left: TargetCodeNode, right: TargetCodeNode)
@@ -22,7 +22,9 @@ enum TargetCodeNode:
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodeNode, TargetCodeNode)])
   case Return(exp: TargetCodeNode)
   
-case class TargetCodeTypeName(name: String, params: TargetCodeTypeName*)
+case class TargetCodeTypeName(name: String, params: TargetCodeTypeName*):
+  def copy(name: String = this.name, params: Seq[TargetCodeTypeName] = this.params) =
+    TargetCodeTypeName(name, params*)
 
 enum TargetCodeForCursor:
   case Iterate(name: String, collection: TargetCodeNode)

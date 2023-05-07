@@ -153,7 +153,12 @@ object CommandLine:
       engine.eval(srcContent)
 
       val tsClassName = objName
-      val rtTypeSystem = engine.eval(s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+      val rtTypeSystem =
+        Option(engine.eval(s"\r\n$tsClassName")) // old 
+        .orElse(Option(engine.eval((s"\r\nnew $tsClassName()")))) // new
+        .map(_.asInstanceOf[tyes.runtime.TypeSystem[LExpression]])
+        .get
+
       val rtTypeEnumClass = engine.eval(s"classOf[$tsClassName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
       val rtTypeObjectClass = engine.eval(s"$tsClassName.Type.getClass").asInstanceOf[Class[_]]
       val expParser = LExpressionWithRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass)
