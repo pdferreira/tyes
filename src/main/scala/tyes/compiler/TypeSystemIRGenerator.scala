@@ -3,18 +3,18 @@ package tyes.compiler
 import tyes.compiler.ir.TargetCodeDecl
 import tyes.compiler.ir.TargetCodeNode
 import tyes.compiler.ir.TargetCodeUnit
-import tyes.compiler.ir.TargetCodeTypeName
+import tyes.compiler.ir.TargetCodeTypeRef
 import tyes.model.*
 import utils.StringExtensions.*
 
-val TCN = TargetCodeNode
-val TCD = TargetCodeDecl
-val TCTypeName = TargetCodeTypeName
+private val TCN = TargetCodeNode
+private val TCD = TargetCodeDecl
+private val TCTypeRef = TargetCodeTypeRef
 
 class TypeSystemIRGenerator(commonEnvName: String):
 
-  private val typeEnumTypeName = TCTypeName("Type")
-  private val expClassTypeName = TCTypeName("LExpression")
+  private val typeEnumTypeRef = TCTypeRef("Type")
+  private val expClassTypeRef = TCTypeRef("LExpression")
   private val defaultEnvVarName = commonEnvName.decapitalize
 
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
@@ -27,18 +27,18 @@ class TypeSystemIRGenerator(commonEnvName: String):
       TCD.Class(
         className,
         inherits = Seq(
-          TCTypeName("TypeSystem", expClassTypeName),
-          TCTypeName("TypeOperations")
+          TCTypeRef("TypeSystem", expClassTypeRef),
+          TCTypeRef("TypeOperations")
         ),
         decls = Seq(
-          TCD.Type("T", typeEnumTypeName),
+          TCD.Type("T", typeEnumTypeRef),
           TCD.Method(
             "typecheck",
             params = Seq(
-              expVar.name -> expClassTypeName.copy(params = Seq(typeEnumTypeName)),
-              defaultEnvVarName -> TCTypeName("Map", TCTypeName("String"), typeEnumTypeName)
+              expVar.name -> expClassTypeRef.copy(params = Seq(typeEnumTypeRef)),
+              defaultEnvVarName -> TCTypeRef("Map", TCTypeRef("String"), typeEnumTypeRef)
             ),
-            retTypeName = TCTypeName("Either", TCTypeName("String"), typeEnumTypeName),
+            retTypeRef = TCTypeRef("Either", TCTypeRef("String"), typeEnumTypeRef),
             body = TCN.Match(
               expVar,
               branches = Seq(

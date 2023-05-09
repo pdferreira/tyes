@@ -3,8 +3,8 @@ package tyes.compiler.ir
 enum TargetCodeNode:
   case If(cond: TargetCodeNode, thenBranch: TargetCodeNode, elseBranch: TargetCodeNode)
   case For(cursors: Seq[TargetCodeForCursor], body: TargetCodeNode)
-  case Throw(excClass: TargetCodeTypeName, excMessage: TargetCodeNode)
-  case Try(tryBody: TargetCodeNode, excClass: TargetCodeTypeName, catchBody: TargetCodeNode)
+  case Throw(excClass: TargetCodeTypeRef, excMessage: TargetCodeNode)
+  case Try(tryBody: TargetCodeNode, excClass: TargetCodeTypeRef, catchBody: TargetCodeNode)
   case Text(str: String)
   case FormattedText(formattingStr: (String | TargetCodeNode)*)
   case Integer(n: Int)
@@ -21,10 +21,20 @@ enum TargetCodeNode:
   case Let(varName: String, varExp: TargetCodeNode, bodyExp: TargetCodeNode)
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodeNode, TargetCodeNode)])
   case Return(exp: TargetCodeNode)
-  
-case class TargetCodeTypeName(name: String, params: TargetCodeTypeName*):
-  def copy(name: String = this.name, params: Seq[TargetCodeTypeName] = this.params) =
-    TargetCodeTypeName(name, params*)
+
+class TargetCodeTypeRef private(
+  val name: String, 
+  val namespaces: Seq[String], 
+  val params: Seq[TargetCodeTypeRef]
+):
+  def copy(name: String = this.name, namespaces: Seq[String] = this.namespaces, params: Seq[TargetCodeTypeRef] = this.params) =
+    new TargetCodeTypeRef(name, namespaces, params)
+
+object TargetCodeTypeRef:
+  def apply(name: String, params: TargetCodeTypeRef*) = new TargetCodeTypeRef(name, Seq(), params)
+  def apply(qualifiedName: Seq[String]) = 
+    val ns :+ name = qualifiedName
+    new TargetCodeTypeRef(name, ns, Seq())
 
 enum TargetCodeForCursor:
   case Iterate(name: String, collection: TargetCodeNode)
@@ -34,7 +44,7 @@ enum TargetCodeForCursor:
 case class TargetCodeUnit(name: String, decls: Seq[TargetCodeDecl])
 
 enum TargetCodeDecl:
-  case Type(alias: String, typeName: TargetCodeTypeName)
-  case Method(name: String, params: Seq[(String, TargetCodeTypeName)], retTypeName: TargetCodeTypeName, body: TargetCodeNode)
+  case Type(alias: String, typeRef: TargetCodeTypeRef)
+  case Method(name: String, params: Seq[(String, TargetCodeTypeRef)], retTypeRef: TargetCodeTypeRef, body: TargetCodeNode)
   case Import(namespaces: Seq[String], all: scala.Boolean = false)
-  case Class(name: String, inherits: Seq[TargetCodeTypeName], decls: Seq[TargetCodeDecl])
+  case Class(name: String, inherits: Seq[TargetCodeTypeRef], decls: Seq[TargetCodeDecl])

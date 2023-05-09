@@ -44,12 +44,13 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         s"${indent}def $name($paramsStr): ${generate(rtName)} = $bodyStr"
     }
 
-  def generate(tcTypeName: TargetCodeTypeName): String =
-    if tcTypeName.params.isEmpty then
-      tcTypeName.name
+  def generate(tcTypeRef: TargetCodeTypeRef): String =
+    val nameStr = (tcTypeRef.namespaces :+ tcTypeRef.name).mkString(".")
+    if tcTypeRef.params.isEmpty then
+      nameStr
     else
-      val paramsStr = tcTypeName.params.map(generate).mkString("[", ", ", "]")
-      tcTypeName.name + paramsStr
+      val paramsStr = tcTypeRef.params.map(generate).mkString("[", ", ", "]")
+      nameStr + paramsStr
 
   def generate(tcNode: TargetCodeNode): String = generate(tcNode, indentLevel = 0)
 
