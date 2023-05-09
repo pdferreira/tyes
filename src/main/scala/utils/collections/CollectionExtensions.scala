@@ -10,3 +10,8 @@ extension [A](it: Iterable[A])
       val (newCtx, b) = f(ctx, head)
       b +: next.mapWithContext(newCtx)(f)
   }
+
+  def mkStringOrEmpty(start: String, sep: String, end: String): String =
+    if it.isEmpty
+    then ""
+    else it.mkString(start, sep, end)

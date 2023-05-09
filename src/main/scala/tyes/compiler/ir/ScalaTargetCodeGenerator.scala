@@ -1,6 +1,7 @@
 package tyes.compiler.ir
 
 import java.nio.file.Path
+import utils.collections.*
 
 val TCD = TargetCodeDecl
 
@@ -31,11 +32,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TCD.Type(alias, tn) =>
         s"${indent}type $alias = ${generate(tn)}"
       case TCD.Class(name, inherits, decls) =>
-        val extendsStr = 
-          if inherits.isEmpty 
-          then ""
-          else inherits.map(generate).mkString(" extends ", ", ", "") 
-        
+        val extendsStr = inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "") 
         val declsStr = decls.map(generate(_, indentLevel + 1)).mkString("\r\n".repeat(2))
         s"${indent}class ${name}${extendsStr}:\r\n${declsStr}"
       case TCD.Method(name, params, rtName, body) =>
@@ -46,11 +43,8 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
 
   def generate(tcTypeRef: TargetCodeTypeRef): String =
     val nameStr = (tcTypeRef.namespaces :+ tcTypeRef.name).mkString(".")
-    if tcTypeRef.params.isEmpty then
-      nameStr
-    else
-      val paramsStr = tcTypeRef.params.map(generate).mkString("[", ", ", "]")
-      nameStr + paramsStr
+    val paramsStr = tcTypeRef.params.map(generate).mkStringOrEmpty("[", ", ", "]")
+    nameStr + paramsStr
 
   def generate(tcNode: TargetCodeNode): String = generate(tcNode, indentLevel = 0)
 
