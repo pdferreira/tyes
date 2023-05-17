@@ -1,5 +1,6 @@
 package tyes.compiler.old
 
+import tyes.compiler.Orderings.given
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 
@@ -71,11 +72,11 @@ object TypeCodeGenerator:
   def compile(tsDecl: TypeSystemDecl, indent: String): String =
     s"""
     enum $typeEnumName extends tyes.runtime.Type:
-      ${getTypeConstructors(tsDecl.types).toSeq.sortBy({
-        case Type.Named(name) => (0, name)
-        case Type.Variable(_) => (0, "")
-        case Type.Composite(name, args*) => (args.length, name)
-      }).map(compileTypeConstructor).mkString("case ", s"\r\n      case ", "")}
+      ${getTypeConstructors(tsDecl.types)
+          .toSeq
+          .sorted
+          .map(compileTypeConstructor)
+          .mkString("case ", s"\r\n      case ", "")}
     """
       .stripPrefix("\r\n")
       .stripSuffix("\r\n    ")

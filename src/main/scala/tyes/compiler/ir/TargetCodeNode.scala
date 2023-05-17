@@ -32,7 +32,7 @@ class TargetCodeTypeRef private(
 
 object TargetCodeTypeRef:
   def apply(name: String, params: TargetCodeTypeRef*) = new TargetCodeTypeRef(name, Seq(), params)
-  def apply(qualifiedName: Seq[String]) = 
+  def apply(qualifiedName: String*) = 
     val ns :+ name = qualifiedName
     new TargetCodeTypeRef(name, ns, Seq())
 
@@ -48,3 +48,12 @@ enum TargetCodeDecl:
   case Method(name: String, params: Seq[(String, TargetCodeTypeRef)], retTypeRef: TargetCodeTypeRef, body: TargetCodeNode)
   case Import(namespaces: Seq[String], all: scala.Boolean = false)
   case Class(name: String, inherits: Seq[TargetCodeTypeRef], decls: Seq[TargetCodeDecl])
+  case ADT(name: String, inherits: Seq[TargetCodeTypeRef], constructors: Seq[TargetCodeADTConstructor])
+
+case class TargetCodeADTConstructor(
+  name: String,
+  params: Seq[(String, TargetCodeTypeRef)] = Seq(),
+  inherits: Seq[TargetCodeBaseTypeCall] = Seq()
+)
+
+case class TargetCodeBaseTypeCall(typeRef: TargetCodeTypeRef, args: TargetCodeNode*)

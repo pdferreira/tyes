@@ -23,7 +23,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     val othersStr = others.map(o => generate(o, 0)).mkString("\r\n".repeat(2))
     s"$importsStr\r\n\r\n$othersStr\r\n"
 
-  def generate(tcDecl: TargetCodeDecl, indentLevel: Int): String = 
+  private def generate(tcDecl: TargetCodeDecl, indentLevel: Int): String = 
     val indent = "  ".repeat(indentLevel)
     tcDecl match {
       case TCD.Import(ns, all) =>
@@ -39,9 +39,26 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val paramsStr = params.map((n, t) => s"$n: ${generate(t)}").mkString(", ")
         val bodyStr = generate(body, indentLevel, skipStartIndent = true)
         s"${indent}def $name($paramsStr): ${generate(rtName)} = $bodyStr"
+      case TCD.ADT(name, inherits, cs) =>
+        val extendsStr = inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "")
+        val caseIndent = s"$indent  "
+        val casesStr = caseIndent + cs.map(generate).mkString(s"\r\n${caseIndent}")
+        s"${indent}enum ${name}${extendsStr}:\r\n${casesStr}"
     }
 
-  def generate(tcTypeRef: TargetCodeTypeRef): String =
+  private def generate(tcADTCons: TargetCodeADTConstructor): String =
+    val paramsStr = tcADTCons.params
+      .map((n, t) => s"$n: ${generate(t)}")
+      .mkStringOrEmpty("(", ", ", ")")
+    val extendsStr = tcADTCons.inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "")
+    s"case ${tcADTCons.name}${paramsStr}${extendsStr}"
+
+  private def generate(tcBaseCall: TargetCodeBaseTypeCall): String =
+    val typeRefStr = generate(tcBaseCall.typeRef)
+    val argsStr = tcBaseCall.args.map(generate).mkStringOrEmpty("(", ", ", ")")
+    typeRefStr + argsStr
+
+  private def generate(tcTypeRef: TargetCodeTypeRef): String =
     val nameStr = (tcTypeRef.namespaces :+ tcTypeRef.name).mkString(".")
     val paramsStr = tcTypeRef.params.map(generate).mkStringOrEmpty("[", ", ", "]")
     nameStr + paramsStr

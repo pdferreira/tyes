@@ -13,13 +13,15 @@ private val TCTypeRef = TargetCodeTypeRef
 
 class TypeSystemIRGenerator(commonEnvName: String):
 
-  private val typeEnumTypeRef = TCTypeRef("Type")
   private val expClassTypeRef = TCTypeRef("LExpression")
   private val defaultEnvVarName = commonEnvName.decapitalize
+
+  private val typeIRGenerator = new TypeIRGenerator()
 
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
     val className = s"${tsDecl.name.getOrElse("")}TypeSystem"
     val expVar: TCN.Var = TCN.Var("exp")
+    val typeEnumTypeRef = typeIRGenerator.typeEnumTypeRef
 
     TargetCodeUnit(className, Seq(
       TCD.Import(Seq("tyes", "runtime"), all = true),
@@ -32,6 +34,7 @@ class TypeSystemIRGenerator(commonEnvName: String):
         ),
         decls = Seq(
           TCD.Type("T", typeEnumTypeRef),
+          typeIRGenerator.generateEnum(tsDecl),
           TCD.Method(
             "typecheck",
             params = Seq(
