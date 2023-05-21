@@ -21,6 +21,7 @@ enum TargetCodeNode:
   case Let(varName: String, varExp: TargetCodeNode, bodyExp: TargetCodeNode)
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodeNode, TargetCodeNode)])
   case Return(exp: TargetCodeNode)
+  case ADTConstructorCall(typeRef: TargetCodeTypeRef, args: TargetCodeNode*)
 
 class TargetCodeTypeRef private(
   val name: String, 
@@ -53,7 +54,5 @@ enum TargetCodeDecl:
 case class TargetCodeADTConstructor(
   name: String,
   params: Seq[(String, TargetCodeTypeRef)] = Seq(),
-  inherits: Seq[TargetCodeBaseTypeCall] = Seq()
+  inherits: Seq[TargetCodeNode.ADTConstructorCall] = Seq()
 )
-
-case class TargetCodeBaseTypeCall(typeRef: TargetCodeTypeRef, args: TargetCodeNode*)

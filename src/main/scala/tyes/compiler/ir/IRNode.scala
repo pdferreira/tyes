@@ -118,7 +118,9 @@ def codeGenCompoundVar(components: String*) = components.foldLeft(None: Option[T
   })
 }.get
 
-def codeGenType(typeName: String) = TargetCodeNode.Field(TargetCodeNode.Var("Type"), typeName)
+val typeIRGenerator = new tyes.compiler.TypeIRGenerator()
+
+def codeGenType(typeName: String) = typeIRGenerator.generate(Type.Named(typeName))
 
 val exampleWithCodeGen: IRNode[TargetCodeNode] = IRNode.Switch(
   branches = Seq(
@@ -231,25 +233,14 @@ def extractTemplate(term: Term): Term = term match {
   case _ => term
 }
 
-def termToCodeGenNode(term: Term, codeEnv: Map[String, TargetCodeNode] = Map()): TargetCodeNode = term match {
-  case Term.Constant(value: Int) => TargetCodeNode.Integer(value)
-  case Term.Constant(value: String) => TargetCodeNode.Text(value)
-  case Term.Variable(name) => codeEnv.getOrElse(name, TargetCodeNode.Var(name))
-  case Term.Function(name, args*) => 
-    TargetCodeNode.Apply(
-      TargetCodeNode.Var(name),
-      args.map(termToCodeGenNode(_, codeEnv))*
-    )
-  case Term.Type(typ) => typ match {
-    case Type.Named(name) => codeGenType(name)
-    case Type.Variable(name) => codeEnv.getOrElse(name, TargetCodeNode.Var(name))
-    case Type.Composite(name, args*) => 
-      TargetCodeNode.Apply(
-        codeGenType(name),
-        args.map(Term.Type.apply).map(termToCodeGenNode(_, codeEnv))*
-      )
-  }
-}
+val termIRGenerator = new tyes.compiler.TermIRGenerator(typeIRGenerator)
+
+def termToCodeGenNode(term: Term, codeMap: Map[String, TargetCodeNode] = Map()): TargetCodeNode =
+  val codeEnv = TargetCodeEnv()
+  for (k, v) <- codeMap do
+    codeEnv.registerIdentifier(k, v)
+
+  termIRGenerator.generate(term, codeEnv)
 
 import tyes.compiler.TargetCodeEnv
 import utils.collections.*

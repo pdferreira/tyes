@@ -63,6 +63,7 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
     case TargetCodeNode.Return(e) => TargetCodeNode.Return(f(e))
     case TargetCodeNode.Throw(exc, err) => TargetCodeNode.Throw(exc, f(err))
     case TargetCodeNode.Try(t, exc, c) => TargetCodeNode.Try(f(t), exc, f(c))
+    case TargetCodeNode.ADTConstructorCall(tr, args*) => TargetCodeNode.ADTConstructorCall(tr, args.map(f)*)
   }
 
   def applyToChildren(tcCursor: TargetCodeForCursor, f: TargetCodeNode => TargetCodeNode): TargetCodeForCursor = tcCursor match {

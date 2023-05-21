@@ -17,6 +17,7 @@ class TypeSystemIRGenerator(commonEnvName: String):
   private val defaultEnvVarName = commonEnvName.decapitalize
 
   private val typeIRGenerator = new TypeIRGenerator()
+  private val termIRGenerator = new TermIRGenerator(typeIRGenerator)
 
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
     val className = s"${tsDecl.name.getOrElse("")}TypeSystem"
@@ -34,7 +35,7 @@ class TypeSystemIRGenerator(commonEnvName: String):
         ),
         decls = Seq(
           TCD.Type("T", typeEnumTypeRef),
-          typeIRGenerator.generateEnum(tsDecl),
+          typeIRGenerator.generateDecl(tsDecl),
           TCD.Method(
             "typecheck",
             params = Seq(
@@ -42,16 +43,54 @@ class TypeSystemIRGenerator(commonEnvName: String):
               defaultEnvVarName -> TCTypeRef("Map", TCTypeRef("String"), typeEnumTypeRef)
             ),
             retTypeRef = TCTypeRef("Either", TCTypeRef("String"), typeEnumTypeRef),
-            body = TCN.Match(
-              expVar,
-              branches = Seq(
-                TCN.Var("_") -> TCN.Apply(
-                  TCN.Var("Left"), 
-                  TCN.FormattedText("TypeError: no type for `", expVar, "`")
-                )
-              )
-            )
+            body = generateTypecheckBody(expVar, tsDecl.rules)
           )
         )
       )
     ))
+
+  private def generateTypecheckBody(expVar: TCN.Var, rules: Seq[RuleDecl]): TargetCodeNode =
+    val defaultCase = TCN.Var("_") -> TCN.Apply(
+      TCN.Var("Left"), 
+      TCN.FormattedText("TypeError: no type for `", expVar, "`")
+    )
+
+    val ruleCases = rules
+      .map(r => r.conclusion.assertion match {
+        case HasType(term, _) => extractTemplate(term)
+      })
+      .distinct
+      .map(rt => termIRGenerator.generate(rt) -> TCN.Var("???"))
+
+    TCN.Match(
+      expVar,
+      branches = ruleCases :+ defaultCase
+    )
+
+  private def extractTemplate(term: Term): Term = term match {
+    case Term.Function(fnName, args*) =>
+      def getSuffix(idx: Int): String =
+        if args.length == 1 
+        then "" 
+        else (idx + 1).toString
+  
+      val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
+        arg match {
+          case Term.Variable(_) => arg
+          case Term.Constant(_) =>
+            // Simple naming heuristic based on the constructor name, while field
+            // names are not considered.
+            val initial = fnName.findLast(_.isUpper).map(_.toLower).getOrElse('c')
+            Term.Variable(initial + getSuffix(idx))
+          case Term.Function(_, _*) => Term.Variable("e" + getSuffix(idx))
+          case Term.Type(typ) => Term.Type(typ match {
+            case Type.Variable(_) => typ
+            case Type.Named(_) => Type.Variable("ct" + getSuffix(idx))
+            case Type.Composite(_, _*) => Type.Variable("ct" + getSuffix(idx))
+          })
+        }
+      }
+      Term.Function(fnName, argsAsVariables*)
+    case _ => term
+  }
+

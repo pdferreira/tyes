@@ -1,17 +1,16 @@
 import tyes.runtime.*
 import example.*
 
-class LambdaCalculusTypeSystem extends TypeSystem[LExpression], TypeOperations:
+class MetaVarTypeSystem extends TypeSystem[LExpression], TypeOperations:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
-    case Const
-    case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
+    case Int
+    case Real
 
   def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
     case LNumber(n) => ???
-    case LVariable(x) => ???
-    case LFun(x, t, e) => ???
-    case LApp(e1, e2) => ???
+    case LVariable(v) => ???
+    case LPlus(e1, e2) => ???
     case _ => Left(s"TypeError: no type for `${exp}`")
   }

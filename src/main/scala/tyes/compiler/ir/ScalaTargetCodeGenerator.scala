@@ -53,11 +53,6 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     val extendsStr = tcADTCons.inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "")
     s"case ${tcADTCons.name}${paramsStr}${extendsStr}"
 
-  private def generate(tcBaseCall: TargetCodeBaseTypeCall): String =
-    val typeRefStr = generate(tcBaseCall.typeRef)
-    val argsStr = tcBaseCall.args.map(generate).mkStringOrEmpty("(", ", ", ")")
-    typeRefStr + argsStr
-
   private def generate(tcTypeRef: TargetCodeTypeRef): String =
     val nameStr = (tcTypeRef.namespaces :+ tcTypeRef.name).mkString(".")
     val paramsStr = tcTypeRef.params.map(generate).mkStringOrEmpty("[", ", ", "]")
@@ -135,6 +130,10 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
 
         s"$matchedStr match $matchesStr"
       case TargetCodeNode.Return(exp) => s"${startIndent}return ${generate(exp)}"
+      case TargetCodeNode.ADTConstructorCall(typeRef, args*) =>
+        val typeRefStr = generate(typeRef)
+        val argsStr = args.map(generate).mkStringOrEmpty("(", ", ", ")")
+        startIndent + typeRefStr + argsStr
     }
 
   def generate(tcCursor: TargetCodeForCursor): String = tcCursor match {

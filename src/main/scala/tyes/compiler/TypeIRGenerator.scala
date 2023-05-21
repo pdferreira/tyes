@@ -4,7 +4,6 @@ import tyes.compiler.ir.TargetCodeDecl
 import tyes.compiler.ir.TargetCodeNode
 import tyes.compiler.ir.TargetCodeUnit
 import tyes.compiler.ir.TargetCodeADTConstructor
-import tyes.compiler.ir.TargetCodeBaseTypeCall
 import tyes.compiler.ir.TargetCodeTypeRef
 import tyes.compiler.Orderings.given
 import tyes.model.*
@@ -20,7 +19,7 @@ class TypeIRGenerator:
 
   val typeEnumTypeRef = TCTypeRef("Type")
 
-  def generateEnum(tsDecl: TypeSystemDecl): TargetCodeDecl =
+  def generateDecl(tsDecl: TypeSystemDecl): TargetCodeDecl =
     val typeConstructors = inferTypeConstructors(tsDecl.types).toSeq
     TCD.ADT(
       name = typeEnumTypeRef.name,
@@ -46,12 +45,21 @@ class TypeIRGenerator:
         name.capitalize,
         params = argNames.map(n => n -> typeEnumTypeRef),
         inherits = Seq(
-          TargetCodeBaseTypeCall(typeEnumTypeRef), 
-          TargetCodeBaseTypeCall(
+          TCN.ADTConstructorCall(typeEnumTypeRef), 
+          TCN.ADTConstructorCall(
             TCTypeRef("tyes", "runtime", "CompositeType"),
             args = argNames.map(TCN.Var.apply)*
           )
         )
       )
     case _ => throw new Exception(s"Not a type constructor: $typ")
+  }
+
+  def generate(typ: Type, codeEnv: TargetCodeEnv = TargetCodeEnv()): TargetCodeNode = typ match {
+    case Constants.Types.any => TCN.Var("_")
+    case Type.Named(name) => TCN.ADTConstructorCall(TCTypeRef(typeEnumTypeRef.name, name))
+    case Type.Variable(name) => codeEnv.get(name).getOrElse(TCN.Var(name))
+    case Type.Composite(name, args*) => 
+      var typeArgs = args.map(generate(_, codeEnv))
+      TCN.ADTConstructorCall(TCTypeRef(typeEnumTypeRef.name, name), typeArgs*)
   }
