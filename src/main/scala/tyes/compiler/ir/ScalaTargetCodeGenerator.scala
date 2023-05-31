@@ -67,8 +67,13 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TargetCodeNode.If(cond, thenBranch, elseBranch) =>
         val condStr = generate(cond)
         val thenStr = generate(thenBranch, indentLevel + 1)
-        val elseStr = generate(elseBranch, indentLevel + 1)
-        s"${startIndent}if $condStr then\r\n$thenStr\r\n${indent}else\r\n$elseStr"
+        val elseStr = elseBranch match {
+          case _: TargetCodeNode.If =>
+            " " + generate(elseBranch, indentLevel, skipStartIndent = true)
+          case _ =>
+            "\r\n" + generate(elseBranch, indentLevel + 1)
+        }
+        s"${startIndent}if $condStr then\r\n$thenStr\r\n${indent}else$elseStr"
       case TargetCodeNode.For(cursors, body) =>
         val cursorsStr = cursors
           .map(generate)

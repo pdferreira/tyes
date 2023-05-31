@@ -1,6 +1,7 @@
 package tyes.compiler
 
 import tyes.compiler.Orderings.given
+import tyes.compiler.ir.IRNode
 import tyes.compiler.ir.TargetCodeDecl
 import tyes.compiler.ir.TargetCodeIRGenerator
 import tyes.compiler.ir.TargetCodeNode
@@ -8,6 +9,7 @@ import tyes.compiler.ir.TargetCodeUnit
 import tyes.compiler.ir.TargetCodeTypeRef
 import tyes.model.*
 import utils.StringExtensions.*
+import utils.collections.*
 
 private val TCN = TargetCodeNode
 private val TCD = TargetCodeDecl
@@ -65,18 +67,59 @@ class TypeSystemIRGenerator(
       .groupBy(r => ruleIRGenerator.getTemplate(r))
       .toSeq
       .sortBy((rTemplate, _) => rTemplate: Term)
-      .map((rTemplate, rs) => {
-        val codeEnv = TargetCodeEnv()
-        for v <- rTemplate.variables do
-          codeEnv.registerIdentifier(v, TCN.Var(v))
-        
-        val rTemplateCode = termIRGenerator.generate(rTemplate)
-        val rImplIntermediateCode = ruleIRGenerator.generate(rs.head, codeEnv, rTemplate)
-        val rImplTargetCode = targetCodeIRGenerator.generate(rImplIntermediateCode)
-        rTemplateCode -> rImplTargetCode 
-      })
+      .map((rTemplate, rs) => generateTypecheckCase(rTemplate, rs))
 
     TCN.Match(
       expVar,
       branches = ruleCases :+ defaultCase
     )
+
+  private def generateTypecheckCase(rTemplate: Term, rules: Seq[RuleDecl]): (TargetCodeNode, TargetCodeNode) =
+    val codeEnv = TargetCodeEnv()
+    for v <- rTemplate.variables do
+      codeEnv.registerIdentifier(v, TCN.Var(v))
+    
+    val rTemplateCode = termIRGenerator.generate(rTemplate)
+    val rImplIntermediateCode = groupNonOverlappingRules(rules)
+      // For each of the groups, collapse the resulting Switch node of each rule
+      .map(rs => rs
+        .map(r => ruleIRGenerator.generate(r, codeEnv, rTemplate))
+        .foldRight1({
+          case (IRNode.Switch(bs, _), accNode) => IRNode.Switch(bs, accNode)
+          case (irNode, _) =>
+            val rulesDesc = rs.map(_.name.getOrElse("???")).mkString(" and ")
+            val irNodeTypeName = irNode.getClass.getSimpleName
+            throw new Exception(s"If the rules $rulesDesc don't overlap, expected a Switch node instead of $irNodeTypeName")
+        })
+      )
+      // Then unite the resulting node of each group using Or nodes
+      // to reflect the fact that they overlap
+      .foldLeft1(IRNode.Or.apply)
+    
+    val rImplTargetCode = targetCodeIRGenerator.generate(rImplIntermediateCode)
+    rTemplateCode -> rImplTargetCode
+
+  private def getConclusionTerm(rule: RuleDecl): Term = rule.conclusion.assertion match {
+    case HasType(term, _) => term
+  }
+
+  private def groupNonOverlappingRules(rules: Seq[RuleDecl]): Seq[Seq[RuleDecl]] = rules match {
+    case Nil => Seq()
+    case r :: rs =>
+      val rTerm = getConclusionTerm(r)
+      val norGroups = groupNonOverlappingRules(rs)
+
+      // Find the first group whose rules don't overlap with `r`
+      val norGroupIdx = norGroups.indexWhere(nors => 
+        nors
+          .map(getConclusionTerm)
+          .forall(orTerm => !rTerm.overlaps(orTerm))
+      )
+
+      // If none is found, create a new group with `r`, otherwise add it to the one found
+      if norGroupIdx == -1 then
+        Seq(r) +: norGroups
+      else
+        val (before, idxGroup +: after) = norGroups.splitAt(norGroupIdx)
+        before ++ ((r +: idxGroup) +: after)
+  }
