@@ -123,7 +123,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
             for case (patExp, thenExp) <- branches
             yield
               val patStr = generate(patExp)
-              val thenStr = generate(thenExp)
+              val thenStr = indentIfMultiline(generate(thenExp), indentLevel + 2)
               s"${indent}  case $patStr => $thenStr"
           )
           .mkString("{\r\n", "\r\n", s"\r\n$indent}")

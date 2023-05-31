@@ -215,25 +215,8 @@ val revAppRule = RuleDecl(
 
 val exampleTypeSystem = TypeSystemDecl(None, Seq(numRule, appRule))
 
-def extractTemplate(term: Term): Term = term match {
-  case Term.Function(fnName, args*) =>
-    val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
-      arg match {
-        case Term.Variable(_) => arg
-        case Term.Constant(_) => Term.Variable("c" + (idx + 1))
-        case Term.Function(_, _*) => Term.Variable("e" + (idx + 1))
-        case Term.Type(typ) => Term.Type(typ match {
-          case Type.Variable(_) => typ
-          case Type.Named(_) => Type.Variable("ct" + (idx + 1))
-          case Type.Composite(_, _*) => Type.Variable("ct" + (idx + 1))
-        })
-      }
-    }
-    Term.Function(fnName, argsAsVariables*)
-  case _ => term
-}
-
 val termIRGenerator = new tyes.compiler.TermIRGenerator(typeIRGenerator)
+val ruleIRGenerator  = new tyes.compiler.RuleIRGenerator(typeIRGenerator, termIRGenerator)
 
 def termToCodeGenNode(term: Term, codeMap: Map[String, TargetCodeNode] = Map()): TargetCodeNode =
   val codeEnv = TargetCodeEnv()
@@ -265,8 +248,7 @@ def getConclusionTerm(rule: RuleDecl): Term = rule.conclusion.assertion.asInstan
 
 def compileToIR(rules: Seq[RuleDecl]): IRNode[TargetCodeNode] =
   val distinctConstructors = rules
-    .map(getConclusionTerm)
-    .map(extractTemplate)
+    .map(ruleIRGenerator.getTemplate)
     .combinations(2)
     .filterNot(cs => cs(0).overlaps(cs(1)))
     .flatten
@@ -274,7 +256,7 @@ def compileToIR(rules: Seq[RuleDecl]): IRNode[TargetCodeNode] =
 
   assert(distinctConstructors.isEmpty, s"Expected all rules to share their constructor: $distinctConstructors")
 
-  val overallTemplate = extractTemplate(getConclusionTerm(rules.head)).asInstanceOf[Term.Function]
+  val overallTemplate = ruleIRGenerator.getTemplate(rules.head).asInstanceOf[Term.Function]
   val commonCodeEnv = new TargetCodeEnv
   for v <- overallTemplate.variables do
     commonCodeEnv.registerIdentifier(v, TargetCodeNode.Var(v))
@@ -309,7 +291,7 @@ def compileToIR(rules: Seq[RuleDecl]): IRNode[TargetCodeNode] =
 def compileToIR(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term.Function): IRNode[TargetCodeNode] =
   val HasType(cTerm, cType) = rule.conclusion.assertion
   
-  val constructor = extractTemplate(cTerm)
+  val constructor = ruleIRGenerator.getTemplate(rule)
   val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
   
   for case (name, Term.Variable(varName)) <- overallTemplate.matches(constructor).get do

@@ -2,6 +2,7 @@ package tyes.compiler.old
 
 import java.nio.file.Path
 import scala.collection.mutable
+import tyes.compiler.Orderings.given
 import tyes.compiler.TyesCompiler
 import tyes.compiler.TyesEnvDesugarer
 import tyes.model.*
@@ -85,10 +86,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
   def compileTypecheck(tsDecl: TypeSystemDecl, indent: String): String =
     val rulesByConstructor = getRulesByConstructor(tsDecl)
     (
-      for (c, rs) <- rulesByConstructor.toSeq.sortBy((c, _) => c match {
-        case Term.Function(name, args*) => (args.length, name)  
-        case _ => (0, "")
-      })
+      for (c, rs) <- rulesByConstructor.toSeq.sortBy((c, _) => c)
       yield
         val caseBody = rs match {
           // Special case for catch'all rules with no premises

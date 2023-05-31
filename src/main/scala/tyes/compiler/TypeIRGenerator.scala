@@ -37,12 +37,14 @@ class TypeIRGenerator:
       Set(self) ++ inferTypeConstructors(args)
   }).toSet
 
+  private def getTypeNameInCode(name: String) = name.capitalize
+
   private def generateTypeConstructor(typ: Type): TargetCodeADTConstructor = typ match {
-    case Type.Named(name) => TCADTConstructor(name.capitalize)
+    case Type.Named(name) => TCADTConstructor(getTypeNameInCode(name))
     case Type.Composite(name, args*) =>
       val argNames = args.map(t => t.asInstanceOf[Type.Variable].name)
       TCADTConstructor(
-        name.capitalize,
+        getTypeNameInCode(name),
         params = argNames.map(n => n -> typeEnumTypeRef),
         inherits = Seq(
           TCN.ADTConstructorCall(typeEnumTypeRef), 
@@ -57,9 +59,9 @@ class TypeIRGenerator:
 
   def generate(typ: Type, codeEnv: TargetCodeEnv = TargetCodeEnv()): TargetCodeNode = typ match {
     case Constants.Types.any => TCN.Var("_")
-    case Type.Named(name) => TCN.ADTConstructorCall(TCTypeRef(typeEnumTypeRef.name, name))
+    case Type.Named(name) => TCN.ADTConstructorCall(TCTypeRef(typeEnumTypeRef.name, getTypeNameInCode(name)))
     case Type.Variable(name) => codeEnv.get(name).getOrElse(TCN.Var(name))
     case Type.Composite(name, args*) => 
       var typeArgs = args.map(generate(_, codeEnv))
-      TCN.ADTConstructorCall(TCTypeRef(typeEnumTypeRef.name, name), typeArgs*)
+      TCN.ADTConstructorCall(TCTypeRef(typeEnumTypeRef.name, getTypeNameInCode(name)), typeArgs*)
   }

@@ -1,6 +1,8 @@
 package tyes.compiler
 
+import tyes.compiler.Orderings.given
 import tyes.compiler.ir.TargetCodeDecl
+import tyes.compiler.ir.TargetCodeIRGenerator
 import tyes.compiler.ir.TargetCodeNode
 import tyes.compiler.ir.TargetCodeUnit
 import tyes.compiler.ir.TargetCodeTypeRef
@@ -11,13 +13,17 @@ private val TCN = TargetCodeNode
 private val TCD = TargetCodeDecl
 private val TCTypeRef = TargetCodeTypeRef
 
-class TypeSystemIRGenerator(commonEnvName: String):
+class TypeSystemIRGenerator(
+  private val commonEnvName: String,
+  private val targetCodeIRGenerator: TargetCodeIRGenerator[TargetCodeNode]
+):
 
   private val expClassTypeRef = TCTypeRef("LExpression")
   private val defaultEnvVarName = commonEnvName.decapitalize
 
   private val typeIRGenerator = new TypeIRGenerator()
   private val termIRGenerator = new TermIRGenerator(typeIRGenerator)
+  private val ruleIRGenerator = new RuleIRGenerator(typeIRGenerator, termIRGenerator)
 
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
     val className = s"${tsDecl.name.getOrElse("")}TypeSystem"
@@ -56,41 +62,21 @@ class TypeSystemIRGenerator(commonEnvName: String):
     )
 
     val ruleCases = rules
-      .map(r => r.conclusion.assertion match {
-        case HasType(term, _) => extractTemplate(term)
+      .groupBy(r => ruleIRGenerator.getTemplate(r))
+      .toSeq
+      .sortBy((rTemplate, _) => rTemplate: Term)
+      .map((rTemplate, rs) => {
+        val codeEnv = TargetCodeEnv()
+        for v <- rTemplate.variables do
+          codeEnv.registerIdentifier(v, TCN.Var(v))
+        
+        val rTemplateCode = termIRGenerator.generate(rTemplate)
+        val rImplIntermediateCode = ruleIRGenerator.generate(rs.head, codeEnv, rTemplate)
+        val rImplTargetCode = targetCodeIRGenerator.generate(rImplIntermediateCode)
+        rTemplateCode -> rImplTargetCode 
       })
-      .distinct
-      .map(rt => termIRGenerator.generate(rt) -> TCN.Var("???"))
 
     TCN.Match(
       expVar,
       branches = ruleCases :+ defaultCase
     )
-
-  private def extractTemplate(term: Term): Term = term match {
-    case Term.Function(fnName, args*) =>
-      def getSuffix(idx: Int): String =
-        if args.length == 1 
-        then "" 
-        else (idx + 1).toString
-  
-      val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
-        arg match {
-          case Term.Variable(_) => arg
-          case Term.Constant(_) =>
-            // Simple naming heuristic based on the constructor name, while field
-            // names are not considered.
-            val initial = fnName.findLast(_.isUpper).map(_.toLower).getOrElse('c')
-            Term.Variable(initial + getSuffix(idx))
-          case Term.Function(_, _*) => Term.Variable("e" + getSuffix(idx))
-          case Term.Type(typ) => Term.Type(typ match {
-            case Type.Variable(_) => typ
-            case Type.Named(_) => Type.Variable("ct" + getSuffix(idx))
-            case Type.Composite(_, _*) => Type.Variable("ct" + getSuffix(idx))
-          })
-        }
-      }
-      Term.Function(fnName, argsAsVariables*)
-    case _ => term
-  }
-

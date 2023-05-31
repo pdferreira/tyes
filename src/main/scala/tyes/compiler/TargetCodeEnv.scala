@@ -37,10 +37,11 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
     else
       (name, this(name))
 
-  def apply(name: String): TargetCodeNode = get(name).get
+  def apply(name: String): TargetCodeNode =
+    get(name).getOrElse(throw new NoSuchElementException(name))
 
   def get(name: String): Option[TargetCodeNode] =
-    nameToCode.get(name).orElse(parent.map(_(name)))
+    nameToCode.get(name).orElse(parent.flatMap(_.get(name)))
 
   def contains(name: String): Boolean = nameToCode.contains(name) || parent.map(_.contains(name)).getOrElse(false)
 
