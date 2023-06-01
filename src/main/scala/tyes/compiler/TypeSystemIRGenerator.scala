@@ -81,13 +81,16 @@ class TypeSystemIRGenerator(
     
     val rTemplateCode = termIRGenerator.generate(rTemplate)
     val rImplIntermediateCode = groupNonOverlappingRules(rules)
-      // For each of the groups, collapse the resulting Switch node of each rule
+      // For each of the groups:
+      // - if it has a single rule, use its resulting node
+      // - otherwise, "concat" the Switch nodes resulting from each rule as by definition they don't overlap
       .map(rs => rs
         .map(r => ruleIRGenerator.generate(r, codeEnv, rTemplate))
         .foldRight1({
-          case (IRNode.Switch(bs, _), accNode) => IRNode.Switch(bs, accNode)
+          case (IRNode.Switch(bs, IRNode.Error(_)), accNode) => IRNode.Switch(bs, accNode)
+          case (IRNode.Switch(_, otherwise), _) => ???
           case (irNode, _) =>
-            val rulesDesc = rs.map(_.name.getOrElse("???")).mkString(" and ")
+            val rulesDesc = rs.zipWithIndex.map((r, idx) => r.name.getOrElse(idx.toString)).mkString(" and ")
             val irNodeTypeName = irNode.getClass.getSimpleName
             throw new Exception(s"If the rules $rulesDesc don't overlap, expected a Switch node instead of $irNodeTypeName")
         })
