@@ -21,6 +21,7 @@ class TypeSystemIRGenerator(
 ):
 
   private val expClassTypeRef = TCTypeRef("LExpression")
+  private val expVar: TCN.Var = TCN.Var("exp")
   private val defaultEnvVarName = commonEnvName.decapitalize
 
   private val typeIRGenerator = new TypeIRGenerator()
@@ -29,7 +30,6 @@ class TypeSystemIRGenerator(
 
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
     val className = s"${tsDecl.name.getOrElse("")}TypeSystem"
-    val expVar: TCN.Var = TCN.Var("exp")
     val typeEnumTypeRef = typeIRGenerator.typeEnumTypeRef
 
     TargetCodeUnit(className, Seq(
@@ -83,17 +83,18 @@ class TypeSystemIRGenerator(
     val rImplIntermediateCode = groupNonOverlappingRules(rules)
       // For each of the groups:
       // - if it has a single rule, use its resulting node
-      // - otherwise, "concat" the Switch nodes resulting from each rule as by definition they don't overlap
-      .map(rs => rs
-        .map(r => ruleIRGenerator.generate(r, codeEnv, rTemplate))
-        .foldRight1({
-          case (IRNode.Switch(bs, IRNode.Error(_)), accNode) => IRNode.Switch(bs, accNode)
-          case (IRNode.Switch(_, otherwise), _) => ???
-          case (irNode, _) =>
-            val rulesDesc = rs.zipWithIndex.map((r, idx) => r.name.getOrElse(idx.toString)).mkString(" and ")
-            val irNodeTypeName = irNode.getClass.getSimpleName
-            throw new Exception(s"If the rules $rulesDesc don't overlap, expected a Switch node instead of $irNodeTypeName")
-        })
+      // - otherwise if all have pre-conditions, create a switch node
+      .map(rs => 
+        val rIRs = rs.map(r => ruleIRGenerator.generate(r, codeEnv, rTemplate))
+        if rIRs.exists(_.condition.isEmpty) then
+          val rulesDesc = rs.zipWithIndex.map((r, idx) => r.name.getOrElse(idx.toString)).mkString(" and ")
+          assert(rIRs.length == 1, s"If there're no conditions, expected only a single rule in the group, not $rulesDesc")
+          rIRs.head.node
+        else
+          IRNode.Switch(
+            branches = rIRs.map(ir => ir.condition.get -> ir.node),
+            otherwise = IRNode.Error(TCN.FormattedText("TypeError: no type for ", expVar))
+          )
       )
       // Then unite the resulting node of each group using Or nodes
       // to reflect the fact that they overlap

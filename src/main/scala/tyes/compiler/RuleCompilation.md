@@ -51,3 +51,28 @@ From less dependencies to more dependencies:
 8. `ct`
 
 ## Compilation
+
+Target IR structure, broadly speaking:
+
+```scala
+Switch(
+  branches = Seq(
+    ...,
+    (/* c matches rule-template */ -> And(
+      conds = Seq(
+        /* env matches Env0 */,
+        _pt1 <- /* induction call on p1 with Env1 */,
+        /* _pt1 matches pt1 */,
+        ...
+        _ptn <- /* induction call on pn with Envn */,
+        /* _ptn matches ptn */,
+      ),
+      next = Result(/* ct */)
+    )
+    ...
+  ),
+  otherwise = ...
+)
+```
+
+Where all the matches line can be ommitted when there's nothing to match (e.g. `rule Any infers e : one under Env`)

@@ -17,3 +17,8 @@ extension [A](it: Iterable[A])
     if it.isEmpty
     then ""
     else it.mkString(start, sep, end)
+
+  def nonEmptyOption: Option[it.type] =
+    if it.isEmpty
+    then None
+    else Some(it)

@@ -44,11 +44,12 @@ class RuleIRGenerator(
     case _ => term
   }
 
-  def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term): IRNode[TargetCodeNode] =
+  case class GenerateOutput(node: IRNode[TargetCodeNode], condition: Option[TargetCodeNode])
+
+  def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term): GenerateOutput =
     // TODO: this is pretty much the POC code verbatim (for single-rule handling) and needs to be properly split
     val HasType(cTerm, cType) = rule.conclusion.assertion
-    
-    val constructor = extractTemplate(cTerm)
+
     val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
 
     // Pre-register the simple type names for the premises 
@@ -119,23 +120,23 @@ class RuleIRGenerator(
         next = result
       )
 
-    val constructorReqs = constructor.matches(cTerm)
+    val constructorReqs = getConstructorRequirements(cTerm)
+    
+    GenerateOutput(
+      node = result,
+      condition = constructorReqs
+        .nonEmptyOption
+        .map(_.foldLeft1(TCN.And.apply))
+    )
+
+  private def getConstructorRequirements(term: Term): Iterable[TargetCodeNode] =
+    val constructor = extractTemplate(term)
+    val constructorReqs = constructor.matches(term)
       .get
       .filter((_, v) => v.isGround)
-    
-    if constructorReqs.isEmpty then
-      result
-    else
-      IRNode.Switch(
-        branches = Seq(
-          constructorReqs
-            .map((k, v) => TCN.Equals(TCN.Var(k), termIRGenerator.generate(v)))
-            .foldLeft1(TCN.And.apply)
-          ->
-          result
-        ),
-        otherwise = IRNode.Error(TCN.FormattedText("TypeError: no type for ", TCN.Var("exp")))
-      )
+
+    for (k, v) <- constructorReqs
+      yield TCN.Equals(TCN.Var(k), termIRGenerator.generate(v))
 
   private def compileInductionToIR(declVar: String, inductionTerm: Term, codeEnv: TargetCodeEnv): (IRInstr[TargetCodeNode], TargetCodeNode) =
     val inductionTermCall = termIRGenerator.generate(inductionTerm, codeEnv)
