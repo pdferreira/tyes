@@ -21,16 +21,13 @@ class PlusOneOrTwoConditionalTypeSystem extends TypeSystem[LExpression], TypeOpe
     case LPlus(e1, e2) => 
       (
         for
-          t1 <- typecheck(e1, env)
-          t2 <- typecheck(e2, env)
-          _ <- Either.cond(t1 == Type.One, (), s"TypeError: types ${Type.One} and ${t1} don't match")
-          _ <- Either.cond(t2 == Type.One, (), s"TypeError: types ${Type.One} and ${t2} don't match")
+          t1 <- typecheck(e1, env).expecting(Type.One)
+          t2 <- typecheck(e2, env).expecting(Type.One)
         yield
           Type.One
       ).orElse(
         for
-          t1 <- typecheck(e2, env)
-          _ <- Either.cond(t1 == Type.Two, (), s"TypeError: types ${Type.Two} and ${t1} don't match")
+          t1 <- typecheck(e2, env).expecting(Type.Two)
         yield
           Type.PlusTwo
       )

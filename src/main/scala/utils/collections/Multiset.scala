@@ -6,6 +6,8 @@ class Multiset[A](private val map: Map[A, Int]):
 
   def toMap = map
 
+  def toSet = map.keySet
+
   def +(elem: A) = new Multiset(innerAdd(map, elem, 1))
 
   def except(elem: A) = new Multiset(map.removed(elem))

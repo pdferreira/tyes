@@ -1,5 +1,10 @@
 package tyes.compiler.ir
 
+import TargetCodeNodeOperations.*
+import utils.collections.*
+
+val TCFC = TargetCodeForCursor
+
 class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](TargetCodeNodeOperations):
 
   def generate(irNode: IRNode[TargetCodeNode]): TargetCodeNode = generate(irNode, eitherIsExpected = true)
@@ -26,12 +31,14 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
     case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail))
       if resVar == resVar2 && canFail(exp) == resCanFail 
     =>
-      // Example of special case rule
       generate(IRNode.And(cs, exp), eitherIsExpected)
     
     case IRNode.And(conds, next) =>
       assert(eitherIsExpected, "Returning Either must be expected in Ands")
-      TargetCodeNode.For(conds.map(generate), generate(next, eitherIsExpected = false))
+      TargetCodeNode.For(
+        cursors = inDataFlowOrder(conds.map(generate)), 
+        body = generate(next, eitherIsExpected = false)
+      )
     
     case IRNode.Switch(branches, otherwise) =>
       val failureIsPossible = branches.exists((_, n) => canFail(n)) || canFail(otherwise)
@@ -77,4 +84,43 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
 
   private def wrapAsLeft(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Left"), value)
 
-  private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Right"), value) 
+  private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Right"), value)
+
+  /**
+    * Ensures the collection order respects the data flow, taking into account
+    * the order of declarations. Preserves the provided relative order between cursors
+    * except in when it detects used-before-declared scenarios.
+    *
+    * @param cursors
+    * @return Reordered collection of cursors
+    */
+  private def inDataFlowOrder(cursors: Seq[TargetCodeForCursor]): Seq[TargetCodeForCursor] =
+    def getDeclaredName(cursor: TargetCodeForCursor): Option[String] = cursor match {
+      case TCFC.Filter(_) => None
+      case TCFC.Iterate(name, _) => Some(name)
+      case TCFC.Let(name, _) => Some(name)
+    }
+
+    def getDependencies(cursor: TargetCodeForCursor): Set[String] = cursor match {
+      case TCFC.Filter(exp) => freeNames(exp).toSet
+      case TCFC.Iterate(_, col) => freeNames(col).toSet
+      case TCFC.Let(_, exp) => freeNames(exp).toSet 
+    }
+
+    val undeclaredNames = collection.mutable.Set.from(cursors.map(getDeclaredName).flatten)
+    val res = collection.mutable.ListBuffer.from(cursors)
+    var i = 0
+    while i < res.length do
+      val c = res(i)
+      val missingDeps = getDependencies(c).intersect(undeclaredNames)
+      if missingDeps.isEmpty then
+        i += 1
+        getDeclaredName(c).map { name => 
+          undeclaredNames -= name
+        }
+      else if i + 1 < res.length then
+        val next = res(i + 1)
+        res(i) = next
+        res(i + 1) = c
+
+    res.toSeq

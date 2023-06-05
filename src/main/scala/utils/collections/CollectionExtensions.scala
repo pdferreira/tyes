@@ -1,5 +1,7 @@
 package utils.collections
 
+import scala.reflect.ClassTag
+
 extension [A](it: Iterable[A])
 
   def foldLeft1(op: (A, A) => A): A = it.tail.foldLeft(it.head)(op)
@@ -22,3 +24,6 @@ extension [A](it: Iterable[A])
     if it.isEmpty
     then None
     else Some(it)
+
+  def ofType[T: ClassTag]: Iterable[T] =
+    it.collect({ case v: T => v })
