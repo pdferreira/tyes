@@ -4,7 +4,7 @@ class ExceptionBasedStringGenerator extends TargetCodeIRGenerator[String](String
 
   def generate(irNode: IRNode[String]): String = irNode match {
     case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
-    case IRNode.Error(err) => s"throw new TypeError($err)"
+    case IRNode.Error(IRError.Generic(err)) => s"throw new TypeError($err)"
     case IRNode.Result(res, _) => res
     case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 =>
       // Example of special case rule
@@ -28,7 +28,7 @@ class ExceptionBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCo
 
   def generate(irNode: IRNode[TargetCodeNode]): TargetCodeNode = irNode match {
     case IRNode.Unexpected => TargetCodeNode.Throw(TargetCodeTypeRef("Exception"), TargetCodeNode.Text("unexpected"))
-    case IRNode.Error(err) => TargetCodeNode.Throw(TargetCodeTypeRef("TypeError"), err)
+    case IRNode.Error(IRError.Generic(err)) => TargetCodeNode.Throw(TargetCodeTypeRef("TypeError"), err)
     case IRNode.Result(res, _) => res
     case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail)) if resVar == resVar2 =>
       // Example of special case rule
@@ -48,7 +48,7 @@ class ExceptionBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCo
   }
 
   def generate(irInstr: IRInstr[TargetCodeNode]): TargetCodeNode => TargetCodeNode = irInstr match {
-    case IRInstr.Cond(cond, err) =>
+    case IRInstr.Cond(cond, IRError.Generic(err)) =>
       nextNode => TargetCodeNode.If(codeOps.negate(cond), TargetCodeNode.Throw(TargetCodeTypeRef("TypeError"), err), nextNode)
     case IRInstr.Decl(resVar, exp) =>
       nextNode => TargetCodeNode.Let(resVar, generate(exp), nextNode)

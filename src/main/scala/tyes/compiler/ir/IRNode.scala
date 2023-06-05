@@ -4,52 +4,57 @@ import tyes.model.*
 
 enum IRNode[+TCode]:
   case Unexpected
-  case Error(err: TCode)
+  case Error(err: IRError[TCode])
   case Result(code: TCode, canFail: Boolean)
   case Switch(branches: Seq[(TCode, IRNode[TCode])], otherwise: IRNode[TCode])
   case And(conds: Seq[IRInstr[TCode]], next: IRNode[TCode])
   case Or(main: IRNode[TCode], alternative: IRNode[TCode])
 
 enum IRInstr[+TCode]:
-  case Cond(cond: TCode, err: TCode)
+  case Cond(cond: TCode, err: IRError[TCode])
   case Decl(resVar: String, exp: IRNode[TCode])
+
+enum IRError[+TCode]:
+  case Generic(message: TCode)
+  case NoType(exp: TCode)
+  case UnexpectedType(obtained: TCode, expected: TCode)
 
 val example = IRNode.Switch(
   branches = Seq(
     ("_c1 == LNumber(1)", IRNode.And(
       conds = Seq(
-        IRInstr.Cond("env.size == 1", "\"Env must have exactly one identifier\""),
-        IRInstr.Cond("env.contains(\"pi\")", "\"Env must contain 'pi'\""),
+        IRInstr.Cond("env.size == 1", IRError.Generic("\"Env must have exactly one identifier\"")),
+        IRInstr.Cond("env.contains(\"pi\")", IRError.Generic("\"Env must contain 'pi'\"")),
         IRInstr.Decl("piT", IRNode.Result("env(\"pi\")", canFail = false)),
-        IRInstr.Cond("piT == Type.Real", "\"Expected type of 'pi' to be Real\"")
+        IRInstr.Cond("piT == Type.Real", IRError.Generic("\"Expected type of 'pi' to be Real\""))
       ),
       next = IRNode.Result("Type.Real", canFail = false)
     )),
     ("_c1 == LNumber(3)", IRNode.And(
       conds = Seq(
-        IRInstr.Cond("env.size == 1", "\"Env must have exactly one identifier\""),
-        IRInstr.Cond("env.contains(\"pi\")", "\"Env must contain 'pi'\""),
+        IRInstr.Cond("env.size == 1", IRError.Generic("\"Env must have exactly one identifier\"")),
+        IRInstr.Cond("env.contains(\"pi\")", IRError.Generic("\"Env must contain 'pi'\"")),
         IRInstr.Decl("piT", IRNode.Result("env(\"pi\")", canFail = false)),
       ),
       next = IRNode.Result("piT", canFail = false)
     ))
   ),
-  otherwise = IRNode.Error("s\"No type for ${_c1}, should be one of: 1, 3\"")
+  otherwise = IRNode.Error(IRError.Generic("s\"No type for ${_c1}, should be one of: 1, 3\""))
 )
 
 val exampleOptimized = IRNode.Switch(
   branches = Seq(
     ("_c1 == LNumber(1) || _c1 == LNumber(3)", IRNode.And(
       conds = Seq(
-        IRInstr.Cond("env.size == 1", "\"Env must have exactly one identifier\""),
-        IRInstr.Cond("env.contains(\"pi\")", "\"Env must contain 'pi'\""),
+        IRInstr.Cond("env.size == 1", IRError.Generic("\"Env must have exactly one identifier\"")),
+        IRInstr.Cond("env.contains(\"pi\")", IRError.Generic("\"Env must contain 'pi'\"")),
         IRInstr.Decl("piT", IRNode.Result("env(\"pi\")", canFail = false)),
         IRInstr.Decl("resT", 
           exp = IRNode.Switch(
             branches = Seq(
               ("_c1 == LNumber(1)", IRNode.And(
                 conds = Seq(
-                  IRInstr.Cond("piT == Type.Real", "\"Expected type of 'pi' to be Real\"")
+                  IRInstr.Cond("piT == Type.Real", IRError.Generic("\"Expected type of 'pi' to be Real\""))
                 ),
                 next = IRNode.Result("Type.Real", canFail = false)
               )),
@@ -62,15 +67,15 @@ val exampleOptimized = IRNode.Switch(
       next = IRNode.Result("resT", canFail = false)  
     ))
   ),
-  otherwise = IRNode.Error("s\"No type for ${_c1}, should be one of: 1, 3\"")
+  otherwise = IRNode.Error(IRError.Generic("s\"No type for ${_c1}, should be one of: 1, 3\""))
 )
 
 val exampleOptimizedV2 = IRNode.Switch(
   branches = Seq(
     ("_c1 == LNumber(1) || _c1 == LNumber(3)", IRNode.And(
       conds = Seq(
-        IRInstr.Cond("env.size == 1", "\"Env must have exactly one identifier\""),
-        IRInstr.Cond("env.contains(\"pi\")", "\"Env must contain 'pi'\""),
+        IRInstr.Cond("env.size == 1", IRError.Generic("\"Env must have exactly one identifier\"")),
+        IRInstr.Cond("env.contains(\"pi\")", IRError.Generic("\"Env must contain 'pi'\"")),
         IRInstr.Decl("piT", IRNode.Result("env(\"pi\")", canFail = false)),
         IRInstr.Decl("resT", 
           exp = IRNode.Switch(
@@ -79,7 +84,7 @@ val exampleOptimizedV2 = IRNode.Switch(
                 branches = Seq(
                   ("piT == Type.Real", IRNode.Result("Type.Real", canFail = false))
                 ),
-                otherwise = IRNode.Error("\"Expected type of 'pi' to be Real\"")
+                otherwise = IRNode.Error(IRError.Generic("\"Expected type of 'pi' to be Real\""))
               )),
               ("_c1 == LNumber(3)", IRNode.Result("piT", canFail = false))
             ),
@@ -90,7 +95,7 @@ val exampleOptimizedV2 = IRNode.Switch(
       next = IRNode.Result("resT", canFail = false)  
     ))
   ),
-  otherwise = IRNode.Error("s\"No type for ${_c1}, should be one of: 1, 3\"")
+  otherwise = IRNode.Error(IRError.Generic("s\"No type for ${_c1}, should be one of: 1, 3\""))
 )
 
 val plusExample = IRNode.Switch(
@@ -101,12 +106,12 @@ val plusExample = IRNode.Switch(
       conds = Seq(
         IRInstr.Decl("t3", IRNode.Result("typecheck(e, env)", canFail = true)),
         IRInstr.Decl("t4", IRNode.Result("typecheck(LNumber(1), Map(\"pi\" -> t3))", canFail = true)),
-        IRInstr.Cond("t4 == t3", "s\"TypeError: types `$t4` and `$t3` don't match\"")
+        IRInstr.Cond("t4 == t3", IRError.Generic("s\"TypeError: types `$t4` and `$t3` don't match\""))
       ),
       next = IRNode.Result("t3", canFail = false)
     ))
   ),
-  otherwise = IRNode.Error("s\"TypeError: no type for `LPlus(_, $_e2)`\"")
+  otherwise = IRNode.Error(IRError.Generic("s\"TypeError: no type for `LPlus(_, $_e2)`\""))
 )
 
 def codeGenLNumber(i: Int) = TargetCodeNode.Apply(TargetCodeNode.Var("LNumber"), TargetCodeNode.Integer(i))
@@ -126,23 +131,23 @@ val exampleWithCodeGen: IRNode[TargetCodeNode] = IRNode.Switch(
   branches = Seq(
     (TargetCodeNode.Equals(TargetCodeNode.Var("_c1"), codeGenLNumber(1)), IRNode.And(
       conds = Seq(
-        IRInstr.Cond(TargetCodeNode.Equals(codeGenCompoundVar("env", "size"), TargetCodeNode.Integer(1)), TargetCodeNode.Text("Env must have exactly one identifier")),
-        IRInstr.Cond(TargetCodeNode.Apply(codeGenCompoundVar("env", "contains"), TargetCodeNode.Text("pi")), TargetCodeNode.Text("Env must contain 'pi'")),
+        IRInstr.Cond(TargetCodeNode.Equals(codeGenCompoundVar("env", "size"), TargetCodeNode.Integer(1)), IRError.Generic(TargetCodeNode.Text("Env must have exactly one identifier"))),
+        IRInstr.Cond(TargetCodeNode.Apply(codeGenCompoundVar("env", "contains"), TargetCodeNode.Text("pi")), IRError.Generic(TargetCodeNode.Text("Env must contain 'pi'"))),
         IRInstr.Decl("piT", IRNode.Result(TargetCodeNode.Apply(TargetCodeNode.Var("env"), TargetCodeNode.Text("pi")), canFail = false)),
-        IRInstr.Cond(TargetCodeNode.Equals(TargetCodeNode.Var("piT"), codeGenType("Real")), TargetCodeNode.Text("Expected type of 'pi' to be Real"))
+        IRInstr.Cond(TargetCodeNode.Equals(TargetCodeNode.Var("piT"), codeGenType("Real")), IRError.Generic(TargetCodeNode.Text("Expected type of 'pi' to be Real")))
       ),
       next = IRNode.Result(codeGenType("Real"), canFail = false)
     )),
     (TargetCodeNode.Equals(TargetCodeNode.Var("_c1"), codeGenLNumber(3)), IRNode.And(
       conds = Seq(
-        IRInstr.Cond(TargetCodeNode.Equals(codeGenCompoundVar("env", "size"), TargetCodeNode.Integer(1)), TargetCodeNode.Text("Env must have exactly one identifier")),
-        IRInstr.Cond(TargetCodeNode.Apply(codeGenCompoundVar("env", "contains"), TargetCodeNode.Text("pi")), TargetCodeNode.Text("Env must contain 'pi'")),
+        IRInstr.Cond(TargetCodeNode.Equals(codeGenCompoundVar("env", "size"), TargetCodeNode.Integer(1)), IRError.Generic(TargetCodeNode.Text("Env must have exactly one identifier"))),
+        IRInstr.Cond(TargetCodeNode.Apply(codeGenCompoundVar("env", "contains"), TargetCodeNode.Text("pi")), IRError.Generic(TargetCodeNode.Text("Env must contain 'pi'"))),
         IRInstr.Decl("piT", IRNode.Result(TargetCodeNode.Apply(TargetCodeNode.Var("env"), TargetCodeNode.Text("pi")), canFail = false)),
       ),
       next = IRNode.Result(TargetCodeNode.Var("piT"), canFail = false)
     ))
   ),
-  otherwise = IRNode.Error(TargetCodeNode.FormattedText("No type for ", TargetCodeNode.Var("_c1"), ", should be one of: 1, 3"))
+  otherwise = IRNode.Error(IRError.Generic(TargetCodeNode.FormattedText("No type for ", TargetCodeNode.Var("_c1"), ", should be one of: 1, 3")))
 )
 
 val numRule = RuleDecl(
@@ -314,7 +319,7 @@ def compileToIR(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: T
           val (declInstr, declVarCode) = compileInductionToIR("t" + (idx + 1), pTerm, codeEnv)
           val cond = IRInstr.Cond(
             TargetCodeNode.Equals(declVarCode, codeGenType(name)),
-            TargetCodeNode.FormattedText("TypeError: types ", codeGenType(name), " and ", declVarCode, " don't match")
+            IRError.Generic(TargetCodeNode.FormattedText("TypeError: types ", codeGenType(name), " and ", declVarCode, " don't match"))
           )
           (Seq(declInstr), Seq(cond))
         case Type.Composite("$Fun", args*) =>
@@ -331,7 +336,7 @@ def compileToIR(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: T
               val rightTypeNode = termToCodeGenNode(Term.Type(arg), codeEnv.toMap)
               IRInstr.Cond(
                 TargetCodeNode.Equals(leftTypeNode, rightTypeNode),
-                TargetCodeNode.FormattedText("TypeError: types ", leftTypeNode, " and ", rightTypeNode, " don't match")
+                IRError.Generic(TargetCodeNode.FormattedText("TypeError: types ", leftTypeNode, " and ", rightTypeNode, " don't match"))
               )
             })
           
@@ -381,5 +386,5 @@ def compileToIR(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: T
         ->
         result
       ),
-      otherwise = IRNode.Error(TargetCodeNode.FormattedText("TypeError: no type for ", TargetCodeNode.Var("exp")))
+      otherwise = IRNode.Error(IRError.Generic(TargetCodeNode.FormattedText("TypeError: no type for ", TargetCodeNode.Var("exp"))))
     )

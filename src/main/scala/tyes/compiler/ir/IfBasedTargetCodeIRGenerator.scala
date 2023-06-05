@@ -7,7 +7,7 @@ class IfBasedStringGenerator extends TargetCodeIRGenerator[String](StringCodeOpe
   // TODO: find better name for failureIsPossible param and canFail field
   def generate(irNode: IRNode[String], failureIsPossible: Boolean): String = irNode match {
     case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
-    case IRNode.Error(err) => s"Left($err)"
+    case IRNode.Error(IRError.Generic(err)) => s"Left($err)"
     case IRNode.Result(res, canFail) => if failureIsPossible && !canFail then s"Right($res)" else res
     case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 =>
       // Example of special case rule
@@ -44,7 +44,7 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode]
   // TODO: find better name for failureIsPossible param and canFail field
   def generate(irNode: IRNode[TargetCodeNode], failureIsPossible: Boolean): TargetCodeNode = irNode match {
     case IRNode.Unexpected => TargetCodeNode.Throw(TargetCodeTypeRef("Exception"), TargetCodeNode.Text("unexpected"))
-    case IRNode.Error(err) => wrapAsLeft(err)
+    case IRNode.Error(IRError.Generic(err)) => wrapAsLeft(err)
     case IRNode.Result(res, canFail) => if failureIsPossible && !canFail then wrapAsRight(res) else res
     case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail)) if resVar == resVar2 =>
       // Example of special case rule
@@ -68,7 +68,7 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode]
       val remInstrs = instrs.dropWhile(isCond)
       val remNode = generate(IRNode.And(remInstrs, next), failureIsPossible = true)
       
-      conditions.foldRight(remNode) { case (IRInstr.Cond(cond, err), elseNode) =>
+      conditions.foldRight(remNode) { case (IRInstr.Cond(cond, IRError.Generic(err)), elseNode) =>
           TargetCodeNode.If(codeOps.negate(cond), wrapAsLeft(err), elseNode)
       }
 

@@ -40,13 +40,3 @@ trait TypeOperations:
       case t: TargetT => Right(t)
       case _ => Left(s"TypeError: not a ${getCompositeTypeName(ct.runtimeClass)}")
     }
-
-  extension [TargetT <: T](resT: Either[String, TargetT])
-
-    def expecting(expected: TargetT): Either[String, TargetT] = resT.flatMap(t =>
-      if t == expected then
-        Right(expected)
-      else
-        Left(s"TypeError: expected type $t to be $expected instead")
-    )
-

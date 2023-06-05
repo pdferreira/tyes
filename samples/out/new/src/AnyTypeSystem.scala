@@ -1,7 +1,7 @@
 import tyes.runtime.*
 import example.*
 
-class AnyTypeSystem extends TypeSystem[LExpression], TypeOperations:
+class AnyTypeSystem extends TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
@@ -9,5 +9,5 @@ class AnyTypeSystem extends TypeSystem[LExpression], TypeOperations:
 
   def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
     case e => Right(Type.Any)
-    case _ => Left(s"TypeError: no type for `${exp}`")
+    case _ => TypeError.noTypeFor(exp)
   }

@@ -1,7 +1,7 @@
 import tyes.runtime.*
 import example.*
 
-class PlusOneOrTwoConditionalTypeSystem extends TypeSystem[LExpression], TypeOperations:
+class PlusOneOrTwoConditionalTypeSystem extends TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
@@ -16,7 +16,7 @@ class PlusOneOrTwoConditionalTypeSystem extends TypeSystem[LExpression], TypeOpe
       else if n == 2 then
         Right(Type.Two)
       else
-        Left(s"TypeError: no type for ${exp}")
+        TypeError.noTypeFor(exp)
 
     case LPlus(e1, e2) => 
       (
@@ -32,5 +32,5 @@ class PlusOneOrTwoConditionalTypeSystem extends TypeSystem[LExpression], TypeOpe
           Type.PlusTwo
       )
 
-    case _ => Left(s"TypeError: no type for `${exp}`")
+    case _ => TypeError.noTypeFor(exp)
   }

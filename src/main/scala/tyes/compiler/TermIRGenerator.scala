@@ -4,7 +4,7 @@ import tyes.compiler.ir.TargetCodeNode
 import tyes.model.Term
 import tyes.model.Type
 
-val TCN = TargetCodeNode
+private val TCN = TargetCodeNode
 
 class TermIRGenerator(
   private val typeIRGenerator: TypeIRGenerator

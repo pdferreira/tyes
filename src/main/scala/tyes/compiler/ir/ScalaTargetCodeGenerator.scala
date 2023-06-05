@@ -3,7 +3,7 @@ package tyes.compiler.ir
 import java.nio.file.Path
 import utils.collections.*
 
-val TCD = TargetCodeDecl
+private val TCD = TargetCodeDecl
 
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
   

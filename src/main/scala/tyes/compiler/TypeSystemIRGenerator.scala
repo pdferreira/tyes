@@ -2,6 +2,7 @@ package tyes.compiler
 
 import tyes.compiler.Orderings.given
 import tyes.compiler.ir.IRNode
+import tyes.compiler.ir.IRError
 import tyes.compiler.ir.TargetCodeDecl
 import tyes.compiler.ir.TargetCodeIRGenerator
 import tyes.compiler.ir.TargetCodeNode
@@ -38,8 +39,7 @@ class TypeSystemIRGenerator(
       TCD.Class(
         className,
         inherits = Seq(
-          TCTypeRef("TypeSystem", expClassTypeRef),
-          TCTypeRef("TypeOperations")
+          TCTypeRef("TypeSystem", expClassTypeRef)
         ),
         decls = Seq(
           TCD.Type("T", typeEnumTypeRef),
@@ -58,10 +58,7 @@ class TypeSystemIRGenerator(
     ))
 
   private def generateTypecheckBody(expVar: TCN.Var, rules: Seq[RuleDecl]): TargetCodeNode =
-    val defaultCase = TCN.Var("_") -> TCN.Apply(
-      TCN.Var("Left"), 
-      TCN.FormattedText("TypeError: no type for `", expVar, "`")
-    )
+    val defaultCase = TCN.Var("_") -> RuntimeAPIGenerator.genError(IRError.NoType(expVar))
 
     val ruleCases = rules
       .groupBy(r => ruleIRGenerator.getTemplate(r))
@@ -93,7 +90,7 @@ class TypeSystemIRGenerator(
         else
           IRNode.Switch(
             branches = rIRs.map(ir => ir.condition.get -> ir.node),
-            otherwise = IRNode.Error(TCN.FormattedText("TypeError: no type for ", expVar))
+            otherwise = IRNode.Error(IRError.NoType(expVar))
           )
       )
       // Then unite the resulting node of each group using Or nodes

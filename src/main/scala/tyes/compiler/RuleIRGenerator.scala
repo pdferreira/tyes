@@ -2,11 +2,12 @@ package tyes.compiler
 
 import tyes.compiler.ir.IRInstr
 import tyes.compiler.ir.IRNode
+import tyes.compiler.ir.IRError
 import tyes.compiler.ir.TargetCodeNode
 import tyes.model.*
 import utils.collections.*
 
-val TCN = TargetCodeNode
+private val TCN = TargetCodeNode
 
 class RuleIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
@@ -95,6 +96,7 @@ class RuleIRGenerator(
 
       case Type.Named(name) =>
         val pTypeCode = typeIRGenerator.generate(pType)
+        // TODO: explore having `expecting` as an extra parameter instead, to allow a better error message 
         val (declInstr, _) = genInductionCall("t" + (idx + 1), pTerm, codeEnv, indCall => 
           TCN.Apply(TCN.Field(indCall, "expecting"), pTypeCode)
         )
@@ -114,7 +116,7 @@ class RuleIRGenerator(
             val rightTypeNode = typeIRGenerator.generate(arg, codeEnv)
             IRInstr.Cond(
               TCN.Equals(leftTypeNode, rightTypeNode),
-              TCN.FormattedText("TypeError: types ", leftTypeNode, " and ", rightTypeNode, " don't match")
+              IRError.UnexpectedType(expected = leftTypeNode, obtained = rightTypeNode)
             )
           })
         

@@ -1,9 +1,10 @@
 package tyes.compiler.ir
 
 import TargetCodeNodeOperations.*
+import tyes.compiler.RuntimeAPIGenerator
 import utils.collections.*
 
-val TCFC = TargetCodeForCursor
+private val TCFC = TargetCodeForCursor
 
 class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](TargetCodeNodeOperations):
 
@@ -15,7 +16,7 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
     
     case IRNode.Error(err) =>
       assert(eitherIsExpected, "Returning Either must be expected in Error")
-      wrapAsLeft(err)
+      RuntimeAPIGenerator.genError(err)
     
     case IRNode.Result(res, canFail) =>
       assert(eitherIsExpected || !canFail, s"Returning Either must be expected in Result ($eitherIsExpected) or it can't fail (${!canFail})") 
@@ -56,7 +57,7 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
     
     case IRNode.Or(main, alt) =>
       val mainNode = generate(main, eitherIsExpected)
-      val altNode = generate(alt, eitherIsExpected = true)//if !canFail(alt) then wrapAsRight(generate(alt)) else generate(alt)
+      val altNode = generate(alt, eitherIsExpected = true)
       TargetCodeNode.Apply(
         TargetCodeNode.Field(
           mainNode,
@@ -68,21 +69,13 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
 
   def generate(irInstr: IRInstr[TargetCodeNode]): TargetCodeForCursor = irInstr match {
     case IRInstr.Cond(cond, err) => 
-      val condExp = TargetCodeNode.Apply(
-        TargetCodeNode.Field(TargetCodeNode.Var("Either"), "cond"),
-        cond,
-        TargetCodeNode.Unit,
-        err
-      )
-      TargetCodeForCursor.Iterate("_", condExp)
+      TargetCodeForCursor.Iterate("_", RuntimeAPIGenerator.genCheck(cond, err))
     case IRInstr.Decl(resVar, exp) =>
       if canFail(exp) then 
         TargetCodeForCursor.Iterate(resVar, generate(exp, eitherIsExpected = true))
       else
         TargetCodeForCursor.Let(resVar, generate(exp, eitherIsExpected = false))
   }
-
-  private def wrapAsLeft(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Left"), value)
 
   private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Right"), value)
 

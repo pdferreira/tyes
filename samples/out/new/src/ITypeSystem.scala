@@ -1,7 +1,7 @@
 import tyes.runtime.*
 import example.*
 
-class ITypeSystem extends TypeSystem[LExpression], TypeOperations:
+class ITypeSystem extends TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
@@ -12,7 +12,7 @@ class ITypeSystem extends TypeSystem[LExpression], TypeOperations:
       if n == 1 then
         Right(Type.Int)
       else
-        Left(s"TypeError: no type for ${exp}")
+        TypeError.noTypeFor(exp)
 
-    case _ => Left(s"TypeError: no type for `${exp}`")
+    case _ => TypeError.noTypeFor(exp)
   }

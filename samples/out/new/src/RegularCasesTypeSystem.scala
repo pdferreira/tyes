@@ -1,7 +1,7 @@
 import tyes.runtime.*
 import example.*
 
-class RegularCasesTypeSystem extends TypeSystem[LExpression], TypeOperations:
+class RegularCasesTypeSystem extends TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
@@ -12,7 +12,7 @@ class RegularCasesTypeSystem extends TypeSystem[LExpression], TypeOperations:
       if n == 1 then
         Right(Type.One)
       else
-        Left(s"TypeError: no type for ${exp}")
+        TypeError.noTypeFor(exp)
 
     case LPlus(e1, e2) => 
       for
@@ -21,5 +21,5 @@ class RegularCasesTypeSystem extends TypeSystem[LExpression], TypeOperations:
       yield
         Type.One
 
-    case _ => Left(s"TypeError: no type for `${exp}`")
+    case _ => TypeError.noTypeFor(exp)
   }

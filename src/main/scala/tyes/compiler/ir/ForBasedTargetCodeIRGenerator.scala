@@ -4,13 +4,13 @@ class ForBasedStringGenerator extends TargetCodeIRGenerator[String](StringCodeOp
 
   def generate(irNode: IRNode[String]): String = irNode match {
     case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
-    case IRNode.Error(err) => s"Left($err)"
+    case IRNode.Error(IRError.Generic(err)) => s"Left($err)"
     case IRNode.Result(res, _) => res
     case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
       // Example of special case rule
       generate(IRNode.And(cs, exp))
     case IRNode.And(conds, next) => "for\n" + conds.map(generate).mkString(" ", "\n  ", "\n") + "yield " + generate(next)
-    case IRNode.Switch(Seq((cond, IRNode.Result(res, false))), IRNode.Error(err)) =>
+    case IRNode.Switch(Seq((cond, IRNode.Result(res, false))), IRNode.Error(IRError.Generic(err))) =>
       // Example of special case rule
       s"Either.cond($cond, $res, $err)"
     case IRNode.Switch(branches, otherwise) =>
@@ -35,14 +35,14 @@ class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode
 
   def generate(irNode: IRNode[TargetCodeNode]): TargetCodeNode = irNode match {
     case IRNode.Unexpected => TargetCodeNode.Throw(TargetCodeTypeRef("Exception"), TargetCodeNode.Text("unexpected"))
-    case IRNode.Error(err) => wrapAsLeft(err)
+    case IRNode.Error(IRError.Generic(err)) => wrapAsLeft(err)
     case IRNode.Result(res, _) => res
     case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
       // Example of special case rule
       generate(IRNode.And(cs, exp))
     case IRNode.And(conds, next) =>
       TargetCodeNode.For(conds.map(generate), generate(next))
-    case IRNode.Switch(Seq((cond, IRNode.Result(res, false))), IRNode.Error(err)) =>
+    case IRNode.Switch(Seq((cond, IRNode.Result(res, false))), IRNode.Error(IRError.Generic(err))) =>
       // Example of special case rule
       TargetCodeNode.Apply(
         TargetCodeNode.Field(TargetCodeNode.Var("Either"), "cond"),
@@ -78,7 +78,7 @@ class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode
   }
 
   def generate(irInstr: IRInstr[TargetCodeNode]): TargetCodeForCursor = irInstr match {
-    case IRInstr.Cond(cond, err) => 
+    case IRInstr.Cond(cond, IRError.Generic(err)) => 
       val condExp = TargetCodeNode.Apply(
         TargetCodeNode.Field(TargetCodeNode.Var("Either"), "cond"),
         cond,
