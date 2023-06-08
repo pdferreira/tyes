@@ -7,7 +7,7 @@ class RegularCasesTypeSystem extends TypeSystem[LExpression]:
   enum Type extends tyes.runtime.Type:
     case One
 
-  def typecheck(exp: LExpression[Type], env: Map[String, Type]): Either[String, Type] = exp match {
+  def typecheck(exp: LExpression[Type], env: Environment[Type]): Either[String, Type] = exp match {
     case LNumber(n) => 
       if n == 1 then
         Right(Type.One)

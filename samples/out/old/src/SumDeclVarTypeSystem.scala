@@ -1,5 +1,6 @@
 
-    import tyes.runtime.*
+    import tyes.runtime.old.*
+    import tyes.runtime.Type
     import example.*
     
     object SumDeclVarTypeSystem extends TypeSystem[LExpression], TypeOperations:

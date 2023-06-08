@@ -1,5 +1,6 @@
 
-    import tyes.runtime.*
+    import tyes.runtime.old.*
+    import tyes.runtime.Type
     import example.*
     
     object LambdaCalculusTypeSystem extends TypeSystem[LExpression], TypeOperations:

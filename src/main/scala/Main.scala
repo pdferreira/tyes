@@ -9,7 +9,7 @@ import tyes.compiler.*
 import tyes.interpreter.*
 import tyes.cli.*
 
-object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
+object ExampleTypeChecker extends tyes.runtime.old.TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
@@ -86,7 +86,7 @@ object ExampleTypeChecker extends tyes.runtime.TypeSystem[LExpression]:
       if e == null then
         println("No script engine found")
       else
-        val rtTypeSystem = e.eval(src + s"\r\n$tsClassName").asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
+        val rtTypeSystem = e.eval(src + s"\r\n$tsClassName").asInstanceOf[tyes.runtime.old.TypeSystem[LExpression]]
         for (e, idx) <- exps.zipWithIndex do
           val typ = rtTypeSystem.typecheck(e, Map())
           println(s"$e has type $typ")

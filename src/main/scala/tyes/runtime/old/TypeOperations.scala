@@ -1,7 +1,9 @@
-package tyes.runtime
+package tyes.runtime.old
 
 import scala.reflect.ClassTag
 import scala.reflect.TypeTest
+import tyes.runtime.Type
+import tyes.runtime.CompositeType
 
 trait TypeOperations:
 

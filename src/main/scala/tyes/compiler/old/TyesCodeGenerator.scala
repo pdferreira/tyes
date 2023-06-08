@@ -430,7 +430,8 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
   
   private def compileTypeSystem(tsDecl: TypeSystemDecl): String =
     s"""
-    import tyes.runtime.*
+    import tyes.runtime.old.*
+    import tyes.runtime.Type
     import example.*
     
     object ${TyesCodeGenerator.getTypeSystemObjectName(tsDecl)} extends TypeSystem[LExpression], TypeOperations:

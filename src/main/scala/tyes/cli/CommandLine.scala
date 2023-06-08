@@ -154,11 +154,15 @@ object CommandLine:
 
       val tsClassName = objName
       val tsVarName = "ts"
-      val rtTypeSystem =
-        Option(engine.eval(s"\r\nval $tsVarName = $tsClassName; $tsVarName")) // old 
-        .orElse(Option(engine.eval((s"\r\nval $tsVarName = new $tsClassName(); $tsVarName")))) // new
-        .map(_.asInstanceOf[tyes.runtime.TypeSystem[LExpression]])
-        .get
+      val tsRtObj = engine.eval(s"\r\nval $tsVarName = $tsClassName; $tsVarName")
+      if (tsRtObj != null) {
+        invokeOldRunner(engine, tsRtObj, tsVarName, expSrcOption)
+        return;
+      }
+
+      val rtTypeSystem = engine
+        .eval((s"\r\nval $tsVarName = new $tsClassName(); $tsVarName"))
+        .asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
 
       val rtTypeEnumClass = engine.eval(s"classOf[$tsVarName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
       val rtTypeObjectClass = engine.eval(s"$tsVarName.Type.getClass").asInstanceOf[Class[_]]
@@ -166,12 +170,32 @@ object CommandLine:
       runInteractive(
         line => {
           for exp <- parseLExpression(line, expParser) do 
-            rtTypeSystem.typecheck(exp, Map()) match {
+            rtTypeSystem.typecheck(exp, tyes.runtime.Environment[rtTypeSystem.T]()) match {
               case Right(typ) => println(expParser.prettyPrint(typ))
               case Left(errMsg) => Console.err.println(errMsg)
             }
         }, 
         expSrcOption)
+
+  private def invokeOldRunner(
+    engine: javax.script.ScriptEngine,
+    tsRtObject: Object,
+    tsVarName: String,
+    expSrcOption: Option[String]
+  ): Unit =
+    val rtTypeSystem = tsRtObject.asInstanceOf[tyes.runtime.old.TypeSystem[LExpression]]
+    val rtTypeEnumClass = engine.eval(s"classOf[$tsVarName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
+    val rtTypeObjectClass = engine.eval(s"$tsVarName.Type.getClass").asInstanceOf[Class[_]]
+    val expParser = LExpressionWithRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass)
+    runInteractive(
+      line => {
+        for exp <- parseLExpression(line, expParser) do 
+          rtTypeSystem.typecheck(exp, Map()) match {
+            case Right(typ) => println(expParser.prettyPrint(typ))
+            case Left(errMsg) => Console.err.println(errMsg)
+          }
+      }, 
+      expSrcOption)
 
   private def runInteractive(processLine: String => Unit, singleInputOpt: Option[String]): Unit =
     singleInputOpt match {

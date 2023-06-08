@@ -2,7 +2,7 @@ package tyes.runtime
 
 trait TypeSystem[E[_]]:
   type T <: Type
-  def typecheck(exp: E[T], env: Map[String, T]): Result[T]
+  def typecheck(exp: E[T], env: Environment[T]): Result[T]
 
   protected type Result[A <: T] = Either[String, A]
 

@@ -23,7 +23,7 @@ class TypeSystemIRGenerator(
 
   private val expClassTypeRef = TCTypeRef("LExpression")
   private val expVar: TCN.Var = TCN.Var("exp")
-  private val defaultEnvVarName = commonEnvName.decapitalize
+  private val envVar: TCN.Var = TCN.Var(commonEnvName.decapitalize)
 
   private val typeIRGenerator = new TypeIRGenerator()
   private val termIRGenerator = new TermIRGenerator(typeIRGenerator)
@@ -48,7 +48,7 @@ class TypeSystemIRGenerator(
             "typecheck",
             params = Seq(
               expVar.name -> expClassTypeRef.copy(params = Seq(typeEnumTypeRef)),
-              defaultEnvVarName -> TCTypeRef("Map", TCTypeRef("String"), typeEnumTypeRef)
+              envVar.name -> TCTypeRef("Environment", typeEnumTypeRef)
             ),
             retTypeRef = TCTypeRef("Either", TCTypeRef("String"), typeEnumTypeRef),
             body = generateTypecheckBody(expVar, tsDecl.rules)
