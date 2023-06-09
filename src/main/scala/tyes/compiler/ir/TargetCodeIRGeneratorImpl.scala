@@ -24,12 +24,12 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
       then wrapAsRight(res) 
       else res
     
-    case IRNode.And(IRInstr.Decl(resVar, exp) :: Nil, IRNode.Result(TargetCodeNode.Var(resVar2), /*canFail*/false)) 
+    case IRNode.And(IRInstr.Check(exp, Some(resVar)) :: Nil, IRNode.Result(TargetCodeNode.Var(resVar2), /*canFail*/false)) 
       if resVar == resVar2 && canFail(exp) 
     =>
       generate(exp, eitherIsExpected)
     
-    case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail))
+    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail))
       if resVar == resVar2 && canFail(exp) == resCanFail 
     =>
       generate(IRNode.And(cs, exp), eitherIsExpected)
@@ -70,11 +70,16 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
   def generate(irInstr: IRInstr[TargetCodeNode]): TargetCodeForCursor = irInstr match {
     case IRInstr.Cond(cond, err) => 
       TargetCodeForCursor.Iterate("_", RuntimeAPIGenerator.genCheck(cond, err))
-    case IRInstr.Decl(resVar, exp) =>
+
+    case IRInstr.Check(exp, resVarOpt) =>
+      val resVar = resVarOpt.getOrElse("_")
       if canFail(exp) then 
         TargetCodeForCursor.Iterate(resVar, generate(exp, eitherIsExpected = true))
       else
         TargetCodeForCursor.Let(resVar, generate(exp, eitherIsExpected = false))
+
+    case IRInstr.Decl(resVar, exp) =>
+      generate(IRInstr.Check(exp, Some(resVar)))
   }
 
   private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Right"), value)

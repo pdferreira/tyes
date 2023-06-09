@@ -11,7 +11,8 @@ private val TCN = TargetCodeNode
 
 class RuleIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
-  private val termIRGenerator: TermIRGenerator
+  private val termIRGenerator: TermIRGenerator,
+  private val envIRGenerator: EnvironmentIRGenerator
 ):
 
   def getTemplate(rule: RuleDecl): Term = rule.conclusion.assertion match {
@@ -48,29 +49,32 @@ class RuleIRGenerator(
   case class GenerateOutput(node: IRNode[TargetCodeNode], condition: Option[TargetCodeNode])
 
   def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term): GenerateOutput =
-    // TODO: this is pretty much the POC code verbatim (for single-rule handling) and needs to be properly split
     val HasType(cTerm, cType) = rule.conclusion.assertion
 
     val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
 
-    // Pre-register the simple type names for the premises 
+    // Pre-register the simple type names for the premises
     for case Judgement(_, HasType(_, Type.Variable(name))) <- rule.premises do
       codeEnv.requestIdentifier(name)
+
+    val envConds = envIRGenerator.generateConditions(rule.conclusion.env, codeEnv) 
 
     val premiseConds = rule.premises
       .zipWithIndex
       .flatMap((p, idx) => genPremiseConds(p, idx, codeEnv))
 
+    val conds = envConds ++ premiseConds
+
     var result = IRNode.Result(typeIRGenerator.generate(cType, codeEnv), canFail = false)
     
-    if !premiseConds.isEmpty then
+    if !conds.isEmpty then
       result = IRNode.And(
-        conds = premiseConds,
+        conds = conds.toSeq,
         next = result
       )
 
     val constructorReqs = genConstructorReqs(cTerm)
-    
+
     GenerateOutput(
       node = result,
       condition = constructorReqs
@@ -83,6 +87,8 @@ class RuleIRGenerator(
     val constructorReqs = constructor.matches(term)
       .get
       .filter((_, v) => v.isGround)
+      .toSeq
+      .sortBy((k, v) => k) // TODO: ideally should sort in order of occurrence ltr
 
     for (k, v) <- constructorReqs
       yield TCN.Equals(TCN.Var(k), termIRGenerator.generate(v))
@@ -91,19 +97,19 @@ class RuleIRGenerator(
     val HasType(pTerm, pType) = premise.assertion
     pType match {
       case Type.Variable(name) =>
-        val (declInstr, _) = genInductionCall(name, pTerm, codeEnv) 
+        val (declInstr, _) = genInductionCall(name, pTerm, premise.env, codeEnv) 
         Seq(declInstr)
 
       case Type.Named(name) =>
         val pTypeCode = typeIRGenerator.generate(pType)
         // TODO: explore having `expecting` as an extra parameter instead, to allow a better error message 
-        val (declInstr, _) = genInductionCall("t" + (idx + 1), pTerm, codeEnv, indCall => 
+        val (declInstr, _) = genInductionCall("t" + (idx + 1), pTerm, premise.env, codeEnv, indCall => 
           TCN.Apply(TCN.Field(indCall, "expecting"), pTypeCode)
         )
         Seq(declInstr)
 
       case Type.Composite(tName, args*) =>
-        val (innerResTDeclInstr, innerResTDeclVarCode) = genInductionCall("_t" + (idx + 1), pTerm, codeEnv)
+        val (innerResTDeclInstr, innerResTDeclVarCode) = genInductionCall("_t" + (idx + 1), pTerm, premise.env, codeEnv)
         val (resTId, resTIdCode) = codeEnv.requestIdentifier("t" + (idx + 1))
         val argTypeReqs = args
           .zipWithIndex
@@ -125,16 +131,16 @@ class RuleIRGenerator(
         
         val inductionDecls = Seq(
           innerResTDeclInstr,
-          IRInstr.Decl(
-            resTId,
-            IRNode.Result(
+          IRInstr.Check(
+            exp = IRNode.Result(
               TCN.Apply(
                 TCN.Var("cast[Type.$FunType]"), // small hack, just for poc's sake
                 innerResTDeclVarCode,
                 TCN.FormattedText("expected ", termIRGenerator.generate(pTerm, codeEnv), " to have type ")
               ),
               canFail = true
-            )
+            ),
+            resVar = Some(resTId)
           )
         )
         
@@ -144,20 +150,21 @@ class RuleIRGenerator(
   private def genInductionCall(
     declVar: String,
     inductionTerm: Term,
+    inductionEnv: Environment,
     codeEnv: TargetCodeEnv,
     transformCall: TargetCodeNode => TargetCodeNode = tcn => tcn 
   ): (IRInstr[TargetCodeNode], TargetCodeNode) =
     val inductionTermCall = termIRGenerator.generate(inductionTerm, codeEnv)
     val (realDeclVar, realDeclVarCode) = codeEnv.requestIdentifier(declVar)
-    val instr = IRInstr.Decl(
-      realDeclVar,
-      IRNode.Result(
+    val instr = IRInstr.Check(
+      exp = IRNode.Result(
         transformCall(TCN.Apply(
           TCN.Var("typecheck"),
           inductionTermCall,
-          TCN.Var("env")
+          envIRGenerator.generate(inductionEnv, codeEnv)
         )), 
         canFail = true
-      )
+      ),
+      resVar = Some(realDeclVar)
     )
     (instr, realDeclVarCode)

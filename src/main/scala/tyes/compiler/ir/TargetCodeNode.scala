@@ -17,6 +17,7 @@ enum TargetCodeNode:
   case NotEquals(left: TargetCodeNode, right: TargetCodeNode)
   case And(left: TargetCodeNode, right: TargetCodeNode)
   case Or(left: TargetCodeNode, right: TargetCodeNode)
+  case Entry(key: TargetCodeNode, value: TargetCodeNode)
   case Apply(fun: TargetCodeNode, args: TargetCodeNode*)
   case Let(varName: String, varExp: TargetCodeNode, bodyExp: TargetCodeNode)
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodeNode, TargetCodeNode)])

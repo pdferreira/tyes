@@ -12,6 +12,12 @@ trait TypeSystem[E[_]]:
     else
       error
 
+  protected def checkEnvSize(env: Environment[T], size: Int): Either[String, Unit] =
+    if env.size == size then
+      Right(())
+    else
+      TypeError.unexpectedEnvSize(env, size) 
+
   extension [TargetT <: T](resT: Result[TargetT])
 
     protected def expecting(expected: TargetT): Result[TargetT] = resT.flatMap(t =>

@@ -106,6 +106,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TargetCodeNode.NotEquals(l, r) => s"${startIndent}${generate(l)} != ${generate(r)}"
       case TargetCodeNode.And(l, r) => s"${startIndent}${generate(l)} && ${generate(r)}"
       case TargetCodeNode.Or(l, r) => s"${startIndent}${generate(l)} || ${generate(r)}"
+      case TargetCodeNode.Entry(k, v) => s"${startIndent}${generate(k)} -> ${generate(v)}"
       case TargetCodeNode.Apply(fun, args*) => 
         val funStr = generate(fun, indentLevel, skipStartIndent)
         val argsStr = args.map(a => indentIfMultiline(generate(a), indentLevel + 1)).mkString(", ")

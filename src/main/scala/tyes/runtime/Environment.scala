@@ -1,8 +1,12 @@
 package tyes.runtime
 
-final case class Environment[T <: Type](
-  private val entries: Map[String, T] = Map.empty[String, T]
-) {
+case class Environment[T <: Type](
+  initialEntries: (String, T)*
+):
+
+  private val entries = Map.from(initialEntries) 
+
+  def size: Int = entries.size
 
   def get(id: String): Either[String, T] = 
     entries
@@ -10,4 +14,9 @@ final case class Environment[T <: Type](
       .map(Right.apply)
       .getOrElse(TypeError.noTypeForIdentifier(id))
 
-}
+  override def toString(): String =
+    if entries.isEmpty
+    then "no declarations"
+    else entries
+      .map((k, v) => s"$k: $v")
+      .mkString(", ")

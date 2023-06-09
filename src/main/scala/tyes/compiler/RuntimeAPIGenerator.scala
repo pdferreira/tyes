@@ -24,3 +24,6 @@ object RuntimeAPIGenerator:
 
   def genCheck(condCode: TCN, errorIR: IRError[TCN]): TCN =
     TCN.Apply(TCN.Var("checkIf"), condCode, genError(errorIR))
+
+  def genCheckEnvSize(envVarCode: TCN, expectedSize: Int): TCN =
+    TCN.Apply(TCN.Var("checkEnvSize"), envVarCode, TCN.Integer(expectedSize))

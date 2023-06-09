@@ -17,5 +17,6 @@ def canFail[TCode](irNode: IRNode[TCode]): Boolean = irNode match {
 
 def canFail[TCode](irInstr: IRInstr[TCode]): Boolean = irInstr match {
   case IRInstr.Cond(_, _) => true
+  case IRInstr.Check(exp, _) => canFail(exp)
   case IRInstr.Decl(_, exp) => canFail(exp) 
 }

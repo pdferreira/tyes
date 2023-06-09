@@ -12,7 +12,8 @@ enum IRNode[+TCode]:
 
 enum IRInstr[+TCode]:
   case Cond(cond: TCode, err: IRError[TCode])
-  case Decl(resVar: String, exp: IRNode[TCode])
+  case Check(exp: IRNode[TCode], resVar: Option[String])
+  case Decl(resVar: String, exp: IRNode[TCode]) // TODO replace by Check(exp, Some(resVar))
 
 enum IRError[+TCode]:
   case Generic(message: TCode)
@@ -221,7 +222,8 @@ val revAppRule = RuleDecl(
 val exampleTypeSystem = TypeSystemDecl(None, Seq(numRule, appRule))
 
 val termIRGenerator = new tyes.compiler.TermIRGenerator(typeIRGenerator)
-val ruleIRGenerator  = new tyes.compiler.RuleIRGenerator(typeIRGenerator, termIRGenerator)
+val envIRGenerator = new tyes.compiler.EnvironmentIRGenerator(typeIRGenerator, "env")
+val ruleIRGenerator  = new tyes.compiler.RuleIRGenerator(typeIRGenerator, termIRGenerator, envIRGenerator)
 
 def termToCodeGenNode(term: Term, codeMap: Map[String, TargetCodeNode] = Map()): TargetCodeNode =
   val codeEnv = TargetCodeEnv()
