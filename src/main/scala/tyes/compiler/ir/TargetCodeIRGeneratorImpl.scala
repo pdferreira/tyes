@@ -105,20 +105,34 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
       case TCFC.Let(_, exp) => freeNames(exp).toSet 
     }
 
-    val undeclaredNames = collection.mutable.Set.from(cursors.map(getDeclaredName).flatten)
-    val res = collection.mutable.ListBuffer.from(cursors)
-    var i = 0
-    while i < res.length do
-      val c = res(i)
-      val missingDeps = getDependencies(c).intersect(undeclaredNames)
-      if missingDeps.isEmpty then
-        i += 1
-        getDeclaredName(c).map { name => 
-          undeclaredNames -= name
-        }
-      else if i + 1 < res.length then
-        val next = res(i + 1)
-        res(i) = next
-        res(i + 1) = c
+    // Build a map of all the undeclared dependencies for each cursor
+    // but only considering the names that are actually declared within this `for`
+    // otherwise this is pointless because there'll always be `exp` and other free names
+    val undeclaredNames = Set.from(cursors.map(getDeclaredName).flatten)
+    val missingDepsByCursor = cursors
+      .map { c =>
+        val missingDeps = getDependencies(c).intersect(undeclaredNames)
+        (c, collection.mutable.Set.from(missingDeps))
+      }
+      .toMap
 
+    // Go through all the cursors, preferrably in order but picking those with
+    // 0 missing dependencies first. For each pick, update the missing dependencies
+    // and if there're none with 0 dependencies, fallback to picking the first one.
+    val res = collection.mutable.ListBuffer[TargetCodeForCursor]()
+    val cursorsToProcess = collection.mutable.Queue.from(cursors)
+    while !cursorsToProcess.isEmpty do
+      val c = cursorsToProcess
+        .dequeueFirst(c => missingDepsByCursor(c).isEmpty)
+        .getOrElse { cursorsToProcess.dequeue() }
+      
+      for 
+        name <- getDeclaredName(c)
+        deps <- missingDepsByCursor.values
+      do
+        deps.remove(name)
+
+      res += c
+
+    // Finally pack the collected cursors
     res.toSeq

@@ -12,6 +12,8 @@ class Multiset[A](private val map: Map[A, Int]):
 
   def except(elem: A) = new Multiset(map.removed(elem))
 
+  def except(ms: Multiset[A]) = new Multiset(map.removedAll(ms.map.keys)) 
+
   def ++(ms: Multiset[A]) = new Multiset(ms.map.foldLeft(map) { case (m, (e, c)) => innerAdd(m, e, c) })
 
   def count(elem: A): Int = map.getOrElse(elem, 0)

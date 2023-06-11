@@ -223,7 +223,7 @@ val exampleTypeSystem = TypeSystemDecl(None, Seq(numRule, appRule))
 
 val termIRGenerator = new tyes.compiler.TermIRGenerator(typeIRGenerator)
 val envIRGenerator = new tyes.compiler.EnvironmentIRGenerator(typeIRGenerator, "env")
-val ruleIRGenerator  = new tyes.compiler.RuleIRGenerator(typeIRGenerator, termIRGenerator, envIRGenerator)
+val ruleIRGenerator  = new tyes.compiler.RuleIRGenerator(typeIRGenerator, termIRGenerator, envIRGenerator, TargetCodeNode.Var("exp"))
 
 def termToCodeGenNode(term: Term, codeMap: Map[String, TargetCodeNode] = Map()): TargetCodeNode =
   val codeEnv = TargetCodeEnv()

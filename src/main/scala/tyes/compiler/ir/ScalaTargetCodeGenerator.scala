@@ -11,6 +11,15 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     val lines = codeStr.linesWithSeparators.toSeq
     if lines.length <= 1 then
       codeStr
+    else if lines(0).trim().last == '{' then
+      val indent = "  ".repeat(indentLevel - 2)
+      val tailLines =
+        lines
+          .drop(1)
+          .take(lines.length - 1)
+          .map(_.prependedAll(indent)).mkString
+
+      lines(0) + tailLines
     else
       val indent = "  ".repeat(indentLevel)
       lines.map(_.prependedAll(indent)).mkString("\r\n", "", "\r\n")
@@ -82,8 +91,8 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         s"${startIndent}if $condStr then\r\n$thenStr\r\n${indent}else$elseStr"
       case TargetCodeNode.For(cursors, body) =>
         val cursorsStr = cursors
-          .map(generate)
-          .map(cStr => s"${indent}  $cStr\r\n")
+          .map(c => generate(c, indentLevel + 1))
+          .map(cStr => s"$cStr\r\n")
           .mkString
         var bodyStr = generate(body, indentLevel + 1)
         s"${startIndent}for\r\n$cursorsStr${indent}yield\r\n$bodyStr"
@@ -125,6 +134,18 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val expStr = generate(exp)
         val bodyStr = generate(body, indentLevel)
         s"${startIndent}val $name = $expStr\r\n$bodyStr"
+      case TargetCodeNode.Lambda(name, TargetCodeNode.Match(TargetCodeNode.Var(name2), bs)) if name == name2 =>
+        (
+          for case (patExp, thenExp) <- bs
+          yield
+            val patStr = generate(patExp)
+            val thenStr = indentIfMultiline(generate(thenExp), indentLevel + 1)
+            s"${indent}  case $patStr => $thenStr"
+        )
+        .mkString(startIndent + "{\r\n", "\r\n", s"\r\n${indent}" + "}")
+      case TargetCodeNode.Lambda(name, body) =>
+        val bodyStr = generate(body, indentLevel + 1, skipStartIndent = true)
+        s"${startIndent}$name => $bodyStr"
       case TargetCodeNode.Var(name) => s"${startIndent}$name"
       case TargetCodeNode.Field(obj, field) =>
         val objStr = generate(obj, indentLevel, skipStartIndent)
@@ -152,8 +173,16 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         startIndent + typeRefStr + argsStr
     }
 
-  def generate(tcCursor: TargetCodeForCursor): String = tcCursor match {
-    case TargetCodeForCursor.Filter(exp) => s"if ${generate(exp)}"
-    case TargetCodeForCursor.Iterate(name, collection) => s"$name <- ${generate(collection)}"
-    case TargetCodeForCursor.Let(name, exp) => s"$name = ${generate(exp)}"
-  }
+  def generate(tcCursor: TargetCodeForCursor, indentLevel: Int): String = 
+    val indent = "  ".repeat(indentLevel)
+    tcCursor match {
+      case TargetCodeForCursor.Filter(exp) => 
+        val expStr = generate(exp, indentLevel + 1, skipStartIndent = true)
+        s"${indent}if $expStr"
+      case TargetCodeForCursor.Iterate(name, collection) =>
+        val colStr = generate(collection, indentLevel + 1, skipStartIndent = true)
+        s"${indent}$name <- $colStr"
+      case TargetCodeForCursor.Let(name, exp) =>
+        val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) 
+        s"${indent}$name = $expStr"
+    }

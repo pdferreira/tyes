@@ -13,6 +13,7 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
   def freeNames(tcNode: TargetCodeNode): Multiset[String] = tcNode match {
     case TargetCodeNode.Var(name) => Multiset(name)
     case TargetCodeNode.Let(varName, varExp, bodyExp) => freeNames(varExp) ++ (freeNames(bodyExp).except(varName))
+    case TargetCodeNode.Lambda(name, exp) => freeNames(exp).except(name)
     case TargetCodeNode.For(Nil, bodyExp) => freeNames(bodyExp)
     case TargetCodeNode.For(TargetCodeForCursor.Filter(cond) :: cs, bodyExp) =>
       freeNames(cond) ++ freeNames(TargetCodeNode.For(cs, bodyExp))
@@ -24,6 +25,10 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
       fs
         .map({ case n: TargetCodeNode => freeNames(n) ; case _ => Multiset() })
         .foldLeft(Multiset())(_ ++ _)
+    case TargetCodeNode.Match(exp, bs) =>
+      bs
+        .map((p, b) => freeNames(b).except(freeNames(p)))
+        .foldLeft(freeNames(exp))(_ ++ _)
     case _ => 
       tcNode
         .productIterator
@@ -46,7 +51,9 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
       | TargetCodeNode.Integer(_)
       => tcNode
     case TargetCodeNode.And(l, r) => TargetCodeNode.And(f(l), f(r))
+    case TargetCodeNode.Entry(k, v) => TargetCodeNode.Entry(f(k), f(v))
     case TargetCodeNode.Apply(fun, args*) => TargetCodeNode.Apply(f(fun), args.map(f(_))*)
+    case TargetCodeNode.InfixApply(l, fun, r) => TargetCodeNode.InfixApply(f(l), fun, f(r))
     case TargetCodeNode.Equals(l, r) => TargetCodeNode.Equals(f(l), f(r)) 
     case TargetCodeNode.Field(obj, field) => TargetCodeNode.Field(f(obj), field)
     case TargetCodeNode.For(cs, body) => TargetCodeNode.For(cs.map(applyToChildren(_, f)), f(body))
@@ -56,6 +63,7 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
     })*)
     case TargetCodeNode.If(c, t, e) => TargetCodeNode.If(f(c), f(t), f(e))
     case TargetCodeNode.Let(n, e, b) => TargetCodeNode.Let(n, f(e), f(b))
+    case TargetCodeNode.Lambda(n, e) => TargetCodeNode.Lambda(n, f(e))
     case TargetCodeNode.Match(e, bs) => TargetCodeNode.Match(f(e), bs.map((k, v) => (k, f(v))))
     case TargetCodeNode.Not(e) => TargetCodeNode.Not(f(e))
     case TargetCodeNode.NotEquals(l, r) => TargetCodeNode.NotEquals(f(l), f(r))
@@ -76,7 +84,10 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
     case TargetCodeNode.Var(name) if name == key => value 
     case TargetCodeNode.Let(varName, varExp, bodyExp) =>
       val newBodyExp = if varName == key then bodyExp else replace(bodyExp, key, value)
-      TargetCodeNode.Let(varName, replace(varExp, key, value), newBodyExp) 
+      TargetCodeNode.Let(varName, replace(varExp, key, value), newBodyExp)
+    case TargetCodeNode.Lambda(paramName, bodyExp) =>
+      val newBodyExp = if paramName == key then bodyExp else replace(bodyExp, key, value)
+      TargetCodeNode.Lambda(paramName, newBodyExp)
     case TargetCodeNode.For(Nil, bodyExp) => TargetCodeNode.For(Nil, replace(bodyExp, key, value))
     case TargetCodeNode.For(TargetCodeForCursor.Filter(cond) :: cs, bodyExp) =>
       val TargetCodeNode.For(newCs, newBodyExp) = replace(TargetCodeNode.For(cs, bodyExp), key, value)

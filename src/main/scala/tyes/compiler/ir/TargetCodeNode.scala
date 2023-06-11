@@ -21,6 +21,7 @@ enum TargetCodeNode:
   case InfixApply(left: TargetCodeNode, fun: String, right: TargetCodeNode)
   case Apply(fun: TargetCodeNode, args: TargetCodeNode*)
   case Let(varName: String, varExp: TargetCodeNode, bodyExp: TargetCodeNode)
+  case Lambda(paramName: String, bodyExp: TargetCodeNode)
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodeNode, TargetCodeNode)])
   case Return(exp: TargetCodeNode)
   case ADTConstructorCall(typeRef: TargetCodeTypeRef, args: TargetCodeNode*)
