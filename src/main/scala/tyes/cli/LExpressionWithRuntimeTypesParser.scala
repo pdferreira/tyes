@@ -1,38 +1,41 @@
 package tyes.cli
 
-import java.lang.reflect.Field
+import java.lang.reflect.Method
 import example.*
 import tyes.model.Constants
 import utils.StringExtensions.*
 
 class LExpressionWithRuntimeTypesParser[T <: tyes.runtime.Type](
   rtTypeEnumClass: Class[T],
-  rtTypeObjectClass: Class[_]
+  rtTypeObjectClass: Class[_],
+  rtTypeObject: Object
 ) extends AbstractLExpressionWithTypesParser[T]:
 
-  override type TNamedTypeInfo = Field
+  override type TNamedTypeInfo = Method
 
   override val allNamedTypes = 
     for
-      f <- rtTypeObjectClass.getFields
-      if f.getType() == rtTypeEnumClass
+      m <- rtTypeObjectClass.getMethods()
+      if m.getParameterCount() == 0 && m.getReturnType() == rtTypeEnumClass
     yield
-      f
+      m
 
-  private val rtFunctionTypeClass = 
-    rtTypeObjectClass.getClasses
-      .find(c => rtTypeEnumClass.isAssignableFrom(c) && c.getSimpleName == Constants.Types.Function.name)
-      .map(_.asSubclass(rtTypeEnumClass))
+  private val rtFunctionTypeObject = 
+    rtTypeObjectClass
+      .getMethods
+      .find(m => m.getName == Constants.Types.Function.name)
+      .map(_.invoke(rtTypeObject))
 
-  override val hasFunctionRuntimeType = rtFunctionTypeClass.isDefined
+  override val hasFunctionRuntimeType = rtFunctionTypeObject.isDefined
 
-  override def getTypeName(typInfo: Field) = typInfo.getName.decapitalize
+  override def getTypeName(typInfo: Method) = typInfo.getName.decapitalize
 
-  override def getRuntimeType(typInfo: Field) = rtTypeEnumClass.cast(typInfo.get(null))
+  override def getRuntimeType(typInfo: Method) = rtTypeEnumClass.cast(typInfo.invoke(rtTypeObject))
 
   override def getFunctionRuntimeType(argTpe: T, retTpe: T) =
-    val rtFunTypeCtor = rtFunctionTypeClass.get.getMethod("apply", rtTypeEnumClass, rtTypeEnumClass)
-    rtFunTypeCtor.invoke(null, argTpe, retTpe).asInstanceOf[T]
+    val rtFunTypeObj = rtFunctionTypeObject.get
+    val rtFunTypeCtor = rtFunTypeObj.getClass.getMethod("apply", rtTypeEnumClass, rtTypeEnumClass)
+    rtFunTypeCtor.invoke(rtFunTypeObj, argTpe, retTpe).asInstanceOf[T]
   
   def prettyPrint(typ: T): String = 
     if rtTypeEnumClass.isAssignableFrom(typ.getClass) then

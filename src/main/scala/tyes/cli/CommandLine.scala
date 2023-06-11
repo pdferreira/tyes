@@ -166,7 +166,8 @@ object CommandLine:
 
       val rtTypeEnumClass = engine.eval(s"classOf[$tsVarName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
       val rtTypeObjectClass = engine.eval(s"$tsVarName.Type.getClass").asInstanceOf[Class[_]]
-      val expParser = LExpressionWithRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass)
+      val rtTypeObject = engine.eval(s"$tsVarName.Type")
+      val expParser = new LExpressionWithRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass, rtTypeObject)
       runInteractive(
         line => {
           for exp <- parseLExpression(line, expParser) do 
@@ -186,7 +187,7 @@ object CommandLine:
     val rtTypeSystem = tsRtObject.asInstanceOf[tyes.runtime.old.TypeSystem[LExpression]]
     val rtTypeEnumClass = engine.eval(s"classOf[$tsVarName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
     val rtTypeObjectClass = engine.eval(s"$tsVarName.Type.getClass").asInstanceOf[Class[_]]
-    val expParser = LExpressionWithRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass)
+    val expParser = new tyes.cli.old.LExpressionWithOldRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass)
     runInteractive(
       line => {
         for exp <- parseLExpression(line, expParser) do 
