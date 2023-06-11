@@ -20,18 +20,25 @@ class EnvironmentIRGenerator(
 ):
   
   private val envVar: TCN.Var = genVarCode(commonEnvName)
+  private val envClassTypeRef = TCTypeRef("Environment")
 
   private def genVarCode(envName: String): TCN.Var = TCN.Var(envName.decapitalize)
 
   def generateParameter(): (String, TCTypeRef) = 
-    envVar.name -> TCTypeRef("Environment", typeIRGenerator.typeEnumTypeRef)
-
+    envVar.name -> envClassTypeRef.copy(params = Seq(typeIRGenerator.typeEnumTypeRef))
   
   def generate(env: Environment, codeEnv: TargetCodeEnv): TCN =
     assert(!env.parts.isEmpty)
     env.parts
       .map(generate(_, codeEnv))
-      .foldLeft1((c1, c2) => TCN.Apply(TCN.Field(c1, "++"), c2))
+      .foldLeft1((c1, c2) => c2 match {
+        // Semantically equivalent special case just to reduce verbosity of 
+        // `env + Environment(x1 -> t1, x2 -> t2)` to `env + (x1 -> t1) + (x2 -> t2)`
+        case TCN.ADTConstructorCall(`envClassTypeRef`, exps*) =>
+          exps.foldLeft(c1)((ce1, ce2) => TCN.InfixApply(ce1, "+", ce2))
+        case _ => 
+          TCN.InfixApply(c1, "+", c2)
+      })
 
   private def generate(binding: Binding, codeEnv: TargetCodeEnv): TCN =
     val (varNameExpr, typ) = generateBinding(binding)
@@ -40,7 +47,7 @@ class EnvironmentIRGenerator(
   private def generate(env: EnvironmentPart, codeEnv: TargetCodeEnv): TCN = env match {
     case EnvironmentPart.Bindings(bindings) =>
       val entryExprs = bindings.map(generate(_, codeEnv))
-      TCN.ADTConstructorCall(TCTypeRef("Environment"), entryExprs*)
+      TCN.ADTConstructorCall(envClassTypeRef, entryExprs*)
 
     case EnvironmentPart.Variable(name) =>
       assert(

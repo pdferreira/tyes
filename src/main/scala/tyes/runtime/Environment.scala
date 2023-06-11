@@ -14,6 +14,13 @@ case class Environment[T <: Type](
       .map(Right.apply)
       .getOrElse(TypeError.noTypeForIdentifier(id))
 
+  def +(newEntry: (String, T)): Environment[T] =
+    this + Environment(newEntry)
+
+  def +(otherEnv: Environment[T]): Environment[T] =
+    val allEntries = entries.toSeq ++ otherEnv.entries.toSeq
+    Environment(allEntries*)
+
   override def toString(): String =
     if entries.isEmpty
     then "no declarations"

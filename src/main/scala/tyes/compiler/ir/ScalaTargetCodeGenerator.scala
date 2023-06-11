@@ -15,6 +15,12 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       val indent = "  ".repeat(indentLevel)
       lines.map(_.prependedAll(indent)).mkString("\r\n", "", "\r\n")
 
+  private def parenthesizeIfSpaced(codeStr: String): String =
+    if codeStr.contains(' ') then
+      s"($codeStr)"
+    else
+      codeStr
+
   def getFileName(tcUnit: TargetCodeUnit): Path = Path.of{tcUnit.name + ".scala"}
 
   def generate(tcUnit: TargetCodeUnit): String =
@@ -107,6 +113,10 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TargetCodeNode.And(l, r) => s"${startIndent}${generate(l)} && ${generate(r)}"
       case TargetCodeNode.Or(l, r) => s"${startIndent}${generate(l)} || ${generate(r)}"
       case TargetCodeNode.Entry(k, v) => s"${startIndent}${generate(k)} -> ${generate(v)}"
+      case TargetCodeNode.InfixApply(l, fun, r) =>
+        val lStr = parenthesizeIfSpaced(generate(l))
+        val rStr = parenthesizeIfSpaced(generate(r))
+        s"${startIndent}$lStr $fun $rStr"
       case TargetCodeNode.Apply(fun, args*) => 
         val funStr = generate(fun, indentLevel, skipStartIndent)
         val argsStr = args.map(a => indentIfMultiline(generate(a), indentLevel + 1)).mkString(", ")
