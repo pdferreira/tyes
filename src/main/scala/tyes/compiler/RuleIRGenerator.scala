@@ -5,6 +5,7 @@ import tyes.compiler.ir.IRNode
 import tyes.compiler.ir.IRError
 import tyes.compiler.ir.TargetCodeNode
 import tyes.model.*
+import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
 private val TCN = TargetCodeNode
@@ -12,12 +13,19 @@ private val TCN = TargetCodeNode
 class RuleIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
   private val termIRGenerator: TermIRGenerator,
-  private val envIRGenerator: EnvironmentIRGenerator
+  private val envIRGenerator: EnvironmentIRGenerator,
+  private val expVar: TCN.Var
 ):
 
   def getTemplate(rule: RuleDecl): Term = rule.conclusion.assertion match {
     case HasType(term, _) => extractTemplate(term) 
   }
+
+  private def getTempId(desiredId: String) = "_" + desiredId
+
+  private def getPermanentId(tempId: String) =
+    assert(tempId.startsWith("_"), s"Expected temporary id to be provided: $tempId")
+    tempId.substring(1)
 
   private def extractTemplate(term: Term): Term = term match {
     case Term.Function(fnName, args*) =>
@@ -35,11 +43,16 @@ class RuleIRGenerator(
             val initial = fnName.findLast(_.isUpper).map(_.toLower).getOrElse('c')
             Term.Variable(initial + getSuffix(idx))
           case Term.Function(_, _*) => Term.Variable("e" + getSuffix(idx))
-          case Term.Type(typ) => Term.Type(typ match {
-            case Type.Variable(_) => typ
-            case Type.Named(_) => Type.Variable("ct" + getSuffix(idx))
-            case Type.Composite(_, _*) => Type.Variable("ct" + getSuffix(idx))
-          })
+          case Term.Type(typ) => 
+            // Type variable arguments are assumed to be optional, so we match
+            // them with a temporary name and only later declare them with their original
+            // name when checked for content
+            Term.Type(typ match {
+              case Constants.Types.any => typ
+              case Type.Variable(name) => Type.Variable(getTempId(name))
+              case Type.Named(_) => Type.Variable(getTempId("ct") + getSuffix(idx))
+              case Type.Composite(_, _*) => Type.Variable(getTempId("ct") + getSuffix(idx))
+            })
         }
       }
       Term.Function(fnName, argsAsVariables*)
@@ -53,17 +66,20 @@ class RuleIRGenerator(
 
     val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
 
-    // Pre-register the simple type names for the premises
+    // Pre-register the simple names for the types in the conclusion and the premises
+    for case Type.Variable(name) <- cTerm.types do
+      codeEnv.requestIdentifier(name)
+
     for case Judgement(_, HasType(_, Type.Variable(name))) <- rule.premises do
       codeEnv.requestIdentifier(name)
 
-    val envConds = envIRGenerator.generateConditions(rule.conclusion.env, codeEnv) 
+    val conclusionConds = genConclusionConds(rule.conclusion, codeEnv)
 
     val premiseConds = rule.premises
       .zipWithIndex
       .flatMap((p, idx) => genPremiseConds(p, idx, codeEnv))
 
-    val conds = envConds ++ premiseConds
+    val conds = conclusionConds ++ premiseConds
 
     var result = IRNode.Result(typeIRGenerator.generate(cType, codeEnv), canFail = false)
     
@@ -92,6 +108,36 @@ class RuleIRGenerator(
 
     for (k, v) <- constructorReqs
       yield TCN.Equals(TCN.Var(k), termIRGenerator.generate(v))
+
+  private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRInstr[TargetCodeNode]] =
+    val HasType(cTerm, _) = concl.assertion
+    
+    val envConds = envIRGenerator.generateConditions(concl.env, codeEnv)
+    val termConds = genConclusionTermConds(cTerm, codeEnv)
+    termConds ++ envConds
+
+  private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv): Seq[IRInstr[TargetCodeNode]] =
+    val constructor = extractTemplate(cTerm)
+    val termSubst = constructor.matches(cTerm).get
+    for
+      case t @ Type.Variable(name) <- constructor.types.toSeq 
+      if t != Constants.Types.any
+    yield
+      val (realTmpId, realTmpIdCode) = codeEnv.requestIdentifier(name)
+      val (realId, _) = codeEnv.requestIdentifier(getPermanentId(realTmpId))
+      val checkCode = RuntimeAPIGenerator.genCheckTypeDeclared(realTmpIdCode, expVar)
+      IRInstr.Check(
+        exp = IRNode.Result(
+          termSubst.get(name) match {
+            case Some(Term.Type(nt @ Type.Named(_))) => 
+              val ntCode = typeIRGenerator.generate(nt, codeEnv)
+              TCN.Apply(TCN.Field(checkCode, "expecting"), ntCode)
+            case _ => checkCode
+          },
+          canFail = true
+        ),
+        resVar = Some(realId)
+      )
 
   private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRInstr[TargetCodeNode]] =
     val HasType(pTerm, pType) = premise.assertion

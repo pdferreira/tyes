@@ -27,7 +27,7 @@ class TypeSystemIRGenerator(
   private val typeIRGenerator = new TypeIRGenerator()
   private val termIRGenerator = new TermIRGenerator(typeIRGenerator)
   private val envIRGenerator = new EnvironmentIRGenerator(typeIRGenerator, commonEnvName)
-  private val ruleIRGenerator = new RuleIRGenerator(typeIRGenerator, termIRGenerator, envIRGenerator)
+  private val ruleIRGenerator = new RuleIRGenerator(typeIRGenerator, termIRGenerator, envIRGenerator, expVar)
 
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
     val className = s"${tsDecl.name.getOrElse("")}TypeSystem"

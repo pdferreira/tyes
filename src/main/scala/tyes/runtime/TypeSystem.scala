@@ -16,7 +16,12 @@ trait TypeSystem[E[_]]:
     if env.size == size then
       Right(())
     else
-      TypeError.unexpectedEnvSize(env, size) 
+      TypeError.unexpectedEnvSize(env, size)
+
+  protected def checkTypeDeclared(typOpt: Option[T], parentExp: E[T]): Result[T] =
+    typOpt
+      .map(Right.apply)
+      .getOrElse(TypeError.noTypeDeclared(parentExp))
 
   extension [TargetT <: T](resT: Result[TargetT])
 

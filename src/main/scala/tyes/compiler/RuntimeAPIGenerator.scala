@@ -27,3 +27,6 @@ object RuntimeAPIGenerator:
 
   def genCheckEnvSize(envVarCode: TCN, expectedSize: Int): TCN =
     TCN.Apply(TCN.Var("checkEnvSize"), envVarCode, TCN.Integer(expectedSize))
+
+  def genCheckTypeDeclared(typeOptCode: TCN, parentExpCode: TCN): TCN =
+    TCN.Apply(TCN.Var("checkTypeDeclared"), typeOptCode, parentExpCode)

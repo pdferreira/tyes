@@ -24,7 +24,12 @@ class LambdaCalculusTypeSystem extends TypeSystem[LExpression]:
       yield
         t1.t2
 
-    case LFun(x, t, e) => 
+    case LFun(x, _t, e) => 
+      for
+        t <- checkTypeDeclared(_t, exp)
+        t2 <- typecheck(e, env + (x -> t))
+      yield
+        Type.$FunType(t, t2)
 
     case _ => TypeError.noTypeFor(exp)
   }
