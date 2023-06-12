@@ -22,7 +22,7 @@ enum TargetCodeNode:
   case Apply(fun: TargetCodeNode, args: TargetCodeNode*)
   case Let(varName: String, varExp: TargetCodeNode, bodyExp: TargetCodeNode)
   case Lambda(paramName: String, bodyExp: TargetCodeNode)
-  case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodeNode, TargetCodeNode)])
+  case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodePattern, TargetCodeNode)])
   case Return(exp: TargetCodeNode)
   case ADTConstructorCall(typeRef: TargetCodeTypeRef, args: TargetCodeNode*)
 
@@ -44,6 +44,12 @@ enum TargetCodeForCursor:
   case Iterate(name: String, collection: TargetCodeNode)
   case Let(name: String, exp: TargetCodeNode)
   case Filter(exp: TargetCodeNode)
+
+enum TargetCodePattern:
+  case Any
+  case Var(name: String)
+  case WithType(pat: TargetCodePattern, typeRef: TargetCodeTypeRef)
+  case ADTConstructor(typeRef: TargetCodeTypeRef, args: TargetCodePattern*)
 
 case class TargetCodeUnit(name: String, decls: Seq[TargetCodeDecl])
 

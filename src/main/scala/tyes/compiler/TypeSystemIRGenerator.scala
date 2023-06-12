@@ -6,14 +6,16 @@ import tyes.compiler.ir.IRError
 import tyes.compiler.ir.TargetCodeDecl
 import tyes.compiler.ir.TargetCodeIRGenerator
 import tyes.compiler.ir.TargetCodeNode
-import tyes.compiler.ir.TargetCodeUnit
+import tyes.compiler.ir.TargetCodePattern
 import tyes.compiler.ir.TargetCodeTypeRef
+import tyes.compiler.ir.TargetCodeUnit
 import tyes.model.*
 import utils.StringExtensions.*
 import utils.collections.*
 
-private val TCN = TargetCodeNode
 private val TCD = TargetCodeDecl
+private val TCN = TargetCodeNode
+private val TCP = TargetCodePattern
 private val TCTypeRef = TargetCodeTypeRef
 
 class TypeSystemIRGenerator(
@@ -58,7 +60,7 @@ class TypeSystemIRGenerator(
     ))
 
   private def generateTypecheckBody(expVar: TCN.Var, rules: Seq[RuleDecl]): TargetCodeNode =
-    val defaultCase = TCN.Var("_") -> RuntimeAPIGenerator.genError(IRError.NoType(expVar))
+    val defaultCase = TCP.Any -> RuntimeAPIGenerator.genError(IRError.NoType(expVar))
 
     val ruleCases = rules
       .groupBy(r => ruleIRGenerator.getTemplate(r))
@@ -71,12 +73,12 @@ class TypeSystemIRGenerator(
       branches = ruleCases :+ defaultCase
     )
 
-  private def generateTypecheckCase(rTemplate: Term, rules: Seq[RuleDecl]): (TargetCodeNode, TargetCodeNode) =
+  private def generateTypecheckCase(rTemplate: Term, rules: Seq[RuleDecl]): (TargetCodePattern, TargetCodeNode) =
     val codeEnv = TargetCodeEnv()
     for v <- rTemplate.variables do
       codeEnv.registerIdentifier(v, TCN.Var(v))
     
-    val rTemplateCode = termIRGenerator.generate(rTemplate)
+    val rTemplateCode = termIRGenerator.generatePattern(rTemplate)
     val rImplIntermediateCode = groupNonOverlappingRules(rules)
       // For each of the groups:
       // - if it has a single rule, use its resulting node

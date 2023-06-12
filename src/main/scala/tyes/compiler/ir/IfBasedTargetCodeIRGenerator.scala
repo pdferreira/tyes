@@ -1,5 +1,10 @@
 package tyes.compiler.ir
 
+private type TCN = TargetCodeNode
+private val TCN = TargetCodeNode
+private val TCP = TargetCodePattern
+private val TCTypeRef = TargetCodeTypeRef
+
 class IfBasedStringGenerator extends TargetCodeIRGenerator[String](StringCodeOperations):
 
   def generate(irNode: IRNode[String]): String = generate(irNode, failureIsPossible = false)
@@ -37,39 +42,39 @@ class IfBasedStringGenerator extends TargetCodeIRGenerator[String](StringCodeOpe
       ).mkString("", " else ", " else {\n") + generate(otherwise, failureIsPossible) + "\n}"
   }
 
-class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode](TargetCodeNodeOperations):
+class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TCN](TargetCodeNodeOperations):
 
-  def generate(irNode: IRNode[TargetCodeNode]): TargetCodeNode = generate(irNode, failureIsPossible = false)
+  def generate(irNode: IRNode[TCN]): TCN = generate(irNode, failureIsPossible = false)
 
   // TODO: find better name for failureIsPossible param and canFail field
-  def generate(irNode: IRNode[TargetCodeNode], failureIsPossible: Boolean): TargetCodeNode = irNode match {
-    case IRNode.Unexpected => TargetCodeNode.Throw(TargetCodeTypeRef("Exception"), TargetCodeNode.Text("unexpected"))
+  def generate(irNode: IRNode[TCN], failureIsPossible: Boolean): TCN = irNode match {
+    case IRNode.Unexpected => TCN.Throw(TargetCodeTypeRef("Exception"), TCN.Text("unexpected"))
     case IRNode.Error(IRError.Generic(err)) => wrapAsLeft(err)
     case IRNode.Result(res, canFail) => if failureIsPossible && !canFail then wrapAsRight(res) else res
-    case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail)) if resVar == resVar2 =>
+    case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 =>
       // Example of special case rule
       generate(IRNode.And(cs, exp), failureIsPossible || canFail(exp) != resCanFail)
     case IRNode.And(IRInstr.Decl(resVar, exp) +: cs, next) =>
       val letExp = 
         if canFail(exp) then
-          TargetCodeNode.Match(generate(exp), Seq(
-            wrapAsRight(TargetCodeNode.Var("v")) -> TargetCodeNode.Var("v"),
-            TargetCodeNode.Var("left") -> TargetCodeNode.Return(TargetCodeNode.Var("left"))
+          TCN.Match(generate(exp), Seq(
+            TCP.ADTConstructor(TCTypeRef("Right"), TCP.Var("v")) -> TCN.Var("v"),
+            TCP.Var("left") -> TCN.Return(TCN.Var("left"))
           ))
         else
           generate(exp)
       val letBody = generate(IRNode.And(cs, next), failureIsPossible || canFail(exp))
-      TargetCodeNode.Let(resVar, letExp, letBody)
+      TCN.Let(resVar, letExp, letBody)
     case IRNode.And(Seq(), next) => generate(next, failureIsPossible)
     case IRNode.And(instrs, next) =>
       // Because of the previous cases, when we reach here there's at least one IRInstr.Cond
-      val isCond: IRInstr[TargetCodeNode] => Boolean = { case IRInstr.Cond(_, _) => true ; case _ => false }
+      val isCond: IRInstr[TCN] => Boolean = { case IRInstr.Cond(_, _) => true ; case _ => false }
       val conditions = instrs.takeWhile(isCond)
       val remInstrs = instrs.dropWhile(isCond)
       val remNode = generate(IRNode.And(remInstrs, next), failureIsPossible = true)
       
       conditions.foldRight(remNode) { case (IRInstr.Cond(cond, IRError.Generic(err)), elseNode) =>
-          TargetCodeNode.If(codeOps.negate(cond), wrapAsLeft(err), elseNode)
+          TCN.If(codeOps.negate(cond), wrapAsLeft(err), elseNode)
       }
 
     case IRNode.Switch(branches, otherwise) =>
@@ -77,10 +82,10 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode]
       val otherwiseNode = generate(otherwise, failureIsPossible)
 
       branches.foldRight(otherwiseNode) { case ((cond, next), elseNode) =>
-        TargetCodeNode.If(cond, generate(next, failureIsPossible), elseNode)
+        TCN.If(cond, generate(next, failureIsPossible), elseNode)
       }
   }
 
-  private def wrapAsLeft(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Left"), value)
+  private def wrapAsLeft(value: TCN): TCN = TCN.Apply(TCN.Var("Left"), value)
 
-  private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Right"), value) 
+  private def wrapAsRight(value: TCN): TCN = TCN.Apply(TCN.Var("Right"), value) 

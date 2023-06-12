@@ -1,5 +1,7 @@
 package tyes.runtime
 
+import scala.reflect.ClassTag
+
 trait TypeSystem[E[_]]:
   type T <: Type
   def typecheck(exp: E[T], env: Environment[T]): Result[T]
@@ -23,11 +25,18 @@ trait TypeSystem[E[_]]:
       .map(Right.apply)
       .getOrElse(TypeError.noTypeDeclared(parentExp))
 
-  extension [TargetT <: T](resT: Result[TargetT])
+  extension (resT: Result[T])
 
-    protected def expecting(expected: TargetT): Result[TargetT] = resT.flatMap(t =>
+    protected def expecting[TargetT <: T](expected: TargetT): Result[TargetT] = resT.flatMap(t =>
       if t == expected then
         Right(expected)
       else
         TypeError.unexpectedType(t, expected)
+    )
+
+    protected def expecting[TargetT <: T](expectedMatch: PartialFunction[T, TargetT])(using ct: ClassTag[TargetT]) = resT.flatMap(t =>
+      if expectedMatch.isDefinedAt(t) then
+        Right(expectedMatch(t))
+      else
+        TypeError.unexpectedType(t, ct.runtimeClass)
     )

@@ -4,11 +4,13 @@ import tyes.compiler.ir.IRInstr
 import tyes.compiler.ir.IRNode
 import tyes.compiler.ir.IRError
 import tyes.compiler.ir.TargetCodeNode
+import tyes.compiler.ir.TargetCodePattern
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
 private val TCN = TargetCodeNode
+private val TCP = TargetCodePattern
 
 class RuleIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
@@ -129,9 +131,7 @@ class RuleIRGenerator(
       IRInstr.Check(
         exp = IRNode.Result(
           termSubst.get(name) match {
-            case Some(Term.Type(nt @ Type.Named(_))) => 
-              val ntCode = typeIRGenerator.generate(nt, codeEnv)
-              TCN.Apply(TCN.Field(checkCode, "expecting"), ntCode)
+            case Some(Term.Type(typ)) => genTypeExpectationCheck(typ, codeEnv, checkCode)
             case _ => checkCode
           },
           canFail = true
@@ -143,20 +143,17 @@ class RuleIRGenerator(
     val HasType(pTerm, pType) = premise.assertion
     pType match {
       case Type.Variable(name) =>
-        val (declInstr, _) = genInductionCall(name, pTerm, premise.env, codeEnv) 
+        val (declInstr, _) = genInductionCall(name, premise, codeEnv) 
         Seq(declInstr)
 
       case Type.Named(name) =>
         val pTypeCode = typeIRGenerator.generate(pType)
-        // TODO: explore having `expecting` as an extra parameter instead, to allow a better error message 
-        val (declInstr, _) = genInductionCall("t" + (idx + 1), pTerm, premise.env, codeEnv, indCall => 
-          TCN.Apply(TCN.Field(indCall, "expecting"), pTypeCode)
-        )
+        val (declInstr, _) = genInductionCall("t" + (idx + 1), premise, codeEnv)
         Seq(declInstr)
 
       case Type.Composite(tName, args*) =>
-        val (innerResTDeclInstr, innerResTDeclVarCode) = genInductionCall("_t" + (idx + 1), pTerm, premise.env, codeEnv)
-        val (resTId, resTIdCode) = codeEnv.requestIdentifier("t" + (idx + 1))
+        val (resTDeclInstr, resTIdCode) = genInductionCall("t" + (idx + 1), premise, codeEnv)
+
         val argTypeReqs = args
           .zipWithIndex
           .withFilter((arg, argIdx) => arg match {
@@ -176,38 +173,41 @@ class RuleIRGenerator(
           codeEnv.registerIdentifier(name, TCN.Field(resTIdCode, "t" + (argIdx + 1)))
         
         val inductionDecls = Seq(
-          innerResTDeclInstr,
-          IRInstr.Check(
-            exp = IRNode.Result(
-              TCN.Apply(
-                TCN.Var("cast[Type.$FunType]"), // small hack, just for poc's sake
-                innerResTDeclVarCode,
-                TCN.FormattedText("expected ", termIRGenerator.generate(pTerm, codeEnv), " to have type ")
-              ),
-              canFail = true
-            ),
-            resVar = Some(resTId)
-          )
+          resTDeclInstr
         )
         
         inductionDecls ++ argTypeReqs
     }
 
+  private def genTypeExpectationCheck(typ: Type, codeEnv: TargetCodeEnv, typeProviderCode: TCN): TargetCodeNode = typ match {
+    case Type.Named(_) =>
+      val typeCode = typeIRGenerator.generate(typ, codeEnv)
+      RuntimeAPIGenerator.genExpecting(typeProviderCode, typeCode)
+    
+    case Type.Composite(name, _*) =>
+      val typeRef = typeIRGenerator.generateRef(name)
+      RuntimeAPIGenerator.genExpecting(typeProviderCode, typeRef)
+
+    case _ =>
+      // Nothing to check
+      typeProviderCode
+  }
+
   private def genInductionCall(
     declVar: String,
-    inductionTerm: Term,
-    inductionEnv: Environment,
+    premise: Judgement,
     codeEnv: TargetCodeEnv,
-    transformCall: TargetCodeNode => TargetCodeNode = tcn => tcn 
   ): (IRInstr[TargetCodeNode], TargetCodeNode) =
-    val inductionTermCall = termIRGenerator.generate(inductionTerm, codeEnv)
+    val HasType(pTerm, pType) = premise.assertion
+
+    val inductionTermCall = termIRGenerator.generate(pTerm, codeEnv)
     val (realDeclVar, realDeclVarCode) = codeEnv.requestIdentifier(declVar)
     val instr = IRInstr.Check(
       exp = IRNode.Result(
-        transformCall(TCN.Apply(
+        genTypeExpectationCheck(pType, codeEnv, TCN.Apply(
           TCN.Var("typecheck"),
           inductionTermCall,
-          envIRGenerator.generate(inductionEnv, codeEnv)
+          envIRGenerator.generate(premise.env, codeEnv)
         )), 
         canFail = true
       ),

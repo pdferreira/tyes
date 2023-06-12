@@ -27,7 +27,7 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
         .foldLeft(Multiset())(_ ++ _)
     case TargetCodeNode.Match(exp, bs) =>
       bs
-        .map((p, b) => freeNames(b).except(freeNames(p)))
+        .map((p, b) => freeNames(b).except(boundNames(p)))
         .foldLeft(freeNames(exp))(_ ++ _)
     case _ => 
       tcNode
@@ -38,6 +38,16 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
           case _ => Multiset()
         })
         .foldLeft(Multiset())(_ ++ _)     
+  }
+
+  def boundNames(tcPattern: TargetCodePattern): Set[String] = tcPattern match {
+    case TCP.Any => Set()
+    case TCP.Var(name) => Set(name)
+    case TCP.WithType(pat, _) => boundNames(pat)
+    case TCP.ADTConstructor(_, args*) =>
+      args
+        .map(boundNames)
+        .foldLeft(Set())(_ ++ _)
   }
   
   def applyUntil(tcNode: TargetCodeNode, pf: PartialFunction[TargetCodeNode, TargetCodeNode]): TargetCodeNode =
@@ -109,6 +119,15 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
           replace(TargetCodeNode.For(cs, bodyExp), key, value)
       val c = TargetCodeForCursor.Let(name, replace(exp, key, value))
       TargetCodeNode.For(c +: newCs, newBodyExp)
+    case TargetCodeNode.Match(matchedExp, bs) =>
+      TargetCodeNode.Match(
+        replace(matchedExp, key, value),
+        for (p, b) <- bs yield 
+          if boundNames(p).contains(key) then
+            p -> b
+          else
+            p -> replace(b, key, value)
+      )
   })
 
   def simplify(tcNode: TargetCodeNode): TargetCodeNode = applyUntil(tcNode, {

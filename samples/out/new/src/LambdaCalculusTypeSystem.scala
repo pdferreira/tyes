@@ -18,7 +18,9 @@ class LambdaCalculusTypeSystem extends TypeSystem[LExpression]:
     case LVariable(x) => env.get(x)
     case LApp(e1, e2) => 
       for
-        _t1 <- typecheck(e1, env)
+        t1 <- typecheck(e1, env).expecting({
+          case ft: Type.$FunType => ft
+        })
         t2 <- typecheck(e2, env)
         _ <- checkIf(t1.t1 == t2, TypeError.unexpectedType(t2, t1.t1))
       yield

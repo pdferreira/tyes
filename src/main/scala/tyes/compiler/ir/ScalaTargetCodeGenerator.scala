@@ -4,6 +4,7 @@ import java.nio.file.Path
 import utils.collections.*
 
 private val TCD = TargetCodeDecl
+private val TCP = TargetCodePattern
 
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
   
@@ -186,3 +187,13 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) 
         s"${indent}$name = $expStr"
     }
+
+  def generate(tcPattern: TargetCodePattern): String = tcPattern match {
+    case TCP.Any => "_"
+    case TCP.Var(name) => name
+    case TCP.WithType(pat, typeRef) => s"${generate(pat)}: ${generate(typeRef)}"
+    case TCP.ADTConstructor(typeRef, args*) =>
+      args
+        .map(generate)
+        .mkString(generate(typeRef) + "(", ", ", ")")
+  }

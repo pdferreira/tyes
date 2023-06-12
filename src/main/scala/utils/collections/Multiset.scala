@@ -12,11 +12,13 @@ class Multiset[A](private val map: Map[A, Int]):
 
   def except(elem: A) = new Multiset(map.removed(elem))
 
-  def except(ms: Multiset[A]) = new Multiset(map.removedAll(ms.map.keys)) 
+  def except(keys: IterableOnce[A]) = new Multiset(map.removedAll(keys))
 
   def ++(ms: Multiset[A]) = new Multiset(ms.map.foldLeft(map) { case (m, (e, c)) => innerAdd(m, e, c) })
 
   def count(elem: A): Int = map.getOrElse(elem, 0)
+
+  def contains(elem: A): Boolean = count(elem) > 0
 
 object Multiset:
 

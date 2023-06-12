@@ -1,17 +1,19 @@
 package tyes.compiler
 
+import tyes.compiler.ir.TargetCodeADTConstructor
 import tyes.compiler.ir.TargetCodeDecl
 import tyes.compiler.ir.TargetCodeNode
-import tyes.compiler.ir.TargetCodeUnit
-import tyes.compiler.ir.TargetCodeADTConstructor
+import tyes.compiler.ir.TargetCodePattern
 import tyes.compiler.ir.TargetCodeTypeRef
+import tyes.compiler.ir.TargetCodeUnit
 import tyes.compiler.Orderings.given
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
 
-private val TCN = TargetCodeNode
 private val TCD = TargetCodeDecl
+private val TCN = TargetCodeNode
+private val TCP = TargetCodePattern
 private val TCTypeRef = TargetCodeTypeRef
 private val TCADTConstructor = TargetCodeADTConstructor
 
@@ -59,9 +61,21 @@ class TypeIRGenerator:
 
   def generate(typ: Type, codeEnv: TargetCodeEnv = TargetCodeEnv()): TargetCodeNode = typ match {
     case Constants.Types.any => TCN.Var("_")
-    case Type.Named(name) => TCN.ADTConstructorCall(TCTypeRef(typeEnumTypeRef.name, getTypeNameInCode(name)))
+    case Type.Named(name) => TCN.ADTConstructorCall(generateRef(name))
     case Type.Variable(name) => codeEnv.get(name).getOrElse(TCN.Var(name))
     case Type.Composite(name, args*) => 
       var typeArgs = args.map(generate(_, codeEnv))
-      TCN.ADTConstructorCall(TCTypeRef(typeEnumTypeRef.name, getTypeNameInCode(name)), typeArgs*)
+      TCN.ADTConstructorCall(generateRef(name), typeArgs*)
+  }
+
+  def generateRef(typeName: String): TargetCodeTypeRef =
+    TCTypeRef(typeEnumTypeRef.name, getTypeNameInCode(typeName))
+
+  def generatePattern(typ: Type): TargetCodePattern = typ match {
+    case Constants.Types.any => TCP.Any
+    case Type.Named(name) => TCP.ADTConstructor(generateRef(name))
+    case Type.Variable(name) => TCP.Var(name)
+    case Type.Composite(name, args*) => 
+      var typeArgs = args.map(generatePattern)
+      TCP.ADTConstructor(generateRef(name), typeArgs*)
   }
