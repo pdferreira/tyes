@@ -1,4 +1,4 @@
-package tyes.compiler.ir
+package tyes.compiler.target
 
 enum TargetCodeNode:
   case If(cond: TargetCodeNode, thenBranch: TargetCodeNode, elseBranch: TargetCodeNode)

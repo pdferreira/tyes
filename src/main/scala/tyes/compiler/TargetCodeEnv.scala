@@ -1,7 +1,7 @@
 package tyes.compiler
 
 import tyes.model.*
-import tyes.compiler.ir.TargetCodeNode
+import tyes.compiler.target.TargetCodeNode
 
 class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
 

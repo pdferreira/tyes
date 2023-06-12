@@ -1,13 +1,16 @@
 package tyes.compiler.ir
 
-import TargetCodeNodeOperations.*
+import tyes.compiler.target.TargetCodeForCursor
+import tyes.compiler.target.TargetCodeNode
+import tyes.compiler.target.TargetCodeNodeOperations.*
+import tyes.compiler.target.TargetCodeTypeRef
 import tyes.compiler.RuntimeAPIGenerator
 import utils.collections.*
 
 private val TCFC = TargetCodeForCursor
 private val TCN = TargetCodeNode
 
-class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator(TargetCodeNodeOperations):
+class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
 
   def generate(irNode: IRNode): TargetCodeNode = generate(irNode, eitherIsExpected = true)
     

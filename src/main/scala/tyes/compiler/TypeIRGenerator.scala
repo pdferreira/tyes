@@ -1,11 +1,11 @@
 package tyes.compiler
 
-import tyes.compiler.ir.TargetCodeADTConstructor
-import tyes.compiler.ir.TargetCodeDecl
-import tyes.compiler.ir.TargetCodeNode
-import tyes.compiler.ir.TargetCodePattern
-import tyes.compiler.ir.TargetCodeTypeRef
-import tyes.compiler.ir.TargetCodeUnit
+import tyes.compiler.target.TargetCodeADTConstructor
+import tyes.compiler.target.TargetCodeDecl
+import tyes.compiler.target.TargetCodeNode
+import tyes.compiler.target.TargetCodePattern
+import tyes.compiler.target.TargetCodeTypeRef
+import tyes.compiler.target.TargetCodeUnit
 import tyes.compiler.Orderings.given
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*

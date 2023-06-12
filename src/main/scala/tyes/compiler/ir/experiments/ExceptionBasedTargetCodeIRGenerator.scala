@@ -1,9 +1,13 @@
-package tyes.compiler.ir
+package tyes.compiler.ir.experiments
+
+import tyes.compiler.ir.*
+import tyes.compiler.target.*
+import tyes.compiler.target.TargetCodeNodeOperations.*
 
 private val TCN = TargetCodeNode
 private val TCTypeRef = TargetCodeTypeRef
 
-class ExceptionBasedTargetCodeIRGenerator extends TargetCodeIRGenerator(TargetCodeNodeOperations):
+class ExceptionBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
 
   def generate(irNode: IRNode): TargetCodeNode = irNode match {
     case IRNode.Unexpected => TCN.Throw(TCTypeRef("Exception"), TCN.Text("unexpected"))
@@ -28,7 +32,7 @@ class ExceptionBasedTargetCodeIRGenerator extends TargetCodeIRGenerator(TargetCo
 
   def generate(irInstr: IRInstr): TargetCodeNode => TargetCodeNode = irInstr match {
     case IRInstr.Cond(cond, IRError.Generic(err)) =>
-      nextNode => TCN.If(codeOps.negate(cond), TCN.Throw(TCTypeRef("TypeError"), err), nextNode)
+      nextNode => TCN.If(negate(cond), TCN.Throw(TCTypeRef("TypeError"), err), nextNode)
     case IRInstr.Check(exp, resVar) =>
       nextNode => TCN.Let(resVar.getOrElse("_"), generate(exp), nextNode)
   }

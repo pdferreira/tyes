@@ -1,4 +1,4 @@
-package tyes.compiler.ir
+package tyes.compiler.target
 
 import utils.collections.Multiset
 

@@ -1,8 +1,8 @@
 package tyes.compiler
 
-import tyes.compiler.ir.TargetCodeNode
-import tyes.compiler.ir.TargetCodePattern
-import tyes.compiler.ir.TargetCodeTypeRef
+import tyes.compiler.target.TargetCodeNode
+import tyes.compiler.target.TargetCodePattern
+import tyes.compiler.target.TargetCodeTypeRef
 import tyes.model.Term
 import tyes.model.Type
 

@@ -3,8 +3,8 @@ package tyes.compiler
 import tyes.compiler.ir.IRError
 import tyes.compiler.ir.IRInstr
 import tyes.compiler.ir.IRNode
-import tyes.compiler.ir.TargetCodeNode
-import tyes.compiler.ir.TargetCodeTypeRef
+import tyes.compiler.target.TargetCodeNode
+import tyes.compiler.target.TargetCodeTypeRef
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*

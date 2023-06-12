@@ -1,11 +1,15 @@
-package tyes.compiler.ir
+package tyes.compiler.ir.experiments
+
+import tyes.compiler.ir.*
+import tyes.compiler.target.*
+import tyes.compiler.target.TargetCodeNodeOperations.*
 
 private type TCN = TargetCodeNode
 private val TCN = TargetCodeNode
 private val TCP = TargetCodePattern
 private val TCTypeRef = TargetCodeTypeRef
 
-class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator(TargetCodeNodeOperations):
+class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
 
   def generate(irNode: IRNode): TCN = generate(irNode, failureIsPossible = false)
 
@@ -37,7 +41,7 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator(TargetCodeNodeO
       val remNode = generate(IRNode.And(remInstrs, next), failureIsPossible = true)
       
       conditions.foldRight(remNode) { case (IRInstr.Cond(cond, IRError.Generic(err)), elseNode) =>
-          TCN.If(codeOps.negate(cond), wrapAsLeft(err), elseNode)
+          TCN.If(negate(cond), wrapAsLeft(err), elseNode)
       }
 
     case IRNode.Switch(branches, otherwise) =>

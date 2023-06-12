@@ -2,7 +2,7 @@ package tyes.compiler
 
 import java.nio.file.Path
 import tyes.model.TypeSystemDecl
-import tyes.compiler.ir.ScalaTargetCodeGenerator
+import tyes.compiler.target.ScalaTargetCodeGenerator
 import tyes.compiler.ir.TargetCodeIRGeneratorImpl
 
 class TyesCompilerImpl extends TyesCompiler:

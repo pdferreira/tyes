@@ -1,5 +1,6 @@
 package tyes.compiler.ir
 
+import tyes.compiler.target.TargetCodeNode
 import tyes.model.*
 
 enum IRNode:

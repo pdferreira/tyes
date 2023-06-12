@@ -3,12 +3,12 @@ package tyes.compiler
 import tyes.compiler.Orderings.given
 import tyes.compiler.ir.IRNode
 import tyes.compiler.ir.IRError
-import tyes.compiler.ir.TargetCodeDecl
 import tyes.compiler.ir.TargetCodeIRGenerator
-import tyes.compiler.ir.TargetCodeNode
-import tyes.compiler.ir.TargetCodePattern
-import tyes.compiler.ir.TargetCodeTypeRef
-import tyes.compiler.ir.TargetCodeUnit
+import tyes.compiler.target.TargetCodeDecl
+import tyes.compiler.target.TargetCodeNode
+import tyes.compiler.target.TargetCodePattern
+import tyes.compiler.target.TargetCodeTypeRef
+import tyes.compiler.target.TargetCodeUnit
 import tyes.model.*
 import utils.StringExtensions.*
 import utils.collections.*

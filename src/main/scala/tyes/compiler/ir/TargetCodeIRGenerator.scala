@@ -1,10 +1,9 @@
 package tyes.compiler.ir
 
-trait TargetCodeIRGenerator(
-  protected val codeOps: CodeOperations
-):
-  def generate(irNode: IRNode): TargetCodeNode
+import tyes.compiler.target.TargetCodeNode
 
+trait TargetCodeIRGenerator:
+  def generate(irNode: IRNode): TargetCodeNode
 
 def canFail(irNode: IRNode): Boolean = irNode match {
   case IRNode.Unexpected => false

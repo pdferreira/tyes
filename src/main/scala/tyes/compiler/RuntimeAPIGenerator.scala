@@ -1,6 +1,6 @@
 package tyes.compiler
 
-import tyes.compiler.ir.TargetCodeNode
+import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.ir.IRError
 
 private type TCN = TargetCodeNode
