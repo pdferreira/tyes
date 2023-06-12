@@ -13,7 +13,7 @@ object RuntimeAPIGenerator:
 
   private val typeErrorObj = TCN.Var("TypeError")
 
-  def genError(errorIR: IRError[TCN]): TCN = errorIR match {
+  def genError(errorIR: IRError): TCN = errorIR match {
     case IRError.Generic(messageCode) => TCN.Apply(typeErrorObj, messageCode)
     case IRError.NoType(expCode) => genError("noTypeFor", expCode)
     case IRError.UnexpectedType(obtained, expected) => genError("unexpectedType", obtained, expected)
@@ -22,7 +22,7 @@ object RuntimeAPIGenerator:
   private def genError(method: String, args: TCN*) =
     TCN.Apply(TCN.Field(typeErrorObj, method), args*)
 
-  def genCheck(condCode: TCN, errorIR: IRError[TCN]): TCN =
+  def genCheck(condCode: TCN, errorIR: IRError): TCN =
     TCN.Apply(TCN.Var("checkIf"), condCode, genError(errorIR))
 
   def genCheckEnvSize(envVarCode: TCN, expectedSize: Int): TCN =

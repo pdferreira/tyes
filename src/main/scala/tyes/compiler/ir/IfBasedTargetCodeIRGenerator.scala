@@ -5,56 +5,19 @@ private val TCN = TargetCodeNode
 private val TCP = TargetCodePattern
 private val TCTypeRef = TargetCodeTypeRef
 
-class IfBasedStringGenerator extends TargetCodeIRGenerator[String](StringCodeOperations):
+class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator(TargetCodeNodeOperations):
 
-  def generate(irNode: IRNode[String]): String = generate(irNode, failureIsPossible = false)
-
-  // TODO: find better name for failureIsPossible param and canFail field
-  def generate(irNode: IRNode[String], failureIsPossible: Boolean): String = irNode match {
-    case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
-    case IRNode.Error(IRError.Generic(err)) => s"Left($err)"
-    case IRNode.Result(res, canFail) => if failureIsPossible && !canFail then s"Right($res)" else res
-    case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 =>
-      // Example of special case rule
-      generate(IRNode.And(cs, exp), failureIsPossible || canFail(exp) != resCanFail)
-    case IRNode.And(IRInstr.Decl(resVar, exp) +: cs, next) =>
-      (if canFail(exp) then
-        s"val $resVar = ${generate(exp)} match { case Right(v) => v ; case left => return left }\n"
-      else
-        s"val $resVar = ${generate(exp)}\n") + generate(IRNode.And(cs, next), failureIsPossible)
-    case IRNode.And(Seq(), next) => generate(next, failureIsPossible)
-    case IRNode.And(instrs, next) =>
-      // Because of the previous cases, when we reach here there's at least one IRInstr.Cond
-      val isCond: IRInstr[String] => Boolean = { case IRInstr.Cond(_, _) => true ; case _ => false }
-      val conditions =
-        (
-          for case IRInstr.Cond(cond, err) <- instrs.takeWhile(isCond) 
-          yield
-            s"if ${codeOps.negate(cond)} then Left($err)"
-        ).mkString("", "\nelse ", "\nelse {\n")
-
-      val remInstr = instrs.dropWhile(isCond)
-      conditions + generate(IRNode.And(remInstr, next), failureIsPossible) + "\n}"
-    case IRNode.Switch(branches, otherwise) =>
-      val failureIsPossible = branches.exists((_, n) => canFail(n)) || canFail(otherwise)
-      (for (cond, next) <- branches yield
-        s"if $cond then {\n  " + generate(next, failureIsPossible) + "\n}"
-      ).mkString("", " else ", " else {\n") + generate(otherwise, failureIsPossible) + "\n}"
-  }
-
-class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TCN](TargetCodeNodeOperations):
-
-  def generate(irNode: IRNode[TCN]): TCN = generate(irNode, failureIsPossible = false)
+  def generate(irNode: IRNode): TCN = generate(irNode, failureIsPossible = false)
 
   // TODO: find better name for failureIsPossible param and canFail field
-  def generate(irNode: IRNode[TCN], failureIsPossible: Boolean): TCN = irNode match {
-    case IRNode.Unexpected => TCN.Throw(TargetCodeTypeRef("Exception"), TCN.Text("unexpected"))
+  def generate(irNode: IRNode, failureIsPossible: Boolean): TCN = irNode match {
+    case IRNode.Unexpected => TCN.Throw(TCTypeRef("Exception"), TCN.Text("unexpected"))
     case IRNode.Error(IRError.Generic(err)) => wrapAsLeft(err)
     case IRNode.Result(res, canFail) => if failureIsPossible && !canFail then wrapAsRight(res) else res
-    case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 =>
+    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 =>
       // Example of special case rule
       generate(IRNode.And(cs, exp), failureIsPossible || canFail(exp) != resCanFail)
-    case IRNode.And(IRInstr.Decl(resVar, exp) +: cs, next) =>
+    case IRNode.And(IRInstr.Check(exp, resVar) +: cs, next) =>
       val letExp = 
         if canFail(exp) then
           TCN.Match(generate(exp), Seq(
@@ -64,11 +27,11 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TCN](TargetCode
         else
           generate(exp)
       val letBody = generate(IRNode.And(cs, next), failureIsPossible || canFail(exp))
-      TCN.Let(resVar, letExp, letBody)
+      TCN.Let(resVar.getOrElse("_"), letExp, letBody)
     case IRNode.And(Seq(), next) => generate(next, failureIsPossible)
     case IRNode.And(instrs, next) =>
       // Because of the previous cases, when we reach here there's at least one IRInstr.Cond
-      val isCond: IRInstr[TCN] => Boolean = { case IRInstr.Cond(_, _) => true ; case _ => false }
+      val isCond: IRInstr => Boolean = { case IRInstr.Cond(_, _) => true ; case _ => false }
       val conditions = instrs.takeWhile(isCond)
       val remInstrs = instrs.dropWhile(isCond)
       val remNode = generate(IRNode.And(remInstrs, next), failureIsPossible = true)

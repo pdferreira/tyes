@@ -20,7 +20,7 @@ private val TCTypeRef = TargetCodeTypeRef
 
 class TypeSystemIRGenerator(
   private val commonEnvName: String,
-  private val targetCodeIRGenerator: TargetCodeIRGenerator[TargetCodeNode]
+  private val targetCodeIRGenerator: TargetCodeIRGenerator
 ):
 
   private val expClassTypeRef = TCTypeRef("LExpression")

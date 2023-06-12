@@ -61,7 +61,7 @@ class RuleIRGenerator(
     case _ => term
   }
 
-  case class GenerateOutput(node: IRNode[TargetCodeNode], condition: Option[TargetCodeNode])
+  case class GenerateOutput(node: IRNode, condition: Option[TargetCodeNode])
 
   def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term): GenerateOutput =
     val HasType(cTerm, cType) = rule.conclusion.assertion
@@ -111,14 +111,14 @@ class RuleIRGenerator(
     for (k, v) <- constructorReqs
       yield TCN.Equals(TCN.Var(k), termIRGenerator.generate(v))
 
-  private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRInstr[TargetCodeNode]] =
+  private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRInstr] =
     val HasType(cTerm, _) = concl.assertion
     
     val envConds = envIRGenerator.generateConditions(concl.env, codeEnv)
     val termConds = genConclusionTermConds(cTerm, codeEnv)
     termConds ++ envConds
 
-  private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv): Seq[IRInstr[TargetCodeNode]] =
+  private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv): Seq[IRInstr] =
     val constructor = extractTemplate(cTerm)
     val termSubst = constructor.matches(cTerm).get
     for
@@ -139,7 +139,7 @@ class RuleIRGenerator(
         resVar = Some(realId)
       )
 
-  private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRInstr[TargetCodeNode]] =
+  private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRInstr] =
     val HasType(pTerm, pType) = premise.assertion
     pType match {
       case Type.Variable(name) =>
@@ -197,7 +197,7 @@ class RuleIRGenerator(
     declVar: String,
     premise: Judgement,
     codeEnv: TargetCodeEnv,
-  ): (IRInstr[TargetCodeNode], TargetCodeNode) =
+  ): (IRInstr, TargetCodeNode) =
     val HasType(pTerm, pType) = premise.assertion
 
     val inductionTermCall = termIRGenerator.generate(pTerm, codeEnv)

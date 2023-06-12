@@ -1,51 +1,23 @@
 package tyes.compiler.ir
 
-class ForBasedStringGenerator extends TargetCodeIRGenerator[String](StringCodeOperations):
+private val TCN = TargetCodeNode
+private val TCTypeRef = TargetCodeTypeRef
 
-  def generate(irNode: IRNode[String]): String = irNode match {
-    case IRNode.Unexpected => "throw new Exception(\"unexpected\")"
-    case IRNode.Error(IRError.Generic(err)) => s"Left($err)"
-    case IRNode.Result(res, _) => res
-    case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(resVar2, resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
-      // Example of special case rule
-      generate(IRNode.And(cs, exp))
-    case IRNode.And(conds, next) => "for\n" + conds.map(generate).mkString(" ", "\n  ", "\n") + "yield " + generate(next)
-    case IRNode.Switch(Seq((cond, IRNode.Result(res, false))), IRNode.Error(IRError.Generic(err))) =>
-      // Example of special case rule
-      s"Either.cond($cond, $res, $err)"
-    case IRNode.Switch(branches, otherwise) =>
-      val needsToHandleFailure = branches.exists((_, n) => canFail(n)) || canFail(otherwise)
-      (for (cond, next) <- branches yield
-        s"if $cond then\n  " + 
-        (if needsToHandleFailure && !canFail(next) then s"Right(${generate(next)})" else generate(next))
-      ).mkString("", "\nelse ", "\nelse\n  ") + 
-        (if needsToHandleFailure && !canFail(otherwise) then s"Right(${generate(otherwise)})" else generate(otherwise))
-  }
+class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator(TargetCodeNodeOperations):
 
-  def generate(irInstr: IRInstr[String]): String = irInstr match {
-    case IRInstr.Cond(cond, err) => s"_ <- Either.cond($cond, (), $err)"
-    case IRInstr.Decl(resVar, exp) =>
-      if canFail(exp) then 
-        s"$resVar <- ${generate(exp)}"
-      else
-        s"$resVar = ${generate(exp)}"
-  }
-
-class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode](TargetCodeNodeOperations):
-
-  def generate(irNode: IRNode[TargetCodeNode]): TargetCodeNode = irNode match {
-    case IRNode.Unexpected => TargetCodeNode.Throw(TargetCodeTypeRef("Exception"), TargetCodeNode.Text("unexpected"))
+  def generate(irNode: IRNode): TargetCodeNode = irNode match {
+    case IRNode.Unexpected => TCN.Throw(TCTypeRef("Exception"), TCN.Text("unexpected"))
     case IRNode.Error(IRError.Generic(err)) => wrapAsLeft(err)
     case IRNode.Result(res, _) => res
-    case IRNode.And(cs :+ IRInstr.Decl(resVar, exp), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
+    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
       // Example of special case rule
       generate(IRNode.And(cs, exp))
     case IRNode.And(conds, next) =>
-      TargetCodeNode.For(conds.map(generate), generate(next))
+      TCN.For(conds.map(generate), generate(next))
     case IRNode.Switch(Seq((cond, IRNode.Result(res, false))), IRNode.Error(IRError.Generic(err))) =>
       // Example of special case rule
-      TargetCodeNode.Apply(
-        TargetCodeNode.Field(TargetCodeNode.Var("Either"), "cond"),
+      TCN.Apply(
+        TCN.Field(TCN.Var("Either"), "cond"),
         cond,
         res,
         err
@@ -58,7 +30,7 @@ class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode
         else generate(otherwise)
       
       branches.foldRight(otherwiseNode) { case ((cond, next), elseNode) =>
-        TargetCodeNode.If(
+        TCN.If(
           cond,
           if failureIsPossible && !canFail(next) then wrapAsRight(generate(next)) else generate(next),
           elseNode
@@ -68,8 +40,8 @@ class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode
     case IRNode.Or(main, alt) =>
       val mainNode = generate(main)
       val altNode = if !canFail(alt) then wrapAsRight(generate(alt)) else generate(alt)
-      TargetCodeNode.Apply(
-        TargetCodeNode.Field(
+      TCN.Apply(
+        TCN.Field(
           mainNode,
           "orElse"
         ),
@@ -77,22 +49,23 @@ class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator[TargetCodeNode
       )
   }
 
-  def generate(irInstr: IRInstr[TargetCodeNode]): TargetCodeForCursor = irInstr match {
+  def generate(irInstr: IRInstr): TargetCodeForCursor = irInstr match {
     case IRInstr.Cond(cond, IRError.Generic(err)) => 
-      val condExp = TargetCodeNode.Apply(
-        TargetCodeNode.Field(TargetCodeNode.Var("Either"), "cond"),
+      val condExp = TCN.Apply(
+        TCN.Field(TCN.Var("Either"), "cond"),
         cond,
-        TargetCodeNode.Unit,
+        TCN.Unit,
         err
       )
       TargetCodeForCursor.Iterate("_", condExp)
-    case IRInstr.Decl(resVar, exp) =>
+    case IRInstr.Check(exp, resVar) =>
+      val cursor = resVar.getOrElse("_")
       if canFail(exp) then 
-        TargetCodeForCursor.Iterate(resVar, generate(exp))
+        TargetCodeForCursor.Iterate(cursor, generate(exp))
       else
-        TargetCodeForCursor.Let(resVar, generate(exp))
+        TargetCodeForCursor.Let(cursor, generate(exp))
   }
 
-  private def wrapAsLeft(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Left"), value)
+  private def wrapAsLeft(value: TargetCodeNode): TargetCodeNode = TCN.Apply(TCN.Var("Left"), value)
 
-  private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Right"), value) 
+  private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TCN.Apply(TCN.Var("Right"), value) 

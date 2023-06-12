@@ -1,12 +1,12 @@
 package tyes.compiler.ir
 
-trait TargetCodeIRGenerator[TCode](
-  protected val codeOps: CodeOperations[TCode]
+trait TargetCodeIRGenerator(
+  protected val codeOps: CodeOperations
 ):
-  def generate(irNode: IRNode[TCode]): TCode
+  def generate(irNode: IRNode): TargetCodeNode
 
 
-def canFail[TCode](irNode: IRNode[TCode]): Boolean = irNode match {
+def canFail(irNode: IRNode): Boolean = irNode match {
   case IRNode.Unexpected => false
   case IRNode.Result(_, canFail) => canFail
   case IRNode.Error(_) => true
@@ -15,8 +15,7 @@ def canFail[TCode](irNode: IRNode[TCode]): Boolean = irNode match {
   case IRNode.Or(main, alt) => canFail(main) && canFail(alt)
 }
 
-def canFail[TCode](irInstr: IRInstr[TCode]): Boolean = irInstr match {
+def canFail(irInstr: IRInstr): Boolean = irInstr match {
   case IRInstr.Cond(_, _) => true
   case IRInstr.Check(exp, _) => canFail(exp)
-  case IRInstr.Decl(_, exp) => canFail(exp) 
 }

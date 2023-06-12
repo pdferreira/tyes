@@ -5,14 +5,15 @@ import tyes.compiler.RuntimeAPIGenerator
 import utils.collections.*
 
 private val TCFC = TargetCodeForCursor
+private val TCN = TargetCodeNode
 
-class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](TargetCodeNodeOperations):
+class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator(TargetCodeNodeOperations):
 
-  def generate(irNode: IRNode[TargetCodeNode]): TargetCodeNode = generate(irNode, eitherIsExpected = true)
+  def generate(irNode: IRNode): TargetCodeNode = generate(irNode, eitherIsExpected = true)
     
-  private def generate(irNode: IRNode[TargetCodeNode], eitherIsExpected: Boolean): TargetCodeNode = irNode match {
+  private def generate(irNode: IRNode, eitherIsExpected: Boolean): TargetCodeNode = irNode match {
     case IRNode.Unexpected => 
-      TargetCodeNode.Throw(TargetCodeTypeRef("Exception"), TargetCodeNode.Text("unexpected"))
+      TCN.Throw(TargetCodeTypeRef("Exception"), TCN.Text("unexpected"))
     
     case IRNode.Error(err) =>
       assert(eitherIsExpected, "Returning Either must be expected in Error")
@@ -24,19 +25,19 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
       then wrapAsRight(res) 
       else res
     
-    case IRNode.And(IRInstr.Check(exp, Some(resVar)) :: Nil, IRNode.Result(TargetCodeNode.Var(resVar2), /*canFail*/false)) 
+    case IRNode.And(IRInstr.Check(exp, Some(resVar)) :: Nil, IRNode.Result(TCN.Var(resVar2), /*canFail*/false)) 
       if resVar == resVar2 && canFail(exp) 
     =>
       generate(exp, eitherIsExpected)
     
-    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TargetCodeNode.Var(resVar2), resCanFail))
+    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail))
       if resVar == resVar2 && canFail(exp) == resCanFail 
     =>
       generate(IRNode.And(cs, exp), eitherIsExpected)
     
     case IRNode.And(conds, next) =>
       assert(eitherIsExpected, "Returning Either must be expected in Ands")
-      TargetCodeNode.For(
+      TCN.For(
         cursors = inDataFlowOrder(conds.map(generate)), 
         body = generate(next, eitherIsExpected = false)
       )
@@ -46,7 +47,7 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
       val otherwiseNode = generate(otherwise, eitherIsExpected || failureIsPossible)
 
       branches.foldRight(otherwiseNode) { case ((cond, next), elseNode) =>
-        TargetCodeNode.If(
+        TCN.If(
           cond,
           generate(next, eitherIsExpected || failureIsPossible),
           elseNode
@@ -58,8 +59,8 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
     case IRNode.Or(main, alt) =>
       val mainNode = generate(main, eitherIsExpected)
       val altNode = generate(alt, eitherIsExpected = true)
-      TargetCodeNode.Apply(
-        TargetCodeNode.Field(
+      TCN.Apply(
+        TCN.Field(
           mainNode,
           "orElse"
         ),
@@ -67,7 +68,7 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
       )
   }
 
-  def generate(irInstr: IRInstr[TargetCodeNode]): TargetCodeForCursor = irInstr match {
+  def generate(irInstr: IRInstr): TargetCodeForCursor = irInstr match {
     case IRInstr.Cond(cond, err) => 
       TargetCodeForCursor.Iterate("_", RuntimeAPIGenerator.genCheck(cond, err))
 
@@ -77,12 +78,9 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator[TargetCodeNode](Ta
         TargetCodeForCursor.Iterate(resVar, generate(exp, eitherIsExpected = true))
       else
         TargetCodeForCursor.Let(resVar, generate(exp, eitherIsExpected = false))
-
-    case IRInstr.Decl(resVar, exp) =>
-      generate(IRInstr.Check(exp, Some(resVar)))
   }
 
-  private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TargetCodeNode.Apply(TargetCodeNode.Var("Right"), value)
+  private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TCN.Apply(TCN.Var("Right"), value)
 
   /**
     * Ensures the collection order respects the data flow, taking into account

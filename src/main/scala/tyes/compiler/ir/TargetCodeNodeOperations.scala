@@ -2,7 +2,7 @@ package tyes.compiler.ir
 
 import utils.collections.Multiset
 
-object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
+object TargetCodeNodeOperations extends CodeOperations:
 
   def negate(code: TargetCodeNode): TargetCodeNode = code match {
     case TargetCodeNode.Equals(l, r) => TargetCodeNode.NotEquals(l, r)

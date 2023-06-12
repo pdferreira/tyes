@@ -57,7 +57,7 @@ class EnvironmentIRGenerator(
       envVar
   }
 
-  def generateConditions(env: Environment, codeEnv: TargetCodeEnv): Iterable[IRInstr[TargetCodeNode]] =
+  def generateConditions(env: Environment, codeEnv: TargetCodeEnv): Iterable[IRInstr] =
     genSizeConds(env) ++ genContentConds(env, codeEnv)
 
   private def genContentConds(env: Environment, codeEnv: TargetCodeEnv) =
