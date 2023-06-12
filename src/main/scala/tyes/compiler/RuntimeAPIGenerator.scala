@@ -36,18 +36,4 @@ object RuntimeAPIGenerator:
     TCN.Apply(TCN.Field(targetCode, "expecting"), expectedTypeCode)
 
   def genExpecting(targetCode: TCN, expectedTypeRef: TCTypeRef): TCN =
-    // Get some temporary names, just for local scope
-    val tExpVar: TCN.Var = TCN.Var("t")
-    val tMatchVar: TCN.Var = TCN.Var(expectedTypeRef.name.filter(_.isUpper).mkString.toLowerCase)
-
-    // Generate `expecting(tExp => tExp match { case tMatch: expectedTypeRef => tMatch })`
-    // which gets simplified to `expecting({ case tMatch: expectedTypeRef => tMatch })` if
-    // supported by the runtime language
-    genExpecting(
-      targetCode,
-      TCN.Lambda(tExpVar.name, TCN.Match(
-        matchedExp = tExpVar,
-        branches = Seq(
-          TCP.WithType(TCP.Var(tMatchVar.name), expectedTypeRef) -> tMatchVar
-      )))
-    )
+    TCN.TypeApply(TCN.Field(targetCode, "expecting"), expectedTypeRef)

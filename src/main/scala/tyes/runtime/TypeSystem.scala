@@ -34,9 +34,9 @@ trait TypeSystem[E[_]]:
         TypeError.unexpectedType(t, expected)
     )
 
-    protected def expecting[TargetT <: T](expectedMatch: PartialFunction[T, TargetT])(using ct: ClassTag[TargetT]) = resT.flatMap(t =>
-      if expectedMatch.isDefinedAt(t) then
-        Right(expectedMatch(t))
-      else
-        TypeError.unexpectedType(t, ct.runtimeClass)
+    protected def expecting[TargetT <: T](using ct: ClassTag[TargetT]) = resT.flatMap(t =>
+      ct.unapply(t) match {
+        case Some(castT) => Right(castT)
+        case None => TypeError.unexpectedType(t, ct.runtimeClass)
+      }
     )

@@ -20,6 +20,7 @@ enum TargetCodeNode:
   case Entry(key: TargetCodeNode, value: TargetCodeNode)
   case InfixApply(left: TargetCodeNode, fun: String, right: TargetCodeNode)
   case Apply(fun: TargetCodeNode, args: TargetCodeNode*)
+  case TypeApply(fun: TargetCodeNode, typeArgs: TargetCodeTypeRef*)
   case Let(varName: String, varExp: TargetCodeNode, bodyExp: TargetCodeNode)
   case Lambda(paramName: String, bodyExp: TargetCodeNode)
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodePattern, TargetCodeNode)])

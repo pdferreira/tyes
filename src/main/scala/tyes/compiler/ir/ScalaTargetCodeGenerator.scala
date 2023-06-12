@@ -130,7 +130,11 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TargetCodeNode.Apply(fun, args*) => 
         val funStr = generate(fun, indentLevel, skipStartIndent)
         val argsStr = args.map(a => indentIfMultiline(generate(a), indentLevel + 1)).mkString(", ")
-        s"${funStr}(${argsStr})" 
+        s"${funStr}(${argsStr})"
+      case TargetCodeNode.TypeApply(fun, typeArgs*) =>
+        val funStr = generate(fun, indentLevel, skipStartIndent)
+        val argsStr = typeArgs.map(a => generate(a)).mkString(", ")
+        s"${funStr}[${argsStr}]"
       case TargetCodeNode.Let(name, exp, body) =>
         val expStr = generate(exp)
         val bodyStr = generate(body, indentLevel)

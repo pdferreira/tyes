@@ -34,7 +34,11 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
         .productIterator
         .map({ 
           case n: TargetCodeNode => freeNames(n)
-          case ns: Seq[TargetCodeNode] => ns.map(freeNames).foldLeft(Multiset[String]())(_ ++ _)
+          case ns: Seq[Any] if !ns.isEmpty && ns.head.isInstanceOf[TargetCodeNode] =>
+            ns
+              .asInstanceOf[Seq[TargetCodeNode]]
+              .map(freeNames)
+              .foldLeft(Multiset[String]())(_ ++ _)
           case _ => Multiset()
         })
         .foldLeft(Multiset())(_ ++ _)     
@@ -64,6 +68,7 @@ object TargetCodeNodeOperations extends CodeOperations[TargetCodeNode]:
     case TargetCodeNode.Entry(k, v) => TargetCodeNode.Entry(f(k), f(v))
     case TargetCodeNode.Apply(fun, args*) => TargetCodeNode.Apply(f(fun), args.map(f(_))*)
     case TargetCodeNode.InfixApply(l, fun, r) => TargetCodeNode.InfixApply(f(l), fun, f(r))
+    case TargetCodeNode.TypeApply(fun, ts*) => TargetCodeNode.TypeApply(f(fun), ts*)
     case TargetCodeNode.Equals(l, r) => TargetCodeNode.Equals(f(l), f(r)) 
     case TargetCodeNode.Field(obj, field) => TargetCodeNode.Field(f(obj), field)
     case TargetCodeNode.For(cs, body) => TargetCodeNode.For(cs.map(applyToChildren(_, f)), f(body))
