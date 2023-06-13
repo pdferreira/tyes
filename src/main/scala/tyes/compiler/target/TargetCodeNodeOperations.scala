@@ -2,30 +2,35 @@ package tyes.compiler.target
 
 import utils.collections.Multiset
 
+private val TCD = TargetCodeDecl
+private val TCFC = TargetCodeForCursor
+private val TCN = TargetCodeNode
+private val TCP = TargetCodePattern
+
 object TargetCodeNodeOperations extends CodeOperations:
 
   def negate(code: TargetCodeNode): TargetCodeNode = code match {
-    case TargetCodeNode.Equals(l, r) => TargetCodeNode.NotEquals(l, r)
-    case TargetCodeNode.NotEquals(l, r) => TargetCodeNode.Equals(l, r)
-    case _ => TargetCodeNode.Not(code)
+    case TCN.Equals(l, r) => TCN.NotEquals(l, r)
+    case TCN.NotEquals(l, r) => TCN.Equals(l, r)
+    case _ => TCN.Not(code)
   }
 
   def freeNames(tcNode: TargetCodeNode): Multiset[String] = tcNode match {
-    case TargetCodeNode.Var(name) => Multiset(name)
-    case TargetCodeNode.Let(varPat, varExp, bodyExp) => freeNames(varExp) ++ (freeNames(bodyExp).except(boundNames(varPat)))
-    case TargetCodeNode.Lambda(name, exp) => freeNames(exp).except(name)
-    case TargetCodeNode.For(Nil, bodyExp) => freeNames(bodyExp)
-    case TargetCodeNode.For(TargetCodeForCursor.Filter(cond) :: cs, bodyExp) =>
-      freeNames(cond) ++ freeNames(TargetCodeNode.For(cs, bodyExp))
-    case TargetCodeNode.For(TargetCodeForCursor.Iterate(pat, col) :: cs, bodyExp) =>
-      freeNames(col) ++ (freeNames(TargetCodeNode.For(cs, bodyExp)).except(boundNames(pat)))
-    case TargetCodeNode.For(TargetCodeForCursor.Let(pat, exp) :: cs, bodyExp) =>
-      freeNames(exp) ++ (freeNames(TargetCodeNode.For(cs, bodyExp)).except(boundNames(pat)))
-    case TargetCodeNode.FormattedText(fs*) =>
+    case TCN.Var(name) => Multiset(name)
+    case TCN.Let(varPat, varExp, bodyExp) => freeNames(varExp) ++ (freeNames(bodyExp).except(boundNames(varPat)))
+    case TCN.Lambda(name, exp) => freeNames(exp).except(name)
+    case TCN.For(Nil, bodyExp) => freeNames(bodyExp)
+    case TCN.For(TCFC.Filter(cond) :: cs, bodyExp) =>
+      freeNames(cond) ++ freeNames(TCN.For(cs, bodyExp))
+    case TCN.For(TCFC.Iterate(pat, col) :: cs, bodyExp) =>
+      freeNames(col) ++ (freeNames(TCN.For(cs, bodyExp)).except(boundNames(pat)))
+    case TCN.For(TCFC.Let(pat, exp) :: cs, bodyExp) =>
+      freeNames(exp) ++ (freeNames(TCN.For(cs, bodyExp)).except(boundNames(pat)))
+    case TCN.FormattedText(fs*) =>
       fs
         .map({ case n: TargetCodeNode => freeNames(n) ; case _ => Multiset() })
         .foldLeft(Multiset())(_ ++ _)
-    case TargetCodeNode.Match(exp, bs) =>
+    case TCN.Match(exp, bs) =>
       bs
         .map((p, b) => freeNames(b).except(boundNames(p)))
         .foldLeft(freeNames(exp))(_ ++ _)
@@ -61,94 +66,94 @@ object TargetCodeNodeOperations extends CodeOperations:
     pf.applyOrElse(tcNode, applyToChildren(_, c => applyUntil(c, pf)))
 
   def applyToChildren(tcDecl: TargetCodeDecl, f: TargetCodeNode => TargetCodeNode): TargetCodeDecl = tcDecl match {
-    case adt: TargetCodeDecl.ADT => adt.copy(
+    case adt: TCD.ADT => adt.copy(
       constructors = 
         for c <- adt.constructors 
         yield c.copy(
           inherits = 
-            for TargetCodeNode.ADTConstructorCall(tr, args*) <- c.inherits 
-            yield TargetCodeNode.ADTConstructorCall(tr, args.map(f)*)
+            for TCN.ADTConstructorCall(tr, args*) <- c.inherits 
+            yield TCN.ADTConstructorCall(tr, args.map(f)*)
         )
     )
-    case clazz: TargetCodeDecl.Class => clazz.copy(
+    case clazz: TCD.Class => clazz.copy(
       decls = clazz.decls.map(applyToChildren(_, f))
     )
-    case method: TargetCodeDecl.Method => method.copy(body = f(method.body))
-    case _: TargetCodeDecl.Import 
-      |  _: TargetCodeDecl.Type
+    case method: TCD.Method => method.copy(body = f(method.body))
+    case _: TCD.Import 
+      |  _: TCD.Type
       => tcDecl
   }
 
   def applyToChildren(tcNode: TargetCodeNode, f: TargetCodeNode => TargetCodeNode): TargetCodeNode = tcNode match {
-    case TargetCodeNode.Unit
-      | TargetCodeNode.Boolean(_)
-      | TargetCodeNode.Text(_)
-      | TargetCodeNode.Var(_)
-      | TargetCodeNode.Integer(_)
+    case TCN.Unit
+      | TCN.Boolean(_)
+      | TCN.Text(_)
+      | TCN.Var(_)
+      | TCN.Integer(_)
       => tcNode
-    case TargetCodeNode.And(l, r) => TargetCodeNode.And(f(l), f(r))
-    case TargetCodeNode.Entry(k, v) => TargetCodeNode.Entry(f(k), f(v))
-    case TargetCodeNode.Apply(fun, args*) => TargetCodeNode.Apply(f(fun), args.map(f(_))*)
-    case TargetCodeNode.InfixApply(l, fun, r) => TargetCodeNode.InfixApply(f(l), fun, f(r))
-    case TargetCodeNode.TypeApply(fun, ts*) => TargetCodeNode.TypeApply(f(fun), ts*)
-    case TargetCodeNode.TypeCheck(e, tr) => TargetCodeNode.TypeCheck(f(e), tr) 
-    case TargetCodeNode.Equals(l, r) => TargetCodeNode.Equals(f(l), f(r)) 
-    case TargetCodeNode.Field(obj, field) => TargetCodeNode.Field(f(obj), field)
-    case TargetCodeNode.For(cs, body) => TargetCodeNode.For(cs.map(applyToChildren(_, f)), f(body))
-    case TargetCodeNode.FormattedText(fs*) => TargetCodeNode.FormattedText(fs.map({ 
+    case TCN.And(l, r) => TCN.And(f(l), f(r))
+    case TCN.Entry(k, v) => TCN.Entry(f(k), f(v))
+    case TCN.Apply(fun, args*) => TCN.Apply(f(fun), args.map(f(_))*)
+    case TCN.InfixApply(l, fun, r) => TCN.InfixApply(f(l), fun, f(r))
+    case TCN.TypeApply(fun, ts*) => TCN.TypeApply(f(fun), ts*)
+    case TCN.TypeCheck(e, tr) => TCN.TypeCheck(f(e), tr) 
+    case TCN.Equals(l, r) => TCN.Equals(f(l), f(r)) 
+    case TCN.Field(obj, field) => TCN.Field(f(obj), field)
+    case TCN.For(cs, body) => TCN.For(cs.map(applyToChildren(_, f)), f(body))
+    case TCN.FormattedText(fs*) => TCN.FormattedText(fs.map({ 
       case n: TargetCodeNode => f(n)
       case s: String => s
     })*)
-    case TargetCodeNode.If(c, t, e) => TargetCodeNode.If(f(c), f(t), f(e))
-    case TargetCodeNode.Let(n, e, b) => TargetCodeNode.Let(n, f(e), f(b))
-    case TargetCodeNode.Lambda(n, e) => TargetCodeNode.Lambda(n, f(e))
-    case TargetCodeNode.Match(e, bs) => TargetCodeNode.Match(f(e), bs.map((k, v) => (k, f(v))))
-    case TargetCodeNode.Not(e) => TargetCodeNode.Not(f(e))
-    case TargetCodeNode.NotEquals(l, r) => TargetCodeNode.NotEquals(f(l), f(r))
-    case TargetCodeNode.Or(l, r) => TargetCodeNode.Or(f(l), f(r))
-    case TargetCodeNode.Return(e) => TargetCodeNode.Return(f(e))
-    case TargetCodeNode.Throw(exc, err) => TargetCodeNode.Throw(exc, f(err))
-    case TargetCodeNode.Try(t, exc, c) => TargetCodeNode.Try(f(t), exc, f(c))
-    case TargetCodeNode.ADTConstructorCall(tr, args*) => TargetCodeNode.ADTConstructorCall(tr, args.map(f)*)
+    case TCN.If(c, t, e) => TCN.If(f(c), f(t), f(e))
+    case TCN.Let(n, e, b) => TCN.Let(n, f(e), f(b))
+    case TCN.Lambda(n, e) => TCN.Lambda(n, f(e))
+    case TCN.Match(e, bs) => TCN.Match(f(e), bs.map((k, v) => (k, f(v))))
+    case TCN.Not(e) => TCN.Not(f(e))
+    case TCN.NotEquals(l, r) => TCN.NotEquals(f(l), f(r))
+    case TCN.Or(l, r) => TCN.Or(f(l), f(r))
+    case TCN.Return(e) => TCN.Return(f(e))
+    case TCN.Throw(exc, err) => TCN.Throw(exc, f(err))
+    case TCN.Try(t, exc, c) => TCN.Try(f(t), exc, f(c))
+    case TCN.ADTConstructorCall(tr, args*) => TCN.ADTConstructorCall(tr, args.map(f)*)
   }
 
   def applyToChildren(tcCursor: TargetCodeForCursor, f: TargetCodeNode => TargetCodeNode): TargetCodeForCursor = tcCursor match {
-    case TargetCodeForCursor.Filter(exp) => TargetCodeForCursor.Filter(f(exp))
-    case TargetCodeForCursor.Iterate(name, col) => TargetCodeForCursor.Iterate(name, f(col))
-    case TargetCodeForCursor.Let(name, exp) => TargetCodeForCursor.Let(name, f(exp))
+    case TCFC.Filter(exp) => TCFC.Filter(f(exp))
+    case TCFC.Iterate(name, col) => TCFC.Iterate(name, f(col))
+    case TCFC.Let(name, exp) => TCFC.Let(name, f(exp))
   }
 
   def replace(tcNode: TargetCodeNode, key: String, value: TargetCodeNode): TargetCodeNode = applyUntil(tcNode, {
-    case TargetCodeNode.Var(name) if name == key => value 
-    case TargetCodeNode.Let(varPat, varExp, bodyExp) =>
+    case TCN.Var(name) if name == key => value 
+    case TCN.Let(varPat, varExp, bodyExp) =>
       val newBodyExp = if boundNames(varPat).contains(key) then bodyExp else replace(bodyExp, key, value)
-      TargetCodeNode.Let(varPat, replace(varExp, key, value), newBodyExp)
-    case TargetCodeNode.Lambda(paramName, bodyExp) =>
+      TCN.Let(varPat, replace(varExp, key, value), newBodyExp)
+    case TCN.Lambda(paramName, bodyExp) =>
       val newBodyExp = if paramName == key then bodyExp else replace(bodyExp, key, value)
-      TargetCodeNode.Lambda(paramName, newBodyExp)
-    case TargetCodeNode.For(Nil, bodyExp) => TargetCodeNode.For(Nil, replace(bodyExp, key, value))
-    case TargetCodeNode.For(TargetCodeForCursor.Filter(cond) :: cs, bodyExp) =>
-      val TargetCodeNode.For(newCs, newBodyExp) = replace(TargetCodeNode.For(cs, bodyExp), key, value)
-      val c = TargetCodeForCursor.Filter(replace(cond, key, value))
-      TargetCodeNode.For(c +: newCs, newBodyExp)
-    case TargetCodeNode.For(TargetCodeForCursor.Iterate(pat, col) :: cs, bodyExp) =>
-      val TargetCodeNode.For(newCs, newBodyExp) = 
+      TCN.Lambda(paramName, newBodyExp)
+    case TCN.For(Nil, bodyExp) => TCN.For(Nil, replace(bodyExp, key, value))
+    case TCN.For(TCFC.Filter(cond) :: cs, bodyExp) =>
+      val TCN.For(newCs, newBodyExp) = replace(TCN.For(cs, bodyExp), key, value)
+      val c = TCFC.Filter(replace(cond, key, value))
+      TCN.For(c +: newCs, newBodyExp)
+    case TCN.For(TCFC.Iterate(pat, col) :: cs, bodyExp) =>
+      val TCN.For(newCs, newBodyExp) = 
         if boundNames(pat).contains(key) then 
-          TargetCodeNode.For(cs, bodyExp) 
+          TCN.For(cs, bodyExp) 
         else
-          replace(TargetCodeNode.For(cs, bodyExp), key, value)
-      val c = TargetCodeForCursor.Iterate(pat, replace(col, key, value))
-      TargetCodeNode.For(c +: newCs, newBodyExp)
-    case TargetCodeNode.For(TargetCodeForCursor.Let(pat, exp) :: cs, bodyExp) =>
-      val TargetCodeNode.For(newCs, newBodyExp) = 
+          replace(TCN.For(cs, bodyExp), key, value)
+      val c = TCFC.Iterate(pat, replace(col, key, value))
+      TCN.For(c +: newCs, newBodyExp)
+    case TCN.For(TCFC.Let(pat, exp) :: cs, bodyExp) =>
+      val TCN.For(newCs, newBodyExp) = 
         if boundNames(pat).contains(key) then 
-          TargetCodeNode.For(cs, bodyExp) 
+          TCN.For(cs, bodyExp) 
         else
-          replace(TargetCodeNode.For(cs, bodyExp), key, value)
-      val c = TargetCodeForCursor.Let(pat, replace(exp, key, value))
-      TargetCodeNode.For(c +: newCs, newBodyExp)
-    case TargetCodeNode.Match(matchedExp, bs) =>
-      TargetCodeNode.Match(
+          replace(TCN.For(cs, bodyExp), key, value)
+      val c = TCFC.Let(pat, replace(exp, key, value))
+      TCN.For(c +: newCs, newBodyExp)
+    case TCN.Match(matchedExp, bs) =>
+      TCN.Match(
         replace(matchedExp, key, value),
         for (p, b) <- bs yield 
           if boundNames(p).contains(key) then

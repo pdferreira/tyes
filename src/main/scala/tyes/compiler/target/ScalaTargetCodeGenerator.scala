@@ -4,6 +4,8 @@ import java.nio.file.Path
 import utils.collections.*
 
 private val TCD = TargetCodeDecl
+private val TCFC = TargetCodeForCursor
+private val TCN = TargetCodeNode
 private val TCP = TargetCodePattern
 
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
@@ -34,7 +36,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
   def getFileName(tcUnit: TargetCodeUnit): Path = Path.of{tcUnit.name + ".scala"}
 
   def generate(tcUnit: TargetCodeUnit): String =
-    val (imports, others) = tcUnit.decls.partition(d => d.isInstanceOf[TargetCodeDecl.Import])
+    val (imports, others) = tcUnit.decls.partition(d => d.isInstanceOf[TCD.Import])
     val importsStr = imports.map(i => generate(i, 0)).mkString("\r\n")
     val othersStr = others.map(o => generate(o, 0)).mkString("\r\n".repeat(2))
     s"$importsStr\r\n\r\n$othersStr\r\n"
@@ -80,32 +82,32 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     val indent = "  ".repeat(indentLevel)
     val startIndent = if skipStartIndent then "" else indent
     tcNode match {
-      case TargetCodeNode.If(cond, thenBranch, elseBranch) =>
+      case TCN.If(cond, thenBranch, elseBranch) =>
         val condStr = generate(cond)
         val thenStr = generate(thenBranch, indentLevel + 1)
         val elseStr = elseBranch match {
-          case _: TargetCodeNode.If =>
+          case _: TCN.If =>
             " " + generate(elseBranch, indentLevel, skipStartIndent = true)
           case _ =>
             "\r\n" + generate(elseBranch, indentLevel + 1)
         }
         s"${startIndent}if $condStr then\r\n$thenStr\r\n${indent}else$elseStr"
-      case TargetCodeNode.For(cursors, body) =>
+      case TCN.For(cursors, body) =>
         val cursorsStr = cursors
           .map(c => generate(c, indentLevel + 1))
           .map(cStr => s"$cStr\r\n")
           .mkString
         var bodyStr = generate(body, indentLevel + 1)
         s"${startIndent}for\r\n$cursorsStr${indent}yield\r\n$bodyStr"
-      case TargetCodeNode.Throw(excClass, excMessage) =>
+      case TCN.Throw(excClass, excMessage) =>
         val msgStr = generate(excMessage)
         s"${startIndent}throw new $excClass($msgStr)"
-      case TargetCodeNode.Try(tryBody, excClass, catchBody) =>
+      case TCN.Try(tryBody, excClass, catchBody) =>
         val tryStr = generate(tryBody, indentLevel + 1)
         val catchStr = generate(catchBody, indentLevel + 1)
         s"${startIndent}try\r\n$tryStr\r\n${indent}catch case _: $excClass =>\r\n$catchStr"
-      case TargetCodeNode.Text(str) => s"${startIndent}\"$str\""
-      case TargetCodeNode.FormattedText(formattingStrs*) =>
+      case TCN.Text(str) => s"${startIndent}\"$str\""
+      case TCN.FormattedText(formattingStrs*) =>
         formattingStrs
           .map({
             case s: String => s
@@ -114,37 +116,37 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
               s"$${$nodeStr}"
           })
           .mkString(s"${startIndent}s\"", "", "\"")
-      case TargetCodeNode.Integer(n) => s"${startIndent}$n"
-      case TargetCodeNode.Boolean(b) => s"${startIndent}$b"
-      case TargetCodeNode.Unit => s"${startIndent}()"
-      case TargetCodeNode.Not(exp) => s"${startIndent}!${generate(exp)}"
-      case TargetCodeNode.Equals(l, r) => s"${startIndent}${generate(l)} == ${generate(r)}"
-      case TargetCodeNode.NotEquals(l, r) => s"${startIndent}${generate(l)} != ${generate(r)}"
-      case TargetCodeNode.And(l, r) => s"${startIndent}${generate(l)} && ${generate(r)}"
-      case TargetCodeNode.Or(l, r) => s"${startIndent}${generate(l)} || ${generate(r)}"
-      case TargetCodeNode.Entry(k, v) => s"${startIndent}${generate(k)} -> ${generate(v)}"
-      case TargetCodeNode.InfixApply(l, fun, r) =>
+      case TCN.Integer(n) => s"${startIndent}$n"
+      case TCN.Boolean(b) => s"${startIndent}$b"
+      case TCN.Unit => s"${startIndent}()"
+      case TCN.Not(exp) => s"${startIndent}!${generate(exp)}"
+      case TCN.Equals(l, r) => s"${startIndent}${generate(l)} == ${generate(r)}"
+      case TCN.NotEquals(l, r) => s"${startIndent}${generate(l)} != ${generate(r)}"
+      case TCN.And(l, r) => s"${startIndent}${generate(l)} && ${generate(r)}"
+      case TCN.Or(l, r) => s"${startIndent}${generate(l)} || ${generate(r)}"
+      case TCN.Entry(k, v) => s"${startIndent}${generate(k)} -> ${generate(v)}"
+      case TCN.InfixApply(l, fun, r) =>
         val lStr = parenthesizeIfSpaced(generate(l))
         val rStr = parenthesizeIfSpaced(generate(r))
         s"${startIndent}$lStr $fun $rStr"
-      case TargetCodeNode.Apply(fun, args*) => 
+      case TCN.Apply(fun, args*) => 
         val funStr = generate(fun, indentLevel, skipStartIndent)
         val argsStr = args.map(a => indentIfMultiline(generate(a), indentLevel + 1)).mkString(", ")
         s"${funStr}(${argsStr})"
-      case TargetCodeNode.TypeApply(fun, typeArgs*) =>
+      case TCN.TypeApply(fun, typeArgs*) =>
         val funStr = generate(fun, indentLevel, skipStartIndent)
         val argsStr = typeArgs.map(a => generate(a)).mkString(", ")
         s"${funStr}[${argsStr}]"
-      case TargetCodeNode.TypeCheck(exp, typeRef) =>
+      case TCN.TypeCheck(exp, typeRef) =>
         val expStr = generate(exp, indentLevel, skipStartIndent)
         val typeRefStr = generate(typeRef)
         s"${expStr}.isInstanceOf[${typeRefStr}]"
-      case TargetCodeNode.Let(varPat, exp, body) =>
+      case TCN.Let(varPat, exp, body) =>
         val varPatStr = generate(varPat)
         val expStr = generate(exp)
         val bodyStr = generate(body, indentLevel)
         s"${startIndent}val $varPatStr = $expStr\r\n$bodyStr"
-      case TargetCodeNode.Lambda(name, TargetCodeNode.Match(TargetCodeNode.Var(name2), bs)) if name == name2 =>
+      case TCN.Lambda(name, TCN.Match(TCN.Var(name2), bs)) if name == name2 =>
         (
           for case (patExp, thenExp) <- bs
           yield
@@ -153,17 +155,17 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
             s"${indent}  case $patStr => $thenStr"
         )
         .mkString(startIndent + "{\r\n", "\r\n", s"\r\n${indent}" + "}")
-      case TargetCodeNode.Lambda(name, body) =>
+      case TCN.Lambda(name, body) =>
         val bodyStr = generate(body, indentLevel + 1, skipStartIndent = true)
         s"${startIndent}$name => $bodyStr"
-      case TargetCodeNode.Var(name) => s"${startIndent}$name"
-      case TargetCodeNode.Field(obj, field) =>
+      case TCN.Var(name) => s"${startIndent}$name"
+      case TCN.Field(obj, field) =>
         val objStr = generate(obj, indentLevel, skipStartIndent)
         if objStr.linesIterator.length <= 1 then
           s"$objStr.$field"
         else
           s"${startIndent}(${indentIfMultiline(objStr, 1)}).$field"
-      case TargetCodeNode.Match(matchedExp, branches) =>
+      case TCN.Match(matchedExp, branches) =>
         val matchedStr = generate(matchedExp, indentLevel, skipStartIndent)
         val matchesStr = 
           (
@@ -176,8 +178,8 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
           .mkString("{\r\n", "\r\n", s"\r\n$indent}")
 
         s"$matchedStr match $matchesStr"
-      case TargetCodeNode.Return(exp) => s"${startIndent}return ${generate(exp)}"
-      case TargetCodeNode.ADTConstructorCall(typeRef, args*) =>
+      case TCN.Return(exp) => s"${startIndent}return ${generate(exp)}"
+      case TCN.ADTConstructorCall(typeRef, args*) =>
         val typeRefStr = generate(typeRef)
         val argsStr = args.map(generate).mkStringOrEmpty("(", ", ", ")")
         startIndent + typeRefStr + argsStr
@@ -186,14 +188,14 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
   def generate(tcCursor: TargetCodeForCursor, indentLevel: Int): String = 
     val indent = "  ".repeat(indentLevel)
     tcCursor match {
-      case TargetCodeForCursor.Filter(exp) => 
+      case TCFC.Filter(exp) => 
         val expStr = generate(exp, indentLevel + 1, skipStartIndent = true)
         s"${indent}if $expStr"
-      case TargetCodeForCursor.Iterate(pat, collection) =>
+      case TCFC.Iterate(pat, collection) =>
         val patStr = generate(pat)
         val colStr = generate(collection, indentLevel + 1, skipStartIndent = true)
         s"${indent}$patStr <- $colStr"
-      case TargetCodeForCursor.Let(pat, exp) =>
+      case TCFC.Let(pat, exp) =>
         val patStr = generate(pat)
         val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) 
         s"${indent}$patStr = $expStr"

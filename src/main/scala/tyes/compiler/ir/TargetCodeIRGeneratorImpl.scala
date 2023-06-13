@@ -75,13 +75,13 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
 
   def generate(irInstr: IRInstr): TargetCodeForCursor = irInstr match {
     case IRInstr.Cond(cond, err) => 
-      TargetCodeForCursor.Iterate(TCP.Any, RuntimeAPIGenerator.genCheck(cond, err))
+      TCFC.Iterate(TCP.Any, RuntimeAPIGenerator.genCheck(cond, err))
 
     case IRInstr.Check(exp, resPat) =>
       if canFail(exp) then 
-        TargetCodeForCursor.Iterate(resPat, generate(exp, eitherIsExpected = true))
+        TCFC.Iterate(resPat, generate(exp, eitherIsExpected = true))
       else
-        TargetCodeForCursor.Let(resPat, generate(exp, eitherIsExpected = false))
+        TCFC.Let(resPat, generate(exp, eitherIsExpected = false))
   }
 
   private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TCN.Apply(TCN.Var("Right"), value)
