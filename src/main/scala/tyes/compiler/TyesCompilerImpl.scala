@@ -2,8 +2,9 @@ package tyes.compiler
 
 import java.nio.file.Path
 import tyes.model.TypeSystemDecl
-import tyes.compiler.target.ScalaTargetCodeGenerator
 import tyes.compiler.ir.TargetCodeIRGeneratorImpl
+import tyes.compiler.target.ScalaTargetCodeGenerator
+import tyes.compiler.target.TargetCodeNodeSimplifier
 
 class TyesCompilerImpl extends TyesCompiler:
 
@@ -13,8 +14,9 @@ class TyesCompilerImpl extends TyesCompiler:
 
     val tcIRGenerator = new TargetCodeIRGeneratorImpl()
     val tsDeclCodeUnit = new TypeSystemIRGenerator(commonEnvName, tcIRGenerator).generate(desugaredTsDecl)
+    val tsDeclCodeUnitSimplified = new TargetCodeNodeSimplifier().simplify(tsDeclCodeUnit)
     val tcGenerator = new ScalaTargetCodeGenerator()
     (
-      tcGenerator.getFileName(tsDeclCodeUnit),
-      tcGenerator.generate(tsDeclCodeUnit)
+      tcGenerator.getFileName(tsDeclCodeUnitSimplified),
+      tcGenerator.generate(tsDeclCodeUnitSimplified)
     )

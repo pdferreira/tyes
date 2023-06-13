@@ -1,6 +1,7 @@
 package tyes.compiler.ir
 
 import tyes.compiler.target.TargetCodeNode
+import tyes.compiler.target.TargetCodePattern
 import tyes.model.*
 
 enum IRNode:
@@ -13,7 +14,7 @@ enum IRNode:
 
 enum IRInstr:
   case Cond(cond: TargetCodeNode, err: IRError)
-  case Check(exp: IRNode, resVar: Option[String])
+  case Check(exp: IRNode, resPat: TargetCodePattern)
 
 enum IRError:
   case Generic(message: TargetCodeNode)

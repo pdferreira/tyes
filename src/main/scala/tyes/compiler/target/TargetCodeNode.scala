@@ -21,7 +21,8 @@ enum TargetCodeNode:
   case InfixApply(left: TargetCodeNode, fun: String, right: TargetCodeNode)
   case Apply(fun: TargetCodeNode, args: TargetCodeNode*)
   case TypeApply(fun: TargetCodeNode, typeArgs: TargetCodeTypeRef*)
-  case Let(varName: String, varExp: TargetCodeNode, bodyExp: TargetCodeNode)
+  case TypeCheck(exp: TargetCodeNode, typeRef: TargetCodeTypeRef)
+  case Let(varPat: TargetCodePattern, varExp: TargetCodeNode, bodyExp: TargetCodeNode)
   case Lambda(paramName: String, bodyExp: TargetCodeNode)
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodePattern, TargetCodeNode)])
   case Return(exp: TargetCodeNode)
@@ -42,12 +43,14 @@ object TargetCodeTypeRef:
     new TargetCodeTypeRef(name, ns, Seq())
 
 enum TargetCodeForCursor:
-  case Iterate(name: String, collection: TargetCodeNode)
-  case Let(name: String, exp: TargetCodeNode)
+  case Iterate(pat: TargetCodePattern, collection: TargetCodeNode)
+  case Let(pat: TargetCodePattern, exp: TargetCodeNode)
   case Filter(exp: TargetCodeNode)
 
 enum TargetCodePattern:
   case Any
+  case Integer(n: Int)
+  case Text(str: String)
   case Var(name: String)
   case WithType(pat: TargetCodePattern, typeRef: TargetCodeTypeRef)
   case ADTConstructor(typeRef: TargetCodeTypeRef, args: TargetCodePattern*)

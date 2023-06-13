@@ -104,12 +104,17 @@ class RuleIRGenerator(
     val constructor = extractTemplate(term)
     val constructorReqs = constructor.matches(term)
       .get
-      .filter((_, v) => v.isGround)
+      .filter((_, v) => v.isGround || v.isInstanceOf[Term.Function])
       .toSeq
       .sortBy((k, v) => k) // TODO: ideally should sort in order of occurrence ltr
 
     for (k, v) <- constructorReqs
-      yield TCN.Equals(TCN.Var(k), termIRGenerator.generate(v))
+    yield
+      if v.isGround then 
+        TCN.Equals(TCN.Var(k), termIRGenerator.generate(v))
+      else
+        val Term.Function(name, _*) = v
+        TCN.TypeCheck(TCN.Var(k), TCTypeRef(name))
 
   private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRInstr] =
     val HasType(cTerm, _) = concl.assertion
@@ -121,8 +126,17 @@ class RuleIRGenerator(
   private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv): Seq[IRInstr] =
     val constructor = extractTemplate(cTerm)
     val termSubst = constructor.matches(cTerm).get
+    val typeSubst = termSubst
+      .collect({ case (k, Term.Type(typ)) => k -> typ })
+      .toMap
+    
+    val destructureConds = genConclusionDestructureConds(termSubst)
+    val typeConds = genConclusionTypeConds(constructor.types.toSeq, typeSubst, codeEnv)
+    destructureConds ++ typeConds
+
+  def genConclusionTypeConds(types: Seq[Type], typeSubst: Map[String, Type], codeEnv: TargetCodeEnv): Seq[IRInstr] =
     for
-      case t @ Type.Variable(name) <- constructor.types.toSeq 
+      case t @ Type.Variable(name) <- types 
       if t != Constants.Types.any
     yield
       val (realTmpId, realTmpIdCode) = codeEnv.requestIdentifier(name)
@@ -130,13 +144,23 @@ class RuleIRGenerator(
       val checkCode = RuntimeAPIGenerator.genCheckTypeDeclared(realTmpIdCode, expVar)
       IRInstr.Check(
         exp = IRNode.Result(
-          termSubst.get(name) match {
-            case Some(Term.Type(typ)) => genTypeExpectationCheck(typ, codeEnv, checkCode)
+          typeSubst.get(name) match {
+            case Some(typ) => genTypeExpectationCheck(typ, codeEnv, checkCode)
             case _ => checkCode
           },
           canFail = true
         ),
-        resVar = Some(realId)
+        resPat = TCP.Var(realId)
+      )
+  
+  def genConclusionDestructureConds(termSubst: Map[String, Term]): Seq[IRInstr] =
+    for
+      case (k, v: Term.Function) <- termSubst.toSeq
+      if !v.isGround
+    yield
+      IRInstr.Check(
+        exp = IRNode.Result(TCN.Var(k), canFail = false),
+        resPat = termIRGenerator.generatePattern(v)
       )
 
   private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRInstr] =
@@ -211,6 +235,6 @@ class RuleIRGenerator(
         )), 
         canFail = true
       ),
-      resVar = Some(realDeclVar)
+      resPat = TCP.Var(realDeclVar)
     )
     (instr, realDeclVarCode)

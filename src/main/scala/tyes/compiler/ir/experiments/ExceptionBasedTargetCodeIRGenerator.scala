@@ -13,7 +13,7 @@ class ExceptionBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
     case IRNode.Unexpected => TCN.Throw(TCTypeRef("Exception"), TCN.Text("unexpected"))
     case IRNode.Error(IRError.Generic(err)) => TCN.Throw(TCTypeRef("TypeError"), err)
     case IRNode.Result(res, _) => res
-    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 =>
+    case IRNode.And(cs :+ IRInstr.Check(exp, TCP.Var(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 =>
       // Example of special case rule
       generate(IRNode.And(cs, exp))
     case IRNode.And(conds, next) =>
@@ -33,6 +33,6 @@ class ExceptionBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
   def generate(irInstr: IRInstr): TargetCodeNode => TargetCodeNode = irInstr match {
     case IRInstr.Cond(cond, IRError.Generic(err)) =>
       nextNode => TCN.If(negate(cond), TCN.Throw(TCTypeRef("TypeError"), err), nextNode)
-    case IRInstr.Check(exp, resVar) =>
-      nextNode => TCN.Let(resVar.getOrElse("_"), generate(exp), nextNode)
+    case IRInstr.Check(exp, resPat) =>
+      nextNode => TCN.Let(resPat, generate(exp), nextNode)
   }

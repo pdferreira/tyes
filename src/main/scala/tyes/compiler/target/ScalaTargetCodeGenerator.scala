@@ -135,10 +135,15 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val funStr = generate(fun, indentLevel, skipStartIndent)
         val argsStr = typeArgs.map(a => generate(a)).mkString(", ")
         s"${funStr}[${argsStr}]"
-      case TargetCodeNode.Let(name, exp, body) =>
+      case TargetCodeNode.TypeCheck(exp, typeRef) =>
+        val expStr = generate(exp, indentLevel, skipStartIndent)
+        val typeRefStr = generate(typeRef)
+        s"${expStr}.isInstanceOf[${typeRefStr}]"
+      case TargetCodeNode.Let(varPat, exp, body) =>
+        val varPatStr = generate(varPat)
         val expStr = generate(exp)
         val bodyStr = generate(body, indentLevel)
-        s"${startIndent}val $name = $expStr\r\n$bodyStr"
+        s"${startIndent}val $varPatStr = $expStr\r\n$bodyStr"
       case TargetCodeNode.Lambda(name, TargetCodeNode.Match(TargetCodeNode.Var(name2), bs)) if name == name2 =>
         (
           for case (patExp, thenExp) <- bs
@@ -184,16 +189,20 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TargetCodeForCursor.Filter(exp) => 
         val expStr = generate(exp, indentLevel + 1, skipStartIndent = true)
         s"${indent}if $expStr"
-      case TargetCodeForCursor.Iterate(name, collection) =>
+      case TargetCodeForCursor.Iterate(pat, collection) =>
+        val patStr = generate(pat)
         val colStr = generate(collection, indentLevel + 1, skipStartIndent = true)
-        s"${indent}$name <- $colStr"
-      case TargetCodeForCursor.Let(name, exp) =>
+        s"${indent}$patStr <- $colStr"
+      case TargetCodeForCursor.Let(pat, exp) =>
+        val patStr = generate(pat)
         val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) 
-        s"${indent}$name = $expStr"
+        s"${indent}$patStr = $expStr"
     }
 
   def generate(tcPattern: TargetCodePattern): String = tcPattern match {
     case TCP.Any => "_"
+    case TCP.Integer(n) => n.toString
+    case TCP.Text(str) => s"\"${str.replace("\"", "\\\"")}\""
     case TCP.Var(name) => name
     case TCP.WithType(pat, typeRef) => s"${generate(pat)}: ${generate(typeRef)}"
     case TCP.ADTConstructor(typeRef, args*) =>

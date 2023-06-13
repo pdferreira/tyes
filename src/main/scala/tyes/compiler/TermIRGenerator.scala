@@ -19,15 +19,16 @@ class TermIRGenerator(
     case Term.Constant(value: String) => TCN.Text(value)
     case Term.Variable(name) => codeEnv.get(name).getOrElse(TCN.Var(name))
     case Term.Function(name, args*) => 
-      TCN.Apply(
-        TCN.Var(name),
+      TCN.ADTConstructorCall(
+        TCTypeRef(name),
         args.map(generate(_, codeEnv))*
       )
     case Term.Type(typ) => typeIRGenerator.generate(typ, codeEnv)
   }
 
   def generatePattern(term: Term): TargetCodePattern = term match {
-    case Term.Constant(_) => ???
+    case Term.Constant(value: Int) => TCP.Integer(value)
+    case Term.Constant(value: String) => TCP.Text(value)
     case Term.Variable(name) => TCP.Var(name)
     case Term.Function(name, args*) => 
       TCP.ADTConstructor(

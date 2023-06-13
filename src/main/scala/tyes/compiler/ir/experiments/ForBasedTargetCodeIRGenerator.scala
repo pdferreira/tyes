@@ -13,7 +13,7 @@ class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
     case IRNode.Unexpected => TCN.Throw(TCTypeRef("Exception"), TCN.Text("unexpected"))
     case IRNode.Error(IRError.Generic(err)) => wrapAsLeft(err)
     case IRNode.Result(res, _) => res
-    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
+    case IRNode.And(cs :+ IRInstr.Check(exp, TCP.Var(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 && canFail(exp) == resCanFail =>
       // Example of special case rule
       generate(IRNode.And(cs, exp))
     case IRNode.And(conds, next) =>
@@ -61,13 +61,12 @@ class ForBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
         TCN.Unit,
         err
       )
-      TargetCodeForCursor.Iterate("_", condExp)
-    case IRInstr.Check(exp, resVar) =>
-      val cursor = resVar.getOrElse("_")
+      TargetCodeForCursor.Iterate(TCP.Any, condExp)
+    case IRInstr.Check(exp, resPat) =>
       if canFail(exp) then 
-        TargetCodeForCursor.Iterate(cursor, generate(exp))
+        TargetCodeForCursor.Iterate(resPat, generate(exp))
       else
-        TargetCodeForCursor.Let(cursor, generate(exp))
+        TargetCodeForCursor.Let(resPat, generate(exp))
   }
 
   private def wrapAsLeft(value: TargetCodeNode): TargetCodeNode = TCN.Apply(TCN.Var("Left"), value)

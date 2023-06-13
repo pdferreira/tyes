@@ -18,10 +18,10 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
     case IRNode.Unexpected => TCN.Throw(TCTypeRef("Exception"), TCN.Text("unexpected"))
     case IRNode.Error(IRError.Generic(err)) => wrapAsLeft(err)
     case IRNode.Result(res, canFail) => if failureIsPossible && !canFail then wrapAsRight(res) else res
-    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 =>
+    case IRNode.And(cs :+ IRInstr.Check(exp, TCP.Var(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail)) if resVar == resVar2 =>
       // Example of special case rule
       generate(IRNode.And(cs, exp), failureIsPossible || canFail(exp) != resCanFail)
-    case IRNode.And(IRInstr.Check(exp, resVar) +: cs, next) =>
+    case IRNode.And(IRInstr.Check(exp, resPat) +: cs, next) =>
       val letExp = 
         if canFail(exp) then
           TCN.Match(generate(exp), Seq(
@@ -31,7 +31,7 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
         else
           generate(exp)
       val letBody = generate(IRNode.And(cs, next), failureIsPossible || canFail(exp))
-      TCN.Let(resVar.getOrElse("_"), letExp, letBody)
+      TCN.Let(resPat, letExp, letBody)
     case IRNode.And(Seq(), next) => generate(next, failureIsPossible)
     case IRNode.And(instrs, next) =>
       // Because of the previous cases, when we reach here there's at least one IRInstr.Cond

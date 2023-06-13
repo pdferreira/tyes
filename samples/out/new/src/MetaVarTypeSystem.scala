@@ -22,6 +22,11 @@ class MetaVarTypeSystem extends TypeSystem[LExpression]:
         TypeError.noTypeFor(exp)
 
     case LPlus(e1, e2) => 
+      if e1.isInstanceOf[LVariable] && e2 == LNumber(1) then
+        val LVariable(x) = e1
+        typecheck(LVariable(x), env)
+      else
+        TypeError.noTypeFor(exp)
 
     case _ => TypeError.noTypeFor(exp)
   }

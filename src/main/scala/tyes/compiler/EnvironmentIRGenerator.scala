@@ -68,7 +68,7 @@ class EnvironmentIRGenerator(
       val (realId, realIdCode) = codeEnv.requestIdentifier(typVarName)
       IRInstr.Check(
         exp = IRNode.Result(TCN.Apply(TCN.Field(envVar, "get"), varNameExpr), canFail = true),
-        resVar = Some(realId)
+        resPat = TCP.Var(realId)
       )
 
   private def genSizeConds(env: Environment) =
@@ -82,7 +82,7 @@ class EnvironmentIRGenerator(
     for size <- sizeOpt yield 
       IRInstr.Check(
         exp = IRNode.Result(RuntimeAPIGenerator.genCheckEnvSize(envVar, size), canFail = true),
-        resVar = None
+        resPat = TCP.Any
       )
 
   private def generateBinding(binding: Binding): (TargetCodeNode, Type) = binding match {

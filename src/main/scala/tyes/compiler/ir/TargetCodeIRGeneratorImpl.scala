@@ -3,12 +3,14 @@ package tyes.compiler.ir
 import tyes.compiler.target.TargetCodeForCursor
 import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodeNodeOperations.*
+import tyes.compiler.target.TargetCodePattern
 import tyes.compiler.target.TargetCodeTypeRef
 import tyes.compiler.RuntimeAPIGenerator
 import utils.collections.*
 
 private val TCFC = TargetCodeForCursor
 private val TCN = TargetCodeNode
+private val TCP = TargetCodePattern
 
 class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
 
@@ -28,12 +30,12 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
       then wrapAsRight(res) 
       else res
     
-    case IRNode.And(IRInstr.Check(exp, Some(resVar)) :: Nil, IRNode.Result(TCN.Var(resVar2), /*canFail*/false)) 
+    case IRNode.And(IRInstr.Check(exp, TCP.Var(resVar)) :: Nil, IRNode.Result(TCN.Var(resVar2), /*canFail*/false)) 
       if resVar == resVar2 && canFail(exp) 
     =>
       generate(exp, eitherIsExpected)
     
-    case IRNode.And(cs :+ IRInstr.Check(exp, Some(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail))
+    case IRNode.And(cs :+ IRInstr.Check(exp, TCP.Var(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail))
       if resVar == resVar2 && canFail(exp) == resCanFail 
     =>
       generate(IRNode.And(cs, exp), eitherIsExpected)
@@ -73,14 +75,13 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
 
   def generate(irInstr: IRInstr): TargetCodeForCursor = irInstr match {
     case IRInstr.Cond(cond, err) => 
-      TargetCodeForCursor.Iterate("_", RuntimeAPIGenerator.genCheck(cond, err))
+      TargetCodeForCursor.Iterate(TCP.Any, RuntimeAPIGenerator.genCheck(cond, err))
 
-    case IRInstr.Check(exp, resVarOpt) =>
-      val resVar = resVarOpt.getOrElse("_")
+    case IRInstr.Check(exp, resPat) =>
       if canFail(exp) then 
-        TargetCodeForCursor.Iterate(resVar, generate(exp, eitherIsExpected = true))
+        TargetCodeForCursor.Iterate(resPat, generate(exp, eitherIsExpected = true))
       else
-        TargetCodeForCursor.Let(resVar, generate(exp, eitherIsExpected = false))
+        TargetCodeForCursor.Let(resPat, generate(exp, eitherIsExpected = false))
   }
 
   private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TCN.Apply(TCN.Var("Right"), value)
@@ -94,10 +95,10 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
     * @return Reordered collection of cursors
     */
   private def inDataFlowOrder(cursors: Seq[TargetCodeForCursor]): Seq[TargetCodeForCursor] =
-    def getDeclaredName(cursor: TargetCodeForCursor): Option[String] = cursor match {
-      case TCFC.Filter(_) => None
-      case TCFC.Iterate(name, _) => Some(name)
-      case TCFC.Let(name, _) => Some(name)
+    def getDeclaredNames(cursor: TargetCodeForCursor): Set[String] = cursor match {
+      case TCFC.Filter(_) => Set()
+      case TCFC.Iterate(pat, _) => boundNames(pat)
+      case TCFC.Let(pat, _) => boundNames(pat)
     }
 
     def getDependencies(cursor: TargetCodeForCursor): Set[String] = cursor match {
@@ -109,7 +110,7 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
     // Build a map of all the undeclared dependencies for each cursor
     // but only considering the names that are actually declared within this `for`
     // otherwise this is pointless because there'll always be `exp` and other free names
-    val undeclaredNames = Set.from(cursors.map(getDeclaredName).flatten)
+    val undeclaredNames = Set.from(cursors.map(getDeclaredNames).flatten)
     val missingDepsByCursor = cursors
       .map { c =>
         val missingDeps = getDependencies(c).intersect(undeclaredNames)
@@ -128,7 +129,7 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
         .getOrElse { cursorsToProcess.dequeue() }
       
       for 
-        name <- getDeclaredName(c)
+        name <- getDeclaredNames(c)
         deps <- missingDepsByCursor.values
       do
         deps.remove(name)
