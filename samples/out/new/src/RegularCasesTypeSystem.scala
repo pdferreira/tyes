@@ -16,8 +16,8 @@ class RegularCasesTypeSystem extends TypeSystem[LExpression]:
 
     case LPlus(e1, e2) => 
       for
-        t1 <- typecheck(e1, env).expecting(Type.One)
-        t2 <- typecheck(e2, env).expecting(Type.One)
+        _ <- typecheck(e1, env).expecting(Type.One)
+        _ <- typecheck(e2, env).expecting(Type.One)
       yield
         Type.One
 

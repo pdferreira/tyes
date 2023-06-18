@@ -188,3 +188,20 @@ object TyesLanguageExtensions:
         j <- concl +: prems
         t <- j.types
       yield t).toSet
+
+  extension (term: Term)
+
+    def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
+      case Term.Constant(_) => Set.empty
+      case v: Term.Variable => Set(v)
+      case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
+      case Term.Type(typ) => typ.typeVariables
+    }
+  
+  extension (typ: Type)
+
+    def typeVariables: Iterable[Type.Variable] = typ match {
+      case Type.Named(_) => Set.empty
+      case v: Type.Variable => Set(v)
+      case Type.Composite(_, args*) => args.flatMap(_.typeVariables).toSet
+    }

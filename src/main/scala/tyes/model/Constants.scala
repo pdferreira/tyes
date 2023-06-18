@@ -4,7 +4,7 @@ object Constants:
   
   object Types:
 
-    val any = Type.Variable("$any")
+    val any: Type.Variable = Type.Variable("$any")
 
     object Function:
 

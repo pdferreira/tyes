@@ -62,14 +62,18 @@ class EnvironmentIRGenerator(
 
   private def genContentConds(env: Environment, codeEnv: TargetCodeEnv) =
     for 
+      // Iterate all bindings
       case EnvironmentPart.Bindings(bs) <- env.parts
-      case (varNameExpr, Type.Variable(typVarName)) <- bs.map(generateBinding)
+      (varNameExpr, typ) <- bs.map(generateBinding)
+
+      // Generate the env.get, type expectation and target pattern code
+      varGetCode = TCN.Apply(TCN.Field(envVar, "get"), varNameExpr)
+      checkedVarGetCode = typeIRGenerator.generateExpectationCheck(typ, codeEnv, varGetCode)
+      
+      // Yield all the conds necessary to decl, destructure and cross-check the type with other occurrences
+      c <- typeIRGenerator.generateDestructureDecl(typ, codeEnv, IRNode.Result(checkedVarGetCode, canFail = true))
     yield
-      val (realId, realIdCode) = codeEnv.requestIdentifier(typVarName)
-      IRInstr.Check(
-        exp = IRNode.Result(TCN.Apply(TCN.Field(envVar, "get"), varNameExpr), canFail = true),
-        resPat = TCP.Var(realId)
-      )
+      c
 
   private def genSizeConds(env: Environment) =
     assert(!env.parts.isEmpty)

@@ -27,11 +27,12 @@ class LambdaSimTypeSystem extends TypeSystem[LExpression]:
 
     case LPlus(e1, e2) => 
       for
-        t1 <- typecheck(e1, env).expecting[Type.$FunType]
-        t <- typecheck(e2, env)
-        _ <- checkIf(t1.t1 == t, TypeError.unexpectedType(t, t1.t1))
+        _ft <- typecheck(e1, env).expecting[Type.$FunType]
+        Type.$FunType(t, t2) = _ft
+        t3 <- typecheck(e2, env)
+        _ <- checkIf(t3 == t, TypeError.unexpectedType(t, t3))
       yield
-        t1.t2
+        t2
 
     case LLet(x, _t, e, e4) => 
       if e4 == LVariable("noop") then

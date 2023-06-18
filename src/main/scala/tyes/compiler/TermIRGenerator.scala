@@ -17,7 +17,7 @@ class TermIRGenerator(
   def generate(term: Term, codeEnv: TargetCodeEnv = TargetCodeEnv()): TargetCodeNode = term match {
     case Term.Constant(value: Int) => TCN.Integer(value)
     case Term.Constant(value: String) => TCN.Text(value)
-    case Term.Variable(name) => codeEnv.get(name).getOrElse(TCN.Var(name))
+    case v: Term.Variable => codeEnv(v)
     case Term.Function(name, args*) => 
       TCN.ADTConstructorCall(
         TCTypeRef(name),

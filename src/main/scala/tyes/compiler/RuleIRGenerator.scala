@@ -23,12 +23,6 @@ class RuleIRGenerator(
     case HasType(term, _) => extractTemplate(term) 
   }
 
-  private def getTempId(desiredId: String) = "_" + desiredId
-
-  private def getPermanentId(tempId: String) =
-    assert(tempId.startsWith("_"), s"Expected temporary id to be provided: $tempId")
-    tempId.substring(1)
-
   private def extractTemplate(term: Term): Term = term match {
     case Term.Function(fnName, args*) =>
       def getSuffix(idx: Int): String =
@@ -49,12 +43,7 @@ class RuleIRGenerator(
             // Type variable arguments are assumed to be optional, so we match
             // them with a temporary name and only later declare them with their original
             // name when checked for content
-            Term.Type(typ match {
-              case Constants.Types.any => typ
-              case Type.Variable(name) => Type.Variable(getTempId(name))
-              case Type.Named(_) => Type.Variable(getTempId("ct") + getSuffix(idx))
-              case Type.Composite(_, _*) => Type.Variable(getTempId("ct") + getSuffix(idx))
-            })
+            Term.Type(typeIRGenerator.getTempTypeVar(typ, nonVarSuffix = getSuffix(idx)))
         }
       }
       Term.Function(fnName, argsAsVariables*)
@@ -67,13 +56,6 @@ class RuleIRGenerator(
     val HasType(cTerm, cType) = rule.conclusion.assertion
 
     val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
-
-    // Pre-register the simple names for the types in the conclusion and the premises
-    for case Type.Variable(name) <- cTerm.types do
-      codeEnv.requestIdentifier(name)
-
-    for case Judgement(_, HasType(_, Type.Variable(name))) <- rule.premises do
-      codeEnv.requestIdentifier(name)
 
     val conclusionConds = genConclusionConds(rule.conclusion, codeEnv)
 
@@ -138,20 +120,27 @@ class RuleIRGenerator(
     for
       case t @ Type.Variable(name) <- types 
       if t != Constants.Types.any
+    
+      checkDeclCode = RuntimeAPIGenerator.genCheckTypeDeclared(codeEnv(t), expVar)
+      
+      c <- typeSubst.get(name) match {
+        case Some(typ) =>      
+          // TODO: missing composite type equality checks to bound variables
+          val typeCheckDeclCode = typeIRGenerator.generateExpectationCheck(typ, codeEnv, checkDeclCode)
+          typeIRGenerator.generateDestructureDecl(typ, codeEnv, IRNode.Result(typeCheckDeclCode, canFail = true))
+
+        case None =>
+          Seq(
+            IRInstr.Check(
+              exp = IRNode.Result(checkDeclCode, canFail = true),
+              resPat = 
+                val (_, permanentIdCode) = codeEnv.requestIdentifier(typeIRGenerator.getPermanentTypeVar(t))
+                TCP.Var(permanentIdCode.name)
+            )
+          )
+      }   
     yield
-      val (realTmpId, realTmpIdCode) = codeEnv.requestIdentifier(name)
-      val (realId, _) = codeEnv.requestIdentifier(getPermanentId(realTmpId))
-      val checkCode = RuntimeAPIGenerator.genCheckTypeDeclared(realTmpIdCode, expVar)
-      IRInstr.Check(
-        exp = IRNode.Result(
-          typeSubst.get(name) match {
-            case Some(typ) => genTypeExpectationCheck(typ, codeEnv, checkCode)
-            case _ => checkCode
-          },
-          canFail = true
-        ),
-        resPat = TCP.Var(realId)
-      )
+      c   
   
   def genConclusionDestructureConds(termSubst: Map[String, Term]): Seq[IRInstr] =
     for
@@ -165,76 +154,11 @@ class RuleIRGenerator(
 
   private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRInstr] =
     val HasType(pTerm, pType) = premise.assertion
-    pType match {
-      case Type.Variable(name) =>
-        val (declInstr, _) = genInductionCall(name, premise, codeEnv) 
-        Seq(declInstr)
 
-      case Type.Named(name) =>
-        val pTypeCode = typeIRGenerator.generate(pType)
-        val (declInstr, _) = genInductionCall("t" + (idx + 1), premise, codeEnv)
-        Seq(declInstr)
-
-      case Type.Composite(tName, args*) =>
-        val (resTDeclInstr, resTIdCode) = genInductionCall("t" + (idx + 1), premise, codeEnv)
-
-        val argTypeReqs = args
-          .zipWithIndex
-          .withFilter((arg, argIdx) => arg match {
-            case Type.Variable(name) => codeEnv.contains(name)
-            case _ => true
-          })
-          .map((arg, argIdx) => {
-            val leftTypeNode = TCN.Field(resTIdCode, "t" + (argIdx + 1))
-            val rightTypeNode = typeIRGenerator.generate(arg, codeEnv)
-            IRInstr.Cond(
-              TCN.Equals(leftTypeNode, rightTypeNode),
-              IRError.UnexpectedType(expected = leftTypeNode, obtained = rightTypeNode)
-            )
-          })
-        
-        for case (Type.Variable(name), argIdx) <- args.zipWithIndex if !codeEnv.contains(name) do
-          codeEnv.registerIdentifier(name, TCN.Field(resTIdCode, "t" + (argIdx + 1)))
-        
-        val inductionDecls = Seq(
-          resTDeclInstr
-        )
-        
-        inductionDecls ++ argTypeReqs
-    }
-
-  private def genTypeExpectationCheck(typ: Type, codeEnv: TargetCodeEnv, typeProviderCode: TCN): TargetCodeNode = typ match {
-    case Type.Named(_) =>
-      val typeCode = typeIRGenerator.generate(typ, codeEnv)
-      RuntimeAPIGenerator.genExpecting(typeProviderCode, typeCode)
+    val inductionTerm = typeIRGenerator.generateExpectationCheck(pType, codeEnv, TCN.Apply(
+      TCN.Var("typecheck"),
+      termIRGenerator.generate(pTerm, codeEnv),
+      envIRGenerator.generate(premise.env, codeEnv)
+    ))
     
-    case Type.Composite(name, _*) =>
-      val typeRef = typeIRGenerator.generateRef(name)
-      RuntimeAPIGenerator.genExpecting(typeProviderCode, typeRef)
-
-    case _ =>
-      // Nothing to check
-      typeProviderCode
-  }
-
-  private def genInductionCall(
-    declVar: String,
-    premise: Judgement,
-    codeEnv: TargetCodeEnv,
-  ): (IRInstr, TargetCodeNode) =
-    val HasType(pTerm, pType) = premise.assertion
-
-    val inductionTermCall = termIRGenerator.generate(pTerm, codeEnv)
-    val (realDeclVar, realDeclVarCode) = codeEnv.requestIdentifier(declVar)
-    val instr = IRInstr.Check(
-      exp = IRNode.Result(
-        genTypeExpectationCheck(pType, codeEnv, TCN.Apply(
-          TCN.Var("typecheck"),
-          inductionTermCall,
-          envIRGenerator.generate(premise.env, codeEnv)
-        )), 
-        canFail = true
-      ),
-      resPat = TCP.Var(realDeclVar)
-    )
-    (instr, realDeclVarCode)
+    typeIRGenerator.generateDestructureDecl(pType, codeEnv, IRNode.Result(inductionTerm, canFail = true))

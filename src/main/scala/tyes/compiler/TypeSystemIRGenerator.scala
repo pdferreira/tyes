@@ -10,6 +10,7 @@ import tyes.compiler.target.TargetCodePattern
 import tyes.compiler.target.TargetCodeTypeRef
 import tyes.compiler.target.TargetCodeUnit
 import tyes.model.*
+import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
 import utils.collections.*
 
@@ -75,9 +76,9 @@ class TypeSystemIRGenerator(
 
   private def generateTypecheckCase(rTemplate: Term, rules: Seq[RuleDecl]): (TargetCodePattern, TargetCodeNode) =
     val codeEnv = TargetCodeEnv()
-    for v <- rTemplate.variables do
-      codeEnv.registerIdentifier(v, TCN.Var(v))
-    
+    for v <- rTemplate.termVariables do
+      codeEnv.requestIdentifier(v)
+
     val rTemplateCode = termIRGenerator.generatePattern(rTemplate)
     val rImplIntermediateCode = groupNonOverlappingRules(rules)
       // For each of the groups:

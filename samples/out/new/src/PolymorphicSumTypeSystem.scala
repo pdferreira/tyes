@@ -21,7 +21,7 @@ class PolymorphicSumTypeSystem extends TypeSystem[LExpression]:
       for
         // need different cursors and match
         t <- typecheck(e1, env)
-        t <- typecheck(e2, env)
+        t2 <- typecheck(e2, env)
       yield
         t
 

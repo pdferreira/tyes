@@ -75,12 +75,12 @@ object ExampleTypeChecker extends tyes.runtime.old.TypeSystem[LExpression]:
     
       println()
       println("### Run code generation")
-      val (_, src) = old.TyesCodeGenerator.compile(tsDecl.get)
+      val (_, src) = tyes.compiler.old.TyesCodeGenerator.compile(tsDecl.get)
       println(src)
       println()
 
       println("### Invoke generated code")
-      val tsClassName = old.TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)
+      val tsClassName = tyes.compiler.old.TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)
       val m = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())
       val e = m.getEngineByName("scala")
       if e == null then

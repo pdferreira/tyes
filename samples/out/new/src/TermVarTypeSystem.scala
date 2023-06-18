@@ -30,14 +30,14 @@ class TermVarTypeSystem extends TypeSystem[LExpression]:
     case LPlus(e1, e2) => 
       if e1 == LVariable("pi") && e2 == LNumber(1) then
         for
-          t1 <- typecheck(LVariable("pi"), Environment("pi" -> Type.Real)).expecting(Type.Real)
+          _ <- typecheck(LVariable("pi"), Environment("pi" -> Type.Real)).expecting(Type.Real)
         yield
           Type.Sumpi
       else if e1 == LVariable("const") && e2 == LNumber(1) then
         for
           _ <- checkEnvSize(env, 1)
           t2 <- env.get("pi")
-          t1 <- typecheck(LVariable("const"), Environment("pi" -> t2, "const" -> Type.Int)).expecting(Type.Int)
+          _ <- typecheck(LVariable("const"), Environment("pi" -> t2, "const" -> Type.Int)).expecting(Type.Int)
         yield
           Type.Sumpi
       else

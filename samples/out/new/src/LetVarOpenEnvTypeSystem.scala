@@ -23,7 +23,7 @@ class LetVarOpenEnvTypeSystem extends TypeSystem[LExpression]:
         // need to have different cursors and they should be compared
         // maybe a `_ <- (...).expecting(t)`?
         t <- typecheck(e1, env)
-        t <- typecheck(e2, env)
+        t2 <- typecheck(e2, env)
       yield
         t
 

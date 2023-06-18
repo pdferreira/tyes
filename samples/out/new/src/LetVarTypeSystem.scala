@@ -28,7 +28,7 @@ class LetVarTypeSystem extends TypeSystem[LExpression]:
       for
         // need different cursors and comparison
         t <- typecheck(e1, env)
-        t <- typecheck(e2, env)
+        t2 <- typecheck(e2, env)
       yield
         t
 
@@ -36,10 +36,10 @@ class LetVarTypeSystem extends TypeSystem[LExpression]:
       for
         t1 <- checkTypeDeclared(_t1, exp)
         // need different cursors and comparison
-        t1 <- typecheck(e1, env)
-        t2 <- typecheck(e2, Environment(x -> t1))
+        t2 <- typecheck(e1, env)
+        t3 <- typecheck(e2, Environment(x -> t1))
       yield
-        t2
+        t3
 
     case _ => TypeError.noTypeFor(exp)
   }

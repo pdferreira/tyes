@@ -13,8 +13,7 @@ class EnvRequirementTypeSystem extends TypeSystem[LExpression]:
       if n == 1 then
         for
           _ <- checkEnvSize(env, 1)
-          // missing _ <- checkEnvContains(env, "pi", Type.Real)
-          // or replace by env == Environment("pi" -> Type.Real)
+          _ <- env.get("pi").expecting(Type.Real)
         yield
           Type.Real
       else if n == 3 then
@@ -37,12 +36,9 @@ class EnvRequirementTypeSystem extends TypeSystem[LExpression]:
         typecheck(e, Environment("pi" -> Type.Int))
       else if e2 == LNumber(3) then
         for
-          // They can't both define t, this should be caught
-          // as a generation error to start and of course the fix
-          // needs to give them different names and then add an assert
-          // that they need to have the same type
           t <- typecheck(e, env)
-          t <- typecheck(LNumber(1), Environment("pi" -> t))
+          t2 <- typecheck(LNumber(1), Environment("pi" -> t))
+          // Missing check that t == t2
         yield
           t
       else
