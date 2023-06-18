@@ -4,7 +4,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
   this: TTerm =>
 
   private object Variable:
-    def apply(name: String): TTerm = builder.applyVariable(name)
+    def apply(name: String): TTerm & TermVariable = builder.applyVariable(name)
     def unapply(term: TTerm): Option[String] = builder.unapplyVariable(term)
 
   private object Constant:

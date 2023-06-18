@@ -2,7 +2,7 @@ package tyes.model
 
 enum Type extends terms.TermOps[Type, String](TypeBuilder):
   case Named(name: String)
-  case Variable(name: String)
+  case Variable(name: String) extends Type, terms.TermVariable
   case Composite(name: String, args: Type*)
 
 private object TypeBuilder extends terms.TermBuilder[Type, String]:
@@ -14,7 +14,7 @@ private object TypeBuilder extends terms.TermBuilder[Type, String]:
     case _ => None
   }
 
-  override def applyVariable(name: String): Type = Type.Variable(name)
+  override def applyVariable(name: String): Type & terms.TermVariable = Type.Variable(name)
 
   override def unapplyVariable(term: Type): Option[String] = term match {
     case Type.Variable(name) => Some(name)
