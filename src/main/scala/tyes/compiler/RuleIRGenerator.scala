@@ -112,7 +112,7 @@ class RuleIRGenerator(
       .collect({ case (k, Term.Type(typ)) => k -> typ })
       .toMap
     
-    val destructureConds = genConclusionDestructureConds(termSubst)
+    val destructureConds = genConclusionDestructureConds(termSubst, codeEnv)
     val typeConds = genConclusionTypeConds(constructor.types.toSeq, typeSubst, codeEnv)
     destructureConds ++ typeConds
 
@@ -142,14 +142,30 @@ class RuleIRGenerator(
     yield
       c   
   
-  def genConclusionDestructureConds(termSubst: Map[String, Term]): Seq[IRInstr] =
+  def genConclusionDestructureConds(termSubst: Map[String, Term], codeEnv: TargetCodeEnv): Seq[IRInstr] =
     for
-      case (k, v: Term.Function) <- termSubst.toSeq
-      if !v.isGround
+      case (k, f: Term.Function) <- termSubst.toSeq
+      if !f.isGround
     yield
+      // Map all args into fresh variables
+      val argsAsTemplate = f.args.zipWithIndex.map({
+        case (v: Term.Variable, _) => v
+        case (_, argIdx) => Term.Variable(s"e${('a' + argIdx).toChar}"): Term.Variable
+      })
+
+      val argsAsCode = argsAsTemplate.map(v =>
+        val (_, idCode) = codeEnv.requestIdentifier(v)
+        idCode
+      )
+      val declTermArgs = argsAsCode.map(vCode => Term.Variable(vCode.name): Term.Variable)
+      
+      // Generate a composite term pattern with the fresh args and use it for
+      // the destructuring declaration.
+      val declTerm = Term.Function(f.name, declTermArgs*)
+      
       IRInstr.Check(
         exp = IRNode.Result(TCN.Var(k), canFail = false),
-        resPat = termIRGenerator.generatePattern(v)
+        resPat = termIRGenerator.generatePattern(declTerm)
       )
 
   private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRInstr] =
