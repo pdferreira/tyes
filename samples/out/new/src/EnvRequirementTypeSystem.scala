@@ -37,8 +37,7 @@ class EnvRequirementTypeSystem extends TypeSystem[LExpression]:
       else if e2 == LNumber(3) then
         for
           t <- typecheck(e, env)
-          t2 <- typecheck(LNumber(1), Environment("pi" -> t))
-          _ <- checkIf(t2 == t, TypeError.unexpectedType(t2, t))
+          _ <- typecheck(LNumber(1), Environment("pi" -> t)).expecting(t)
         yield
           t
       else

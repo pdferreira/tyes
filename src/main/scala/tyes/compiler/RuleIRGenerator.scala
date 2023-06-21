@@ -124,10 +124,8 @@ class RuleIRGenerator(
       checkDeclCode = RuntimeAPIGenerator.genCheckTypeDeclared(codeEnv(t), expVar)
       
       c <- typeSubst.get(name) match {
-        case Some(typ) =>      
-          // TODO: missing composite type equality checks to bound variables
-          val typeCheckDeclCode = typeIRGenerator.generateExpectationCheck(typ, codeEnv, checkDeclCode)
-          typeIRGenerator.generateDestructureDecl(typ, codeEnv, IRNode.Result(typeCheckDeclCode, canFail = true))
+        case Some(typ) =>
+          typeIRGenerator.generateDestructureDecl(typ, codeEnv, checkDeclCode)
 
         case None =>
           Seq(
@@ -171,10 +169,9 @@ class RuleIRGenerator(
   private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRInstr] =
     val HasType(pTerm, pType) = premise.assertion
 
-    val inductionTerm = typeIRGenerator.generateExpectationCheck(pType, codeEnv, TCN.Apply(
+    val inductionCall = TCN.Apply(
       TCN.Var("typecheck"),
       termIRGenerator.generate(pTerm, codeEnv),
       envIRGenerator.generate(premise.env, codeEnv)
-    ))
-    
-    typeIRGenerator.generateDestructureDecl(pType, codeEnv, IRNode.Result(inductionTerm, canFail = true))
+    )
+    typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)

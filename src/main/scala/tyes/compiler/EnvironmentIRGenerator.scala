@@ -68,10 +68,9 @@ class EnvironmentIRGenerator(
 
       // Generate the env.get, type expectation and target pattern code
       varGetCode = TCN.Apply(TCN.Field(envVar, "get"), varNameExpr)
-      checkedVarGetCode = typeIRGenerator.generateExpectationCheck(typ, codeEnv, varGetCode)
       
       // Yield all the conds necessary to decl, destructure and cross-check the type with other occurrences
-      c <- typeIRGenerator.generateDestructureDecl(typ, codeEnv, IRNode.Result(checkedVarGetCode, canFail = true))
+      c <- typeIRGenerator.generateDestructureDecl(typ, codeEnv, varGetCode)
     yield
       c
 

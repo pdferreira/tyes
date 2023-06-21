@@ -20,8 +20,7 @@ class PolymorphicSumTypeSystem extends TypeSystem[LExpression]:
     case LPlus(e1, e2) => 
       for
         t <- typecheck(e1, env)
-        t2 <- typecheck(e2, env)
-        _ <- checkIf(t2 == t, TypeError.unexpectedType(t2, t))
+        _ <- typecheck(e2, env).expecting(t)
       yield
         t
 
