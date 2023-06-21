@@ -30,7 +30,7 @@ class LambdaSimTypeSystem extends TypeSystem[LExpression]:
         _ft <- typecheck(e1, env).expecting[Type.$FunType]
         Type.$FunType(t, t2) = _ft
         t3 <- typecheck(e2, env)
-        _ <- checkIf(t3 == t, TypeError.unexpectedType(t, t3))
+        _ <- checkIf(t3 == t, TypeError.unexpectedType(t3, t))
       yield
         t2
 

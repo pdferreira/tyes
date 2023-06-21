@@ -38,7 +38,7 @@ class EnvRequirementTypeSystem extends TypeSystem[LExpression]:
         for
           t <- typecheck(e, env)
           t2 <- typecheck(LNumber(1), Environment("pi" -> t))
-          // Missing check that t == t2
+          _ <- checkIf(t2 == t, TypeError.unexpectedType(t2, t))
         yield
           t
       else

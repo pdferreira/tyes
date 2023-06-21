@@ -20,10 +20,9 @@ class LetVarOpenEnvTypeSystem extends TypeSystem[LExpression]:
     case LVariable(x) => env.get(x)
     case LPlus(e1, e2) => 
       for
-        // need to have different cursors and they should be compared
-        // maybe a `_ <- (...).expecting(t)`?
         t <- typecheck(e1, env)
         t2 <- typecheck(e2, env)
+        _ <- checkIf(t2 == t, TypeError.unexpectedType(t2, t))
       yield
         t
 

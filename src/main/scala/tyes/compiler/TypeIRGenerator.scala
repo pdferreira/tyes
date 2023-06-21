@@ -138,11 +138,22 @@ class TypeIRGenerator:
         Seq(IRInstr.Check(declExpNode, resPat = TCP.Any))
 
       case v: Type.Variable =>
-        val (_, realIdCode) = codeEnv.requestIdentifier(getPermanentTypeVar(v))
+        val permanentV = getPermanentTypeVar(v)
+        val (_, realIdCode) = codeEnv.requestIdentifier(permanentV)
         val declPat = TCP.Var(realIdCode.name)
-        val declConds = Seq.empty // TODO:
 
-        IRInstr.Check(declExpNode, resPat = declPat) +: declConds
+        val declCond = 
+          if previouslyBoundVars.contains(permanentV) then
+            val expectedTypeNode = generate(permanentV, codeEnv)
+            val declTypeNode = realIdCode
+            Seq(IRInstr.Cond(
+              TCN.Equals(declTypeNode, expectedTypeNode),
+              IRError.UnexpectedType(expected = expectedTypeNode, obtained = declTypeNode)
+            ))
+          else
+            Seq.empty
+
+        IRInstr.Check(declExpNode, resPat = declPat) +: declCond
       
       case Type.Composite(tName, args*) =>
         // Map all args into fresh variables

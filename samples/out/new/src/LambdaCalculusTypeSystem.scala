@@ -21,7 +21,7 @@ class LambdaCalculusTypeSystem extends TypeSystem[LExpression]:
         _ft <- typecheck(e1, env).expecting[Type.$FunType]
         Type.$FunType(t2, t) = _ft
         t3 <- typecheck(e2, env)
-        _ <- checkIf(t3 == t2, TypeError.unexpectedType(t2, t3))
+        _ <- checkIf(t3 == t2, TypeError.unexpectedType(t3, t2))
       yield
         t
 

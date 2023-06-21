@@ -26,17 +26,17 @@ class LetVarTypeSystem extends TypeSystem[LExpression]:
 
     case LPlus(e1, e2) => 
       for
-        // need different cursors and comparison
         t <- typecheck(e1, env)
         t2 <- typecheck(e2, env)
+        _ <- checkIf(t2 == t, TypeError.unexpectedType(t2, t))
       yield
         t
 
     case LLet(x, _t1, e1, e2) => 
       for
         t1 <- checkTypeDeclared(_t1, exp)
-        // need different cursors and comparison
         t2 <- typecheck(e1, env)
+        _ <- checkIf(t2 == t1, TypeError.unexpectedType(t2, t1))
         t3 <- typecheck(e2, Environment(x -> t1))
       yield
         t3
