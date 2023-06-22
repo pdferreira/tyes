@@ -55,7 +55,7 @@ object CommandLine:
       for dirPath <- Seq(scalaDstDirPath, binDstDirPath) do
         Files.createDirectories(dirPath)
 
-      val compiler = options.versionId.getOrElse("old") match {
+      val compiler = options.versionId.getOrElse("new") match {
         case "old" => old.TyesCodeGenerator
         case "new" => new TyesCompilerImpl
       }
@@ -84,7 +84,8 @@ object CommandLine:
     if ext == ".tye" then
       invokeInterpreter(srcContent, options.expression)
     else if ext == ".scala" then
-      invokeRunner(nameWithoutExt, srcContent, options.expression)
+      val version = options.versionId.getOrElse("new")
+      invokeRunner(nameWithoutExt, srcContent, options.expression, version)
     else
       Console.err.println(s"File type not recognized: $ext")   
 
@@ -144,7 +145,7 @@ object CommandLine:
         },
         expSrcOption)
 
-  private def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String]): Unit =
+  private def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String], versionId: String): Unit =
     val engineManager = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())
     val engine = engineManager.getEngineByName("scala")
     if engine == null then
@@ -154,9 +155,8 @@ object CommandLine:
 
       val tsClassName = objName
       val tsVarName = "ts"
-      val tsRtObj = engine.eval(s"\r\nval $tsVarName = $tsClassName; $tsVarName")
-      if (tsRtObj != null) {
-        invokeOldRunner(engine, tsRtObj, tsVarName, expSrcOption)
+      if (versionId == "old") {
+        invokeOldRunner(engine, tsClassName, tsVarName, expSrcOption)
         return;
       }
 
@@ -180,10 +180,11 @@ object CommandLine:
 
   private def invokeOldRunner(
     engine: javax.script.ScriptEngine,
-    tsRtObject: Object,
+    tsClassName: String,
     tsVarName: String,
     expSrcOption: Option[String]
   ): Unit =
+    val tsRtObject = engine.eval(s"\r\nval $tsVarName = $tsClassName; $tsVarName")
     val rtTypeSystem = tsRtObject.asInstanceOf[tyes.runtime.old.TypeSystem[LExpression]]
     val rtTypeEnumClass = engine.eval(s"classOf[$tsVarName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
     val rtTypeObjectClass = engine.eval(s"$tsVarName.Type.getClass").asInstanceOf[Class[_]]

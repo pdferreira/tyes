@@ -104,8 +104,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
             val inductionDecls = new mutable.StringBuilder()
             val condsPerRule = mutable.Map[RuleDecl, Iterable[String]]()
             val typeVarEnvPerRule = mutable.Map[RuleDecl, Map[String, String]]()
-            // TODO: Type variables are now properly scoped per rule, but now common premises don't get merged...
-            // This needs a big rewrite
+            
             for r <- rs do
               val Judgement(conclEnv, HasType(concl, conclTyp)) = r.conclusion
 
@@ -189,7 +188,6 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
     val nonDeclaredEnvTermVariables = env.termVariables.diff(declaredVariables)
     if nonDeclaredEnvTermVariables.nonEmpty then
       val varName = nonDeclaredEnvTermVariables.head
-      // TODO: validate if the variable is supposed to be bound here at all, otherwise it should be an explicit error
       typecheckExpr = s"${getFreshVarName(varName)}.flatMap($varName => $typecheckExpr)"
 
     // Specialize the result type if it is composite

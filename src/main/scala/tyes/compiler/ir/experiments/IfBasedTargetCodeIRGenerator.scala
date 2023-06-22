@@ -13,7 +13,6 @@ class IfBasedTargetCodeIRGenerator extends TargetCodeIRGenerator:
 
   def generate(irNode: IRNode): TCN = generate(irNode, failureIsPossible = false)
 
-  // TODO: find better name for failureIsPossible param and canFail field
   def generate(irNode: IRNode, failureIsPossible: Boolean): TCN = irNode match {
     case IRNode.Unexpected => TCN.Throw(TCTypeRef("Exception"), TCN.Text("unexpected"))
     case IRNode.Error(IRError.Generic(err)) => wrapAsLeft(err)

@@ -76,3 +76,24 @@ Switch(
 ```
 
 Where all the matches line can be ommitted when there's nothing to match (e.g. `rule Any infers e : one under Env`)
+
+### Working Examples
+
+- [x] Any
+- [x] EnvRequirement
+- [x] I
+- [x] InvalidIdentifier
+- [x] LambdaCalculus
+- [x] LambdaSim
+- [x] LambdaSimRec
+- [x] LetVar
+- [x] LetVarOpenEnv
+- [x] MetaVar
+- [x] OneOrTwo
+- [x] Overlap
+- [x] PlusOne
+- [x] PlusOneOrTwoConditional
+- [x] RegularCases
+- [x] SumAccVar
+- [x] SumDeclVar
+- [x] TermVar
