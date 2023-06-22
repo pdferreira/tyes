@@ -197,21 +197,13 @@ class TypeIRGenerator:
           val declTypeArgs = argsAsCode.map(vCode => Type.Variable(vCode.name): Type.Variable)
           
           // Generate a composite type pattern with the fresh args and use it for
-          // the induction call. Composite patterns can't be destructured directly 
-          // due to limitations of the target code, so we split it into two declarations
+          // the induction call.
           val declType = Type.Composite(tName, declTypeArgs*)
           val declPat = generatePattern(declType)
           
-          val (_, tmpDeclVarCode) = codeEnv.requestIdentifier(getTempTypeVar(typ))
-          val inductionDecls = Seq(
-            IRInstr.Check(
-              exp = IRNode.Result(checkedDeclExpCode, canFail = true),
-              resPat = TCP.Var(tmpDeclVarCode.name)
-            ),
-            IRInstr.Check(
-              exp = IRNode.Result(tmpDeclVarCode, canFail = false),
-              resPat = declPat
-            )
+          val inductionDecl = IRInstr.Check(
+            exp = IRNode.Result(checkedDeclExpCode, canFail = true),
+            resPat = declPat
           )
 
           // For all arguments that corresponded to an previously declared type var
@@ -228,5 +220,5 @@ class TypeIRGenerator:
                 IRError.UnexpectedType(expected = expectedTypeNode, obtained = declTypeNode)
               )
 
-          inductionDecls ++ argTypeReqs
+          inductionDecl +: argTypeReqs
     }

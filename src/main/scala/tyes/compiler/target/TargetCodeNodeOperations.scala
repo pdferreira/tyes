@@ -162,3 +162,13 @@ object TargetCodeNodeOperations extends CodeOperations:
             p -> replace(b, key, value)
       )
   })
+
+  def isComposite(tcp: TargetCodePattern): Boolean = tcp match {
+    case 
+      TCP.Any |
+      TCP.Var(_) |
+      TCP.Text(_) |
+      TCP.Integer(_)
+      => false
+    case _ => true
+  }

@@ -9,7 +9,7 @@ private val TCN = TargetCodeNode
 private val TCP = TargetCodePattern
 
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
-  
+
   private def indentIfMultiline(codeStr: String, indentLevel: Int): String =
     val lines = codeStr.linesWithSeparators.toSeq
     if lines.length <= 1 then
