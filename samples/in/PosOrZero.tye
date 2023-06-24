@@ -1,0 +1,21 @@
+typesystem PosOrZero
+
+  rule Zero infers 0 : zero
+
+  rule Pos infers 1 : pos
+
+  rule AddSame 
+    infers e1 + e2 : t
+    if e1 : t
+    and e2 : t
+
+  rule AddZeroPos
+    infers e1 + e2 : pos
+    if e1 : zero
+    and e2 : pos
+
+  rule AddPosZero
+    infers e1 + e2 : pos
+    if e1 : pos
+    and e2 : zero
+
