@@ -9,7 +9,8 @@ lazy val root = project
     scalaVersion := scala3Version,
 
     libraryDependencies ++= Seq(
-      "com.novocode" % "junit-interface" % "0.11" % "test",
+      "org.scalactic" %% "scalactic" % "3.2.16",
+      "org.scalatest" %% "scalatest" % "3.2.16" % Test,
       "org.scala-lang.modules" %% "scala-parser-combinators" % "2.1.0",
       "org.scala-lang" %% "scala3-compiler" % scalaVersion.value,
     ),

@@ -1,6 +1,7 @@
 package tyes.compiler
 
 import tyes.model.*
+import tyes.model.terms.TermVariable
 import tyes.compiler.target.TargetCodeNode
 
 object TargetCodeEnv:
@@ -25,11 +26,13 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   import TargetCodeEnv.*
   private val TCN = TargetCodeNode
 
-  private type TermVar = Term.Variable | Type.Variable
-
   private val idToCode = scala.collection.mutable.Map[Id, TargetCodeNode]()
   private val nameToIds = scala.collection.mutable.Map[String, Seq[Id]]()
   
+  def this(parent: TargetCodeEnv) = this(Some(parent))
+
+  def this() = this(None)
+
   private def nameclash(name: String): Id =
     val id0 = parent.map(_.nameclash(name)).getOrElse(name.toId)
     if idToCode.contains(id0) then
@@ -41,7 +44,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
     else
       id0
 
-  def requestIdentifier(termVar: TermVar): (Id, TargetCodeNode.Var) =
+  def requestIdentifier(termVar: TermVariable): (Id, TargetCodeNode.Var) =
     val id = nameclash(termVar.name)
     val idCode: TCN.Var = TCN.Var(id.toString)
     
@@ -56,17 +59,17 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   def apply(id: Id): TargetCodeNode =
     get(id).getOrElse(throw new NoSuchElementException(id.asString))
 
-  def apply(termVar: TermVar): TargetCodeNode =
+  def apply(termVar: TermVariable): TargetCodeNode =
     val ids = getIds(termVar).getOrElse(throw new NoSuchElementException(termVar.toString))
     apply(ids.head)
 
   private def get(id: Id): Option[TargetCodeNode] =
     idToCode.get(id).orElse(parent.flatMap(_.get(id)))
 
-  private def getIds(termVar: TermVar): Option[Seq[Id]] =
+  private def getIds(termVar: TermVariable): Option[Seq[Id]] =
     nameToIds.get(termVar.name).orElse(parent.flatMap(_.getIds(termVar)))
 
-  def contains(termVar: TermVar): Boolean = getIds(termVar).isDefined
+  def contains(termVar: TermVariable): Boolean = getIds(termVar).isDefined
 
   override def toString(): String =
     val parentStr = parent.map(" <- " + _.toString).getOrElse("")
