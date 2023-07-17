@@ -11,8 +11,11 @@ import utils.collections.*
 private val TCFC = TargetCodeForCursor
 private val TCN = TargetCodeNode
 private val TCP = TargetCodePattern
+private val TCTypeRef = TargetCodeTypeRef
 
-class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
+class TargetCodeIRGeneratorImpl(
+  private val expVar: TCN.Var
+) extends TargetCodeIRGenerator:
 
   def generate(irNode: IRNode): TargetCodeNode = generate(irNode, eitherIsExpected = true)
     
@@ -23,22 +26,18 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
     case IRNode.Error(err) =>
       assert(eitherIsExpected, "Returning Either must be expected in Error")
       RuntimeAPIGenerator.genError(err)
+
+    case IRNode.Type(irType) => generate(irType, eitherIsExpected)
     
-    case IRNode.Result(res, canFail) =>
-      assert(eitherIsExpected || !canFail, s"Returning Either must be expected in Result ($eitherIsExpected) or it can't fail (${!canFail})") 
-      if eitherIsExpected && !canFail 
-      then wrapAsRight(res) 
-      else res
-    
-    case IRNode.And(IRInstr.Check(exp, TCP.Var(resVar)) :: Nil, IRNode.Result(TCN.Var(resVar2), /*canFail*/false)) 
-      if resVar == resVar2 && canFail(exp) 
+    case IRNode.And(IRCond.TypeDecl(TCP.Var(resVar), typExp, None) :: Nil, IRNode.Type(IRType.FromCode(TCN.Var(resVar2), /*isOptional*/false))) 
+      if resVar == resVar2 && canFail(typExp)  
     =>
-      generate(exp, eitherIsExpected)
+      generate(typExp, eitherIsExpected)
     
-    case IRNode.And(cs :+ IRInstr.Check(exp, TCP.Var(resVar)), IRNode.Result(TCN.Var(resVar2), resCanFail))
-      if resVar == resVar2 && canFail(exp) == resCanFail 
+    case IRNode.And(cs :+ IRCond.TypeDecl(TCP.Var(resVar), typExp, None), IRNode.Type(IRType.FromCode(TCN.Var(resVar2), isOptional)))
+      if resVar == resVar2 && canFail(typExp) == isOptional
     =>
-      generate(IRNode.And(cs, exp), eitherIsExpected)
+      generate(IRNode.And(cs, typExp), eitherIsExpected)
     
     case IRNode.And(conds, next) =>
       assert(eitherIsExpected, "Returning Either must be expected in Ands")
@@ -73,15 +72,65 @@ class TargetCodeIRGeneratorImpl extends TargetCodeIRGenerator:
       )
   }
 
-  def generate(irInstr: IRInstr): TargetCodeForCursor = irInstr match {
-    case IRInstr.Cond(cond, err) => 
-      TCFC.Iterate(TCP.Any, RuntimeAPIGenerator.genCheck(cond, err))
+  private def generate(irType: IRType, eitherIsExpected: Boolean): TargetCodeNode = irType match {
+    case IRType.FromCode(typCode, /*isOptional*/true) =>
+      if eitherIsExpected
+      then RuntimeAPIGenerator.genCheckTypeDeclared(typCode, expVar)
+      else ???
 
-    case IRInstr.Check(exp, resPat) =>
-      if canFail(exp) then 
-        TCFC.Iterate(resPat, generate(exp, eitherIsExpected = true))
-      else
-        TCFC.Let(resPat, generate(exp, eitherIsExpected = false))
+    case IRType.FromCode(typCode, /*isOptional*/false) =>
+      if eitherIsExpected
+      then wrapAsRight(typCode)
+      else typCode
+
+    case IRType.Induction(expCode, envCode) =>
+      if eitherIsExpected
+      then RuntimeAPIGenerator.genTypecheck(expCode, envCode)
+      else ???
+
+    case IRType.EnvGet(envVar, keyCode) =>
+      if eitherIsExpected
+      then RuntimeAPIGenerator.genEnvironmentGet(TCN.Var(envVar), keyCode)
+      else ???
+  }
+
+  private def generate(irCond: IRCond): TargetCodeForCursor = irCond match {
+    case IRCond.EnvSizeIs(envVar, size) => 
+      TCFC.Iterate(TCP.Any, RuntimeAPIGenerator.genCheckEnvSize(TCN.Var(envVar), size))
+
+    case IRCond.TypeEquals(t1Code, t2Code) =>
+      TCFC.Iterate(
+        TCP.Any,
+        RuntimeAPIGenerator.genCheck(
+          TCN.Equals(t1Code, t2Code),
+          IRError.UnexpectedType(t1Code, t2Code)
+        )
+      )
+
+    case IRCond.TypeDecl(declPat, typExp, None) if !canFail(typExp) =>
+      TCFC.Let(declPat, generate(typExp, eitherIsExpected = false))
+      
+    case IRCond.TypeDecl(declPat, typExp, expectOpt) =>
+      val typExpCode = generate(typExp, eitherIsExpected = true)
+      TCFC.Iterate(
+        declPat, 
+        expectOpt match {
+          case None => typExpCode
+          case Some(irExpect) => genExpectationCheck(typExpCode, irExpect)
+        }
+      )
+
+  }
+
+  private def genExpectationCheck(
+    typeProviderCode: TargetCodeNode,
+    expectation: IRTypeExpect
+  ): TargetCodeNode = expectation match {
+    case IRTypeExpect.OfType(typeRef) =>
+      RuntimeAPIGenerator.genExpecting(typeProviderCode, typeRef)
+    
+    case IRTypeExpect.EqualsTo(typeCode) =>
+      RuntimeAPIGenerator.genExpecting(typeProviderCode, typeCode)
   }
 
   private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TCN.Apply(TCN.Var("Right"), value)

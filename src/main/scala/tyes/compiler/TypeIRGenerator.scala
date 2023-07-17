@@ -1,8 +1,10 @@
 package tyes.compiler
 
+import tyes.compiler.ir.IRCond
 import tyes.compiler.ir.IRError
-import tyes.compiler.ir.IRInstr
 import tyes.compiler.ir.IRNode
+import tyes.compiler.ir.IRType
+import tyes.compiler.ir.IRTypeExpect
 import tyes.compiler.target.TargetCodeADTConstructor
 import tyes.compiler.target.TargetCodeDecl
 import tyes.compiler.target.TargetCodeNode
@@ -111,34 +113,29 @@ class TypeIRGenerator:
   private def genExpectationCheck(
     typ: Type,
     codeEnv: TargetCodeEnv,
-    typeProviderCode: TCN,
     checkArgs: Boolean = false
-  ): TargetCodeNode = typ match {
-    case Type.Named(_) =>
-      val typeCode = generate(typ, codeEnv)
-      RuntimeAPIGenerator.genExpecting(typeProviderCode, typeCode)
-    
-    case Type.Composite(name, _*) =>
-      if checkArgs then
-        val typeCode = generate(typ, codeEnv)
-        RuntimeAPIGenerator.genExpecting(typeProviderCode, typeCode)
-      else
-        val typeRef = generateRef(name)
-        RuntimeAPIGenerator.genExpecting(typeProviderCode, typeRef)
-
+  ): Option[IRTypeExpect] = typ match {
     case v: Type.Variable =>
       if codeEnv.contains(v) then
         val typeCode = generate(v, codeEnv)
-        RuntimeAPIGenerator.genExpecting(typeProviderCode, typeCode)
+        Some(IRTypeExpect.EqualsTo(typeCode))
       else
-        typeProviderCode
+        None
+
+    case Type.Composite(name, _*) if !checkArgs =>
+      val typeRef = generateRef(name)
+      Some(IRTypeExpect.OfType(typeRef))
+
+    case _ =>
+      val typeCode = generate(typ, codeEnv)
+      Some(IRTypeExpect.EqualsTo(typeCode))
   }
 
   def generateDestructureDecl(
     typ: Type, 
     codeEnv: TargetCodeEnv,
-    declExpCode: TargetCodeNode
-  ): Seq[IRInstr] =
+    declTypeExp: IRNode
+  ): Seq[IRCond] =
     // Save previously bound type variables, before we decl new things in the env
     val previouslyBoundVars = typ
       .typeVariables
@@ -147,17 +144,11 @@ class TypeIRGenerator:
       
     typ match {
       case _: Type.Named => 
-        Seq(IRInstr.Check(
-          exp = IRNode.Result(
-            genExpectationCheck(typ, codeEnv, declExpCode),
-            canFail = true
-          ),
-          resPat = TCP.Any
-        ))
+        Seq(IRCond.TypeDecl(TCP.Any, declTypeExp, genExpectationCheck(typ, codeEnv)))
 
       case v: Type.Variable =>
         val permanentV = getPermanentTypeVar(v)
-        val checkedDeclExpCode = genExpectationCheck(permanentV, codeEnv, declExpCode)
+        val expectationCheck = genExpectationCheck(permanentV, codeEnv)
         val declPat =
           if previouslyBoundVars.contains(permanentV) then
             TCP.Any
@@ -165,24 +156,19 @@ class TypeIRGenerator:
             val (_, realIdCode) = codeEnv.requestIdentifier(permanentV)
             TCP.Var(realIdCode.name)
 
-        Seq(IRInstr.Check(
-          exp = IRNode.Result(checkedDeclExpCode, canFail = true),
-          resPat = declPat
-        ))
+        Seq(IRCond.TypeDecl(declPat, declTypeExp, expectationCheck))
       
       case Type.Composite(tName, args*) =>
         if args.forall(a => previouslyBoundVars.contains(a)) then
           // If all the type arguments correspond to already bound vars
           // we can assert a more precise expected type
-          Seq(IRInstr.Check(
-            exp = IRNode.Result(
-              genExpectationCheck(typ, codeEnv, declExpCode, checkArgs = true), 
-              canFail = true
-            ),
-            resPat = TCP.Any
+          Seq(IRCond.TypeDecl(
+            TCP.Any,
+            declTypeExp,
+            genExpectationCheck(typ, codeEnv, checkArgs = true)
           ))
         else
-          val checkedDeclExpCode = genExpectationCheck(typ, codeEnv, declExpCode)
+          val expectationCheck = genExpectationCheck(typ, codeEnv)
 
           // Map all args into fresh variables
           val argsAsTemplate = args.zipWithIndex.map({
@@ -201,10 +187,7 @@ class TypeIRGenerator:
           val declType = Type.Composite(tName, declTypeArgs*)
           val declPat = generatePattern(declType)
           
-          val inductionDecl = IRInstr.Check(
-            exp = IRNode.Result(checkedDeclExpCode, canFail = true),
-            resPat = declPat
-          )
+          val inductionDecl = IRCond.TypeDecl(declPat, declTypeExp, expectationCheck)
 
           // For all arguments that corresponded to an previously declared type var
           // we need to generate conds that assert the values are the same
@@ -215,10 +198,7 @@ class TypeIRGenerator:
             yield
               val expectedTypeNode = generate(origArg, codeEnv)
               val declTypeNode = declArgCode
-              IRInstr.Cond(
-                TCN.Equals(declTypeNode, expectedTypeNode),
-                IRError.UnexpectedType(expected = expectedTypeNode, obtained = declTypeNode)
-              )
+              IRCond.TypeEquals(declTypeNode, expectedTypeNode)
 
           inductionDecl +: argTypeReqs
     }

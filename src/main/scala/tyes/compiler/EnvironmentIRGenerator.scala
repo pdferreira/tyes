@@ -1,8 +1,9 @@
 package tyes.compiler
 
+import tyes.compiler.ir.IRCond
 import tyes.compiler.ir.IRError
-import tyes.compiler.ir.IRInstr
 import tyes.compiler.ir.IRNode
+import tyes.compiler.ir.IRType
 import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodeTypeRef
 import tyes.model.*
@@ -57,7 +58,7 @@ class EnvironmentIRGenerator(
       envVar
   }
 
-  def generateConditions(env: Environment, codeEnv: TargetCodeEnv): Iterable[IRInstr] =
+  def generateConditions(env: Environment, codeEnv: TargetCodeEnv): Iterable[IRCond] =
     genSizeConds(env) ++ genContentConds(env, codeEnv)
 
   private def genContentConds(env: Environment, codeEnv: TargetCodeEnv) =
@@ -67,7 +68,7 @@ class EnvironmentIRGenerator(
       (varNameExpr, typ) <- bs.map(generateBinding)
 
       // Generate the env.get, type expectation and target pattern code
-      varGetCode = TCN.Apply(TCN.Field(envVar, "get"), varNameExpr)
+      varGetCode = IRNode.Type(IRType.EnvGet(envVar.name, varNameExpr))
       
       // Yield all the conds necessary to decl, destructure and cross-check the type with other occurrences
       c <- typeIRGenerator.generateDestructureDecl(typ, codeEnv, varGetCode)
@@ -83,10 +84,7 @@ class EnvironmentIRGenerator(
       else Some(env.parts.collect({ case EnvironmentPart.Bindings(bs) => bs.length }).sum)
 
     for size <- sizeOpt yield 
-      IRInstr.Check(
-        exp = IRNode.Result(RuntimeAPIGenerator.genCheckEnvSize(envVar, size), canFail = true),
-        resPat = TCP.Any
-      )
+      IRCond.EnvSizeIs(envVar.name, size)
 
   private def generateBinding(binding: Binding): (TargetCodeNode, Type) = binding match {
     case Binding.BindName(name, typ) => (TCN.Text(name), typ)

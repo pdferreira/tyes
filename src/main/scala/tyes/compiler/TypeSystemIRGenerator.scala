@@ -21,11 +21,11 @@ private val TCTypeRef = TargetCodeTypeRef
 
 class TypeSystemIRGenerator(
   private val commonEnvName: String,
-  private val targetCodeIRGenerator: TargetCodeIRGenerator
+  private val expVar: TCN.Var,
+  private val targetCodeIRGenerator: IRNode => TargetCodeNode
 ):
 
   private val expClassTypeRef = TCTypeRef("LExpression")
-  private val expVar: TCN.Var = TCN.Var("exp")
 
   private val typeIRGenerator = new TypeIRGenerator()
   private val termIRGenerator = new TermIRGenerator(typeIRGenerator)
@@ -100,7 +100,7 @@ class TypeSystemIRGenerator(
       // to reflect the fact that they overlap
       .foldLeft1(IRNode.Or.apply)
     
-    val rImplTargetCode = targetCodeIRGenerator.generate(rImplIntermediateCode)
+    val rImplTargetCode = targetCodeIRGenerator(rImplIntermediateCode)
     rTemplateCode -> rImplTargetCode
 
   private def getConclusionTerm(rule: RuleDecl): Term = rule.conclusion.assertion match {

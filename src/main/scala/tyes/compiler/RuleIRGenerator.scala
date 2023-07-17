@@ -1,8 +1,9 @@
 package tyes.compiler
 
-import tyes.compiler.ir.IRInstr
-import tyes.compiler.ir.IRNode
+import tyes.compiler.ir.IRCond
 import tyes.compiler.ir.IRError
+import tyes.compiler.ir.IRNode
+import tyes.compiler.ir.IRType
 import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodePattern
 import tyes.model.*
@@ -65,7 +66,7 @@ class RuleIRGenerator(
 
     val conds = conclusionConds ++ premiseConds
 
-    var result = IRNode.Result(typeIRGenerator.generate(cType, codeEnv), canFail = false)
+    var result = IRNode.Type(IRType.FromCode(typeIRGenerator.generate(cType, codeEnv)))
     
     if !conds.isEmpty then
       result = IRNode.And(
@@ -98,14 +99,14 @@ class RuleIRGenerator(
         val Term.Function(name, _*) = v
         TCN.TypeCheck(TCN.Var(k), TCTypeRef(name))
 
-  private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRInstr] =
+  private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRCond] =
     val HasType(cTerm, _) = concl.assertion
     
     val envConds = envIRGenerator.generateConditions(concl.env, codeEnv)
     val termConds = genConclusionTermConds(cTerm, codeEnv)
     termConds ++ envConds
 
-  private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv): Seq[IRInstr] =
+  private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv): Seq[IRCond] =
     val constructor = extractTemplate(cTerm)
     val termSubst = constructor.matches(cTerm).get
     val typeSubst = termSubst
@@ -116,31 +117,31 @@ class RuleIRGenerator(
     val typeConds = genConclusionTypeConds(constructor.types.toSeq, typeSubst, codeEnv)
     destructureConds ++ typeConds
 
-  def genConclusionTypeConds(types: Seq[Type], typeSubst: Map[String, Type], codeEnv: TargetCodeEnv): Seq[IRInstr] =
+  def genConclusionTypeConds(types: Seq[Type], typeSubst: Map[String, Type], codeEnv: TargetCodeEnv): Seq[IRCond] =
     for
       case t @ Type.Variable(name) <- types 
       if t != Constants.Types.any
     
-      checkDeclCode = RuntimeAPIGenerator.genCheckTypeDeclared(codeEnv(t), expVar)
-      
+      typExp = IRNode.Type(IRType.FromCode(codeEnv(t), isOptional = true))
+
       c <- typeSubst.get(name) match {
         case Some(typ) =>
-          typeIRGenerator.generateDestructureDecl(typ, codeEnv, checkDeclCode)
+          typeIRGenerator.generateDestructureDecl(typ, codeEnv, typExp)
 
         case None =>
           Seq(
-            IRInstr.Check(
-              exp = IRNode.Result(checkDeclCode, canFail = true),
-              resPat = 
+            IRCond.TypeDecl(
+              declPat = 
                 val (_, permanentIdCode) = codeEnv.requestIdentifier(typeIRGenerator.getPermanentTypeVar(t))
-                TCP.Var(permanentIdCode.name)
+                TCP.Var(permanentIdCode.name),
+              typExp
             )
           )
       }   
     yield
       c   
   
-  def genConclusionDestructureConds(termSubst: Map[String, Term], codeEnv: TargetCodeEnv): Seq[IRInstr] =
+  def genConclusionDestructureConds(termSubst: Map[String, Term], codeEnv: TargetCodeEnv): Seq[IRCond] =
     for
       case (k, f: Term.Function) <- termSubst.toSeq
       if !f.isGround
@@ -161,17 +162,16 @@ class RuleIRGenerator(
       // the destructuring declaration.
       val declTerm = Term.Function(f.name, declTermArgs*)
       
-      IRInstr.Check(
-        exp = IRNode.Result(TCN.Var(k), canFail = false),
-        resPat = termIRGenerator.generatePattern(declTerm)
+      IRCond.TypeDecl(
+        declPat = termIRGenerator.generatePattern(declTerm),
+        typExp = IRNode.Type(IRType.FromCode(TCN.Var(k)))
       )
 
-  private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRInstr] =
+  private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRCond] =
     val HasType(pTerm, pType) = premise.assertion
 
-    val inductionCall = TCN.Apply(
-      TCN.Var("typecheck"),
+    val inductionCall = IRNode.Type(IRType.Induction(
       termIRGenerator.generate(pTerm, codeEnv),
       envIRGenerator.generate(premise.env, codeEnv)
-    )
+    ))
     typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)

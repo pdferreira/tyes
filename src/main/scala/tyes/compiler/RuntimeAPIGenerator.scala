@@ -37,3 +37,9 @@ object RuntimeAPIGenerator:
 
   def genExpecting(targetCode: TCN, expectedTypeRef: TCTypeRef): TCN =
     TCN.TypeApply(TCN.Field(targetCode, "expecting"), expectedTypeRef)
+
+  def genTypecheck(expCode: TCN, envCode: TCN): TCN =
+    TCN.Apply(TCN.Var("typecheck"), expCode, envCode)
+
+  def genEnvironmentGet(envVarCode: TCN, keyCode: TCN): TCN =
+    TCN.Apply(TCN.Field(envVarCode, "get"), keyCode)
