@@ -101,10 +101,7 @@ class TargetCodeIRGeneratorImpl(
     case IRCond.TypeEquals(t1Code, t2Code) =>
       TCFC.Iterate(
         TCP.Any,
-        RuntimeAPIGenerator.genCheck(
-          TCN.Equals(t1Code, t2Code),
-          IRError.UnexpectedType(t1Code, t2Code)
-        )
+        RuntimeAPIGenerator.genExpecting(t1Code, t2Code)
       )
 
     case IRCond.TypeDecl(declPat, typExp, None) if !canFail(typExp) =>
