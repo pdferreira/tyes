@@ -42,7 +42,7 @@ class TargetCodeIRGeneratorImpl(
     case IRNode.And(conds, next) =>
       assert(eitherIsExpected, "Returning Either must be expected in Ands")
       TCN.For(
-        cursors = inDataFlowOrder(conds.map(generate)), 
+        cursors = inDataFlowOrder(conds.map(generateCursor)), 
         body = generate(next, eitherIsExpected = false)
       )
     
@@ -52,7 +52,7 @@ class TargetCodeIRGeneratorImpl(
 
       branches.foldRight(otherwiseNode) { case ((cond, next), elseNode) =>
         TCN.If(
-          cond,
+          generateBool(cond),
           generate(next, eitherIsExpected || failureIsPossible),
           elseNode
         )
@@ -94,7 +94,7 @@ class TargetCodeIRGeneratorImpl(
       else ???
   }
 
-  private def generate(irCond: IRCond): TargetCodeForCursor = irCond match {
+  private def generateCursor(irCond: IRCond): TargetCodeForCursor = irCond match {
     case IRCond.EnvSizeIs(envVar, size) => 
       TCFC.Iterate(TCP.Any, RuntimeAPIGenerator.genCheckEnvSize(TCN.Var(envVar), size))
 
@@ -128,6 +128,26 @@ class TargetCodeIRGeneratorImpl(
     
     case IRTypeExpect.EqualsTo(typeCode) =>
       RuntimeAPIGenerator.genExpecting(typeProviderCode, typeCode)
+  }
+
+  private def generateBool(irCond: IRCond): TargetCodeNode = irCond match {
+    case IRCond.EnvSizeIs(envVar, size) =>  
+      RuntimeAPIGenerator.genCheckEnvSize(TCN.Var(envVar), size)
+
+    case IRCond.TypeEquals(t1Code, t2Code) =>
+      TCN.Equals(t1Code, t2Code)
+
+    case IRCond.TermEquals(t1Code, t2Code) =>
+      TCN.Equals(t1Code, t2Code)
+
+    case IRCond.And(left, right) =>
+      TCN.And(generateBool(left), generateBool(right))
+
+    case IRCond.OfType(termCode, typRef) =>
+      TCN.TypeCheck(termCode, typRef)
+
+    case IRCond.TypeDecl(_, _, _) => ???
+
   }
 
   private def wrapAsRight(value: TargetCodeNode): TargetCodeNode = TCN.Apply(TCN.Var("Right"), value)

@@ -43,5 +43,8 @@ object IRNodeVisitor:
   def applyToChildren(irCond: IRCond, f: IRNode => IRNode): IRCond = irCond match {
     case IRCond.EnvSizeIs(_, _) => irCond
     case IRCond.TypeEquals(_, _) => irCond
+    case IRCond.TermEquals(_, _) => irCond
+    case IRCond.OfType(_, _) => irCond
+    case IRCond.And(left, right) => IRCond.And(applyToChildren(left, f), applyToChildren(right, f))
     case IRCond.TypeDecl(declPat, typExp, expect) => IRCond.TypeDecl(declPat, f(typExp), expect)
   }

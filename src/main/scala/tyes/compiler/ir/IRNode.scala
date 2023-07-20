@@ -9,18 +9,21 @@ enum IRNode:
   case Unexpected
   case Error(err: IRError)
   case Type(typ: IRType)
-  case Switch(branches: Seq[(TargetCodeNode, IRNode)], otherwise: IRNode)
+  case Switch(branches: Seq[(IRCond, IRNode)], otherwise: IRNode)
   case And(conds: Seq[IRCond], next: IRNode)
   case Or(main: IRNode, alternative: IRNode)
 
 enum IRCond:
-  case TypeEquals(t1Code: TargetCodeNode, t2Code: TargetCodeNode)
   case TypeDecl(
     declPat: TargetCodePattern,
     typExp: IRNode,
     expect: Option[IRTypeExpect] = None
-  )
+    )
+  case TypeEquals(t1Code: TargetCodeNode, t2Code: TargetCodeNode)
+  case TermEquals(t1Code: TargetCodeNode, t2Code: TargetCodeNode)
+  case OfType(termCode: TargetCodeNode, typRef: TargetCodeTypeRef)
   case EnvSizeIs(envVar: String, size: Int)
+  case And(left: IRCond, right: IRCond)
 
 enum IRType:
   case FromCode(typCode: TargetCodeNode, isOptional: Boolean = false)

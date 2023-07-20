@@ -17,6 +17,9 @@ def canFail(irNode: IRNode): Boolean = irNode match {
 def canFail(irCond: IRCond): Boolean = irCond match {
   case IRCond.EnvSizeIs(_, _) => true
   case IRCond.TypeEquals(_, _) => true
+  case IRCond.TermEquals(_, _) => true
+  case IRCond.OfType(_, _) => true
+  case IRCond.And(left, right) => canFail(left) || canFail(right)
   case IRCond.TypeDecl(_, _, Some(_)) => true
   case IRCond.TypeDecl(_, typExp, None) => canFail(typExp)
 }

@@ -51,7 +51,7 @@ class RuleIRGenerator(
     case _ => term
   }
 
-  case class GenerateOutput(node: IRNode, condition: Option[TargetCodeNode])
+  case class GenerateOutput(node: IRNode, condition: Option[IRCond])
 
   def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term): GenerateOutput =
     val HasType(cTerm, cType) = rule.conclusion.assertion
@@ -80,10 +80,10 @@ class RuleIRGenerator(
       node = result,
       condition = constructorReqs
         .nonEmptyOption
-        .map(_.foldLeft1(TCN.And.apply))
+        .map(_.foldLeft1(IRCond.And.apply))
     )
 
-  private def genConstructorReqs(term: Term): Iterable[TargetCodeNode] =
+  private def genConstructorReqs(term: Term): Iterable[IRCond] =
     val constructor = extractTemplate(term)
     val constructorReqs = constructor.matches(term)
       .get
@@ -94,10 +94,10 @@ class RuleIRGenerator(
     for (k, v) <- constructorReqs
     yield
       if v.isGround then 
-        TCN.Equals(TCN.Var(k), termIRGenerator.generate(v))
+        IRCond.TermEquals(TCN.Var(k), termIRGenerator.generate(v))
       else
         val Term.Function(name, _*) = v
-        TCN.TypeCheck(TCN.Var(k), TCTypeRef(name))
+        IRCond.OfType(TCN.Var(k), TCTypeRef(name))
 
   private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRCond] =
     val HasType(cTerm, _) = concl.assertion
