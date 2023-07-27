@@ -10,7 +10,7 @@ private val TCP = TargetCodePattern
 
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
 
-  private def indentIfMultiline(codeStr: String, indentLevel: Int): String =
+  private def indentIfMultiline(codeStr: String, indentLevel: Int, wrappers: (String, String) = ("\r\n", "\r\n")): String =
     val lines = codeStr.linesWithSeparators.toSeq
     if lines.length <= 1 then
       codeStr
@@ -24,8 +24,9 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
 
       lines(0) + tailLines
     else
+      val (wrapStart, wrapEnd) = wrappers
       val indent = "  ".repeat(indentLevel)
-      lines.map(_.prependedAll(indent)).mkString("\r\n", "", "\r\n")
+      lines.map(_.prependedAll(indent)).mkString(wrapStart, "", wrapEnd)
 
   private def parenthesizeIfSpaced(codeStr: String): String =
     if codeStr.contains(' ') then
@@ -164,7 +165,10 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         if objStr.linesIterator.length <= 1 then
           s"$objStr.$field"
         else
-          s"${startIndent}(${indentIfMultiline(objStr, 1)}).$field"
+          val wrapperIndent = if skipStartIndent then indent else ""
+          val wrappers = (s"(\r\n$wrapperIndent", s"\r\n$wrapperIndent)")
+          val multiLineObjStr = indentIfMultiline(objStr, 1, wrappers)
+          s"${startIndent}$multiLineObjStr.$field"
       case TCN.Match(matchedExp, branches) =>
         val matchedStr = generate(matchedExp, indentLevel, skipStartIndent)
         val matchesStr = 
