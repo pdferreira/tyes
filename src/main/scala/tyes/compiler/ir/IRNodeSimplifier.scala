@@ -1,10 +1,12 @@
 package tyes.compiler.ir
 
+import IRNodeScopeOperations.*
 import IRNodeVisitor.*
+import tyes.compiler.RuntimeAPIGenerator
+import tyes.compiler.ir.rewrite.*
 import tyes.compiler.target.TargetCodePattern
 import tyes.compiler.target.TargetCodeNode
 import utils.collections.*
-import tyes.compiler.RuntimeAPIGenerator
 
 class IRNodeSimplifier:
 
@@ -14,67 +16,14 @@ class IRNodeSimplifier:
 
   def simplify(irNode: IRNode): IRNode = fixpoint(irNode, {
     // Flatten And(Decl(And), ...) 
-    case childNode @ IRNode.And(
-      IRCond.TypeDecl(
-        p1,
-        IRNode.And(c2 +: (cs2 @ _ +: _), n2),
-        ex1
-      ) +: cs1,
-      n1
-    ) => 
-      debug("Flattening in", childNode)
-      // TODO: if boundNames(c2) are in freeNames(cs1 && n1)
-      // it needs to be renamed
-      IRNode.And(
-        c2 +: IRCond.TypeDecl(p1, IRNode.And(cs2, n2), ex1) +: cs1,
-        n1
-      )
+    case origNode @ FlattenAndRewrite(simplifiedNode) => 
+      debug("Flattening in", origNode)
+      simplifiedNode
 
     // Extract Or(And, And) to And(..., Or, ...)
-    case childNode @ IRNode.Or(
-      IRNode.And(
-        IRCond.TypeDecl(p1, e1, ex1) +: cs1,
-        n1
-      ),
-      IRNode.And(
-        IRCond.TypeDecl(p2, e2, ex2) +: cs2,
-        n2
-      )
-    ) if 
-      e1 == e2 
-      && pickMostSpecific(p1, p2).isDefined
-    => 
-      debug("Extracting Or to And in", childNode)
-      val p = pickMostSpecific(p1, p2).get match {
-        case TCP.Any => TCP.Var("someT")
-        case p => p
-      }
-      val ex = if ex1 == ex2 then ex1 else None
-      val declVar = extractVarFromPattern(p)
-      IRNode.And(
-        IRCond.TypeDecl(p, e1, ex) ::
-          IRCond.TypeDecl(
-            TCP.Var("resT"),
-            IRNode.Or(
-              IRNode.And(
-                if ex1.isEmpty || ex1 == ex then 
-                  cs1
-                else
-                  expectToCond(declVar, ex1.get) +: cs1,
-                n1
-              ),
-              IRNode.And(
-                if ex2.isEmpty || ex2 == ex then 
-                  cs2
-                else
-                  expectToCond(declVar, ex2.get) +: cs2,
-                n2
-              )
-            ),
-            None
-          ) :: Nil,
-        IRNode.Type(IRType.FromCode(TCN.Var("resT"), isOptional = false))
-      )
+    case origNode @ OrTypeDeclsRewrite(simplifiedNode) => 
+      debug("Extracting Or to And in", origNode)
+      simplifiedNode
 
     // Give precendence to Induction Decls over the remaining conds
     case childNode @ IRNode.And(
@@ -119,28 +68,6 @@ class IRNodeSimplifier:
         )
 
   })
-
-  private def pickMostSpecific(pat1: TCP, pat2: TCP): Option[TCP] = (pat1, pat2) match {
-    case _ if pat1 == pat2 => Some(pat1)
-    case (TCP.Any, _) => Some(pat2)
-    case (_, TCP.Any) => Some(pat1)
-    case _ => None
-  }
-
-  private def pickMostSpecific[T](opt1: Option[T], opt2: Option[T]): Option[Option[T]] = (opt1, opt2) match {
-    case (Some(v1), Some(v2)) if v1 != v2 => None
-    case _ => Some(opt1.orElse(opt2))
-  }
-
-  private def expectToCond(typeCode: TargetCodeNode, typeExpect: IRTypeExpect): IRCond = typeExpect match {
-    case IRTypeExpect.EqualsTo(expectedTypeCode) => IRCond.TypeEquals(typeCode, expectedTypeCode)
-    case IRTypeExpect.OfType(typRef) => IRCond.OfType(typeCode, typRef)
-  }
-
-  private def extractVarFromPattern(pat: TCP): TargetCodeNode = pat match {
-    case TCP.Var(name) => TCN.Var(name)
-    case _ => ???
-  }
 
   private def condToError(cond: IRCond): IRError = cond match {
     case IRCond.EnvSizeIs(envVar, size) => IRError.UnexpectedEnvSize(TCN.Var(envVar), size)
