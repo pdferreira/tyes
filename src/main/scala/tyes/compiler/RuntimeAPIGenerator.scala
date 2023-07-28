@@ -17,6 +17,9 @@ object RuntimeAPIGenerator:
     case IRError.Generic(messageCode) => TCN.Apply(typeErrorObj, messageCode)
     case IRError.NoType(expCode) => genError("noTypeFor", expCode)
     case IRError.UnexpectedType(obtained, expected) => genError("unexpectedType", obtained, expected)
+    case IRError.UnexpectedEnvSize(envCode, expectedSize) => genError("unexpectedEnvSize", envCode, TCN.Integer(expectedSize))
+    case IRError.OneOf(errors*) => genError("oneOf", errors.map(genError)*)
+    case IRError.AllOf(errors*) => genError("allOf", errors.map(genError)*)
   }
 
   private def genError(method: String, args: TCN*) =
@@ -27,6 +30,9 @@ object RuntimeAPIGenerator:
 
   def genCheckEnvSize(envVarCode: TCN, expectedSize: Int): TCN =
     TCN.Apply(TCN.Var("checkEnvSize"), envVarCode, TCN.Integer(expectedSize))
+
+  def genGetEnvSize(envVarCode: TCN): TCN =
+    TCN.Field(envVarCode, "size")
 
   def genCheckTypeDeclared(typeOptCode: TCN, parentExpCode: TCN): TCN =
     TCN.Apply(TCN.Var("checkTypeDeclared"), typeOptCode, parentExpCode)

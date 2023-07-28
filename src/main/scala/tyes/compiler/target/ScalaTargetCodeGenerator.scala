@@ -198,7 +198,8 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TCFC.Iterate(pat, collection) =>
         val patStr = generate(pat)
         val colStr = generate(collection, indentLevel + 1, skipStartIndent = true)
-        s"${indent}$patStr <- $colStr"
+        val colIndent = if colStr.linesWithSeparators.length <= 1 then "" else s"\r\n  $indent"
+        s"${indent}$patStr <- ${colIndent}${colStr}"
       case TCFC.Let(pat, exp) =>
         val patStr = generate(pat)
         val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) 

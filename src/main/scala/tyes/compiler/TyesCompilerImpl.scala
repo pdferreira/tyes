@@ -18,8 +18,8 @@ class TyesCompilerImpl extends TyesCompiler:
     val expVar: TCN.Var = TCN.Var("exp")
     val commonEnvName = TyesEnvDesugarer.inferEnvVarName(tsDecl).getOrElse("env")
 
-    val tcIRGenerator = /*new IRNodeSimplifier().simplify
-      .andThen(*/new TargetCodeIRGeneratorImpl(expVar).generate//)
+    val tcIRGenerator = new IRNodeSimplifier().simplify
+      .andThen(new TargetCodeIRGeneratorImpl(expVar).generate)
     
     val tsDeclToScalaCode = 
       new TyesEnvDesugarer(commonEnvName).desugar

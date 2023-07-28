@@ -23,3 +23,13 @@ object TypeError:
 
   def unexpectedEnvSize[T <: Type](env: Environment[T], expectedSize: Int) =
     generic(s"expected environment with $expectedSize declarations, but found: $env")
+
+  def allOf(errors: TypeError*): TypeError =
+    Left(errors
+      .flatMap(_.left.toOption)
+      .mkString("All of:\n\t", "\n\t", ""))
+
+  def oneOf(errors: TypeError*): TypeError =
+    Left(errors
+      .flatMap(_.left.toOption)
+      .mkString("One of:\n\t", "\n\t", ""))

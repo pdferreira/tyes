@@ -27,7 +27,10 @@ object IRNodeVisitor:
 
       f(IRNode.And(cs, next)) match {
         case IRNode.And(newCs, newNext) => IRNode.And(newC +: newCs, newNext)
-        case _ => ???
+        case _ => 
+          // Nested And can't turn magically into something else, so we ignore those changes
+          // TODO: review if there's a cleaner way to have this
+          IRNode.And(newC +: cs, next)
       }
     
     case IRNode.Or(main, alt) =>

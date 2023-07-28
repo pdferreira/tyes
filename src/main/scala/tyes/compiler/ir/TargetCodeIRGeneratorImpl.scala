@@ -132,7 +132,10 @@ class TargetCodeIRGeneratorImpl(
 
   private def generateBool(irCond: IRCond): TargetCodeNode = irCond match {
     case IRCond.EnvSizeIs(envVar, size) =>  
-      RuntimeAPIGenerator.genCheckEnvSize(TCN.Var(envVar), size)
+      TCN.Equals(
+        RuntimeAPIGenerator.genGetEnvSize(TCN.Var(envVar)),
+        TCN.Integer(size)
+      )
 
     case IRCond.TypeEquals(t1Code, t2Code) =>
       TCN.Equals(t1Code, t2Code)

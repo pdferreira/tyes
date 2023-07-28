@@ -18,27 +18,30 @@ class PosOrZeroV2TypeSystem extends TypeSystem[LExpression]:
         TypeError.noTypeFor(exp)
 
     case LPlus(e1, e2) => 
-      (
-        (
-          for
-            _ <- typecheck(e1, env).expecting(Type.Zero)
-            _ <- typecheck(e2, env).expecting(Type.Zero)
-          yield
-            Type.Zero
-        ).orElse(
-          for
-            t <- typecheck(e1, env)
-            _ <- typecheck(e2, env).expecting(Type.Pos)
-          yield
-            Type.Pos
-        )
-      ).orElse(
-        for
-          _ <- typecheck(e1, env).expecting(Type.Pos)
-          t <- typecheck(e2, env)
-        yield
-          Type.Pos
+      for
+        t <- typecheck(e1, env)
+        resT <- 
+          (
+            for
+              someT <- typecheck(e2, env)
+              resT <- 
+                if someT == Type.Zero && t == Type.Zero then
+                  Right(Type.Zero)
+                else if someT == Type.Pos then
+                  Right(Type.Pos)
+                else
+                  TypeError.oneOf(TypeError.allOf(TypeError.unexpectedType(someT, Type.Zero), TypeError.unexpectedType(t, Type.Zero)), TypeError.unexpectedType(someT, Type.Pos))
+            yield
+              resT
+          ).orElse(
+            for
+              t <- typecheck(e2, env)
+              _ <- t.expecting(Type.Pos)
+            yield
+              Type.Pos
       )
+      yield
+        resT
 
     case _ => TypeError.noTypeFor(exp)
   }

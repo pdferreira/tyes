@@ -18,7 +18,7 @@ enum IRCond:
     declPat: TargetCodePattern,
     typExp: IRNode,
     expect: Option[IRTypeExpect] = None
-    )
+  )
   case TypeEquals(t1Code: TargetCodeNode, t2Code: TargetCodeNode)
   case TermEquals(t1Code: TargetCodeNode, t2Code: TargetCodeNode)
   case OfType(termCode: TargetCodeNode, typRef: TargetCodeTypeRef)
@@ -38,3 +38,6 @@ enum IRError:
   case Generic(message: TargetCodeNode)
   case NoType(exp: TargetCodeNode)
   case UnexpectedType(obtained: TargetCodeNode, expected: TargetCodeNode)
+  case UnexpectedEnvSize(env: TargetCodeNode, expectedSize: Int)
+  case OneOf(errors: IRError*)
+  case AllOf(errors: IRError*)
