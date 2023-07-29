@@ -16,11 +16,6 @@ object TargetCodeEnv:
 
     protected inline def asString: String = id
 
-  protected def splitDigitSuffix(id: Id): (String, Option[Int]) = 
-    val suffix = id.reverse.takeWhile(_.isDigit).reverse
-    val prefix = id.dropRight(suffix.length)
-    (prefix, if suffix.isEmpty then None else Some(suffix.toInt))
-
 
 class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   import TargetCodeEnv.*
@@ -33,16 +28,13 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
 
   def this() = this(None)
 
+  private def allIds: Set[Id] = 
+    val localIds: Set[Id] = idToCode.keys.toSet
+    val parentIds: Set[Id] = parent.map(_.allIds).getOrElse(Set[Id]())
+    localIds ++ parentIds
+
   private def nameclash(name: String): Id =
-    val id0 = parent.map(_.nameclash(name)).getOrElse(name.toId)
-    if idToCode.contains(id0) then
-      val (prefix, digitSuffix) = splitDigitSuffix(id0)
-      digitSuffix match {
-        case None => nameclash(prefix + "2")
-        case Some(n) => nameclash(prefix + (n + 1))
-      }
-    else
-      id0
+    NameOperations.nameclash(name, allIds.map(_.asString)).toId
 
   def requestIdentifier(termVar: TermVariable): (Id, TargetCodeNode.Var) =
     val id = nameclash(termVar.name)

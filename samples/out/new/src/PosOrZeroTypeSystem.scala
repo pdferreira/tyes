@@ -20,20 +20,20 @@ class PosOrZeroTypeSystem extends TypeSystem[LExpression]:
     case LPlus(e1, e2) => 
       for
         t <- typecheck(e1, env)
-        someT <- typecheck(e2, env)
+        t2 <- typecheck(e2, env)
         resT <- 
           (
-            if someT == t then
+            if t2 == t then
               Right(t)
-            else if someT == Type.Pos && t == Type.Zero then
+            else if t2 == Type.Pos && t == Type.Zero then
               Right(Type.Pos)
             else
-              TypeError.oneOf(TypeError.unexpectedType(someT, t), TypeError.allOf(TypeError.unexpectedType(someT, Type.Pos), TypeError.unexpectedType(t, Type.Zero)))
+              TypeError.oneOf(TypeError.unexpectedType(t2, t), TypeError.allOf(TypeError.unexpectedType(t2, Type.Pos), TypeError.unexpectedType(t, Type.Zero)))
           ).orElse(
-            if someT == Type.Zero && t == Type.Pos then
+            if t2 == Type.Zero && t == Type.Pos then
               Right(Type.Pos)
             else
-              TypeError.allOf(TypeError.unexpectedType(someT, Type.Zero), TypeError.unexpectedType(t, Type.Pos))
+              TypeError.allOf(TypeError.unexpectedType(t2, Type.Zero), TypeError.unexpectedType(t, Type.Pos))
       )
       yield
         resT

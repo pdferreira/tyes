@@ -1,7 +1,9 @@
 package tyes.compiler.ir.rewrite
 
+import tyes.compiler.NameOperations
 import tyes.compiler.ir.IRCond
 import tyes.compiler.ir.IRNode
+import tyes.compiler.ir.IRNodeScopeOperations.*
 import tyes.compiler.ir.IRType
 import tyes.compiler.ir.IRTypeExpect
 import tyes.compiler.target.TargetCodeNode
@@ -27,9 +29,11 @@ object OrTypeDeclsRewrite extends Rewrite[IRNode]:
     =>
       for p <- pickMostSpecific(p1, p2)
       yield
-
+        val allNames = (cs1 ++ cs2).map(freeNames).map(_.toSet).flatten.toSet
         val declVarPat = p match {
-          case TCP.Any => TCP.Var("someT")
+          case TCP.Any => 
+            val proposedName = getProposedDeclVarName(e1)
+            TCP.Var(NameOperations.nameclash(proposedName, allNames))
           case p => p
         }
         val ex = if ex1 == ex2 then ex1 else None
@@ -80,4 +84,15 @@ object OrTypeDeclsRewrite extends Rewrite[IRNode]:
   private def expectToCond(typeCode: TargetCodeNode, typeExpect: IRTypeExpect): IRCond = typeExpect match {
     case IRTypeExpect.EqualsTo(expectedTypeCode) => IRCond.TypeEquals(typeCode, expectedTypeCode)
     case IRTypeExpect.OfType(typRef) => IRCond.OfType(typeCode, typRef)
+  }
+
+  private def getProposedDeclVarName(declExp: IRNode): String = declExp match {
+    case IRNode.Type(typ) => typ match {
+      case IRType.Induction(TCN.Var(name), _) => NameOperations.getDigitSuffix(name) match {
+        case Some(n) => s"t$n"
+        case None => "t1"
+      }
+      case _ => "t"
+    }
+    case _ => "res"
   }

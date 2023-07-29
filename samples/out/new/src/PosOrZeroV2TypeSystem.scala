@@ -23,14 +23,14 @@ class PosOrZeroV2TypeSystem extends TypeSystem[LExpression]:
         resT <- 
           (
             for
-              someT <- typecheck(e2, env)
+              t2 <- typecheck(e2, env)
               resT <- 
-                if someT == Type.Zero && t == Type.Zero then
+                if t2 == Type.Zero && t == Type.Zero then
                   Right(Type.Zero)
-                else if someT == Type.Pos then
+                else if t2 == Type.Pos then
                   Right(Type.Pos)
                 else
-                  TypeError.oneOf(TypeError.allOf(TypeError.unexpectedType(someT, Type.Zero), TypeError.unexpectedType(t, Type.Zero)), TypeError.unexpectedType(someT, Type.Pos))
+                  TypeError.oneOf(TypeError.allOf(TypeError.unexpectedType(t2, Type.Zero), TypeError.unexpectedType(t, Type.Zero)), TypeError.unexpectedType(t2, Type.Pos))
             yield
               resT
           ).orElse(
