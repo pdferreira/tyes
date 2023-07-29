@@ -17,8 +17,7 @@ object FlattenAndRewrite extends Rewrite[IRNode]:
     ) =>
       // TODO: if boundNames(c2) are in freeNames(cs1 && n1)
       // it needs to be renamed. For now we just assert that's not the case
-      val c1FreeNames = freeNames(IRNode.And(cs1, n1))
-      assert(!boundNames(c2).exists(n => c1FreeNames.contains(n)))
+      assert((boundNames(c2) & freeNames(IRNode.And(cs1, n1)).toSet).isEmpty)
       
       val flattenedNode = IRNode.And(
         c2 +: IRCond.TypeDecl(p1, IRNode.And(cs2, n2), ex1) +: cs1,

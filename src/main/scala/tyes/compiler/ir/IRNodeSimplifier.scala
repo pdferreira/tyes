@@ -6,6 +6,7 @@ import tyes.compiler.RuntimeAPIGenerator
 import tyes.compiler.ir.rewrite.*
 import tyes.compiler.target.TargetCodePattern
 import tyes.compiler.target.TargetCodeNode
+import tyes.compiler.target.{TargetCodeNodeOperations as TCNOps}
 import utils.collections.*
 
 class IRNodeSimplifier:
@@ -26,87 +27,26 @@ class IRNodeSimplifier:
       simplifiedNode
 
     // Give precendence to Induction Decls over the remaining conds
-    case childNode @ IRNode.And(
-      c1 +: (c2 @ IRCond.TypeDecl(_, IRNode.Type(_: IRType.Induction), _)) +: cs,
+    case origNode @ IRNode.And(
+      c1 +: (c2 @ IRCond.TypeDecl(p, IRNode.Type(_: IRType.Induction), _)) +: cs,
       n
     ) 
       if !c1.isInstanceOf[IRCond.TypeDecl]
-        // && decl var of c2 not in freeNames(c1) 
+        && (freeNames(c1).toSet intersect TCNOps.boundNames(p)).isEmpty 
       =>
-        debug("Promoting induction decl in", childNode)
+        debug("Promoting induction decl in", origNode)
         IRNode.And(c2 +: c1 +: cs, n)
 
     // Aggregate non-Induction conditions as a switch 
-    case childNode @ IRNode.And(cs @ _ +: _, n) 
-      if cs.forall(c => c match {
-        case IRCond.TypeDecl(_, IRNode.Type(_: IRType.FromCode), Some(_)) => true
-        case IRCond.TypeDecl(_, _, _) => false
-        case _ => true
-      })
-      =>
-        debug("Aggregating non-Induction conds in", childNode)
-        IRNode.Switch(
-          branches = Seq(
-            cs.foldLeft1(IRCond.And.apply) -> n
-          ),
-          otherwise =
-            val errors = cs.map(condToError)
-            if errors.length == 1 then
-              IRNode.Error(errors.head)
-            else
-              IRNode.Error(IRError.AllOf(errors*))
-        )
+    case origNode @ NonInductionCondsToSwitchRewrite(simplifiedNode) =>
+        debug("Aggregating non-Induction conds in", origNode)
+        simplifiedNode
 
     // Merge non-overlapping Switches
-    case childNode @ IRNode.Or(IRNode.Switch(bs1, IRNode.Error(err1)), IRNode.Switch(bs2, IRNode.Error(err2)))
-      if areNonOverlapping(bs1.map(_._1), bs2.map(_._1))
-      =>
-        debug("Merging non-overlapping Switches in", childNode)
-        IRNode.Switch(
-          branches = bs1 ++ bs2,
-          otherwise = IRNode.Error(flattenError(IRError.OneOf(err1, err2)))
-        )
-
+    case origNode @ MergeNonOverlappingSwitchesRewrite(simplifiedNode) =>
+        debug("Merging non-overlapping Switches in", origNode)
+        simplifiedNode
   })
-
-  private def condToError(cond: IRCond): IRError = cond match {
-    case IRCond.EnvSizeIs(envVar, size) => IRError.UnexpectedEnvSize(TCN.Var(envVar), size)
-    case IRCond.TypeEquals(t1Code, t2Code) => IRError.UnexpectedType(t1Code, t2Code)
-    case IRCond.TypeDecl(_, IRNode.Type(irTyp), Some(IRTypeExpect.EqualsTo(expectedTypeCode))) =>
-      val typCode = irTyp match {
-        case IRType.FromCode(typCode, false) => typCode
-      }
-      IRError.UnexpectedType(typCode, expectedTypeCode)
-  }
-
-  private def flattenError(err: IRError): IRError = err match {
-    case IRError.OneOf(errors*) =>
-      val allErrors = errors.flatMap(e => flattenError(e) match {
-        case IRError.OneOf(innerErrors*) => innerErrors
-        case fe => Seq(fe)
-      })
-      IRError.OneOf(allErrors*)
-    case _ => err
-  }
-
-  private def areNonOverlapping(conds1: Iterable[IRCond], conds2: Iterable[IRCond]): Boolean =
-    // For every condition in conds1, if it is true, can any condition in conds2 still be true?
-    // i.e. (c1_1 || ... || c1_n) => !(c2_1 || ... || c2_m)
-    //
-    // Follows a simplified version of this verification, which should be enough in practice.
-    conds1.forall(c1 => conds2.forall(c2 => impliesFalsehood(c1, c2)))
-
-  private def impliesFalsehood(premise: IRCond, toFalsify: IRCond): Boolean = (premise, toFalsify) match {
-    case (IRCond.And(c1, c2), _) => impliesFalsehood(c1, toFalsify) || impliesFalsehood(c2, toFalsify)
-    case (_, IRCond.And(c1, c2)) => impliesFalsehood(premise, c1) || impliesFalsehood(premise, c2)
-    case (IRCond.EnvSizeIs(v1, s1), IRCond.EnvSizeIs(v2, s2)) => v1 == v2 && s1 != s2
-    case (IRCond.TypeEquals(pt1, pt2), IRCond.TypeEquals(ft1, ft2)) =>
-      pt1 == ft1 && pt2 != ft2
-      || pt1 == ft2 && pt2 != ft1
-      || pt2 == ft1 && pt1 != ft2
-      || pt2 == ft2 && pt1 != ft1
-    case _ => false // TODO: incomplete
-  }
 
   private def debug(ctx: String, n: IRNode): Unit =
     // println(s"$ctx\r\n\t${toCodeStr(n)}\r\n")
