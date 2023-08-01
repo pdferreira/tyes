@@ -123,6 +123,15 @@ object TargetCodeNodeOperations extends CodeOperations:
     case TCFC.Let(name, exp) => TCFC.Let(name, f(exp))
   }
 
+  def applyToChildren(tcPat: TargetCodePattern, f: TargetCodePattern => TargetCodePattern): TargetCodePattern = tcPat match {
+    case TCP.Any => tcPat
+    case TCP.Text(_) => tcPat
+    case TCP.Integer(_) => tcPat
+    case TCP.Var(_) => tcPat
+    case TCP.ADTConstructor(typeRef, args*) => TCP.ADTConstructor(typeRef, args.map(f)*)
+    case TCP.WithType(pat, typeRef) => TCP.WithType(f(pat), typeRef)
+  }
+
   def replace(tcNode: TargetCodeNode, key: String, value: TargetCodeNode): TargetCodeNode = applyUntil(tcNode, {
     case TCN.Var(name) if name == key => value 
     case TCN.Let(varPat, varExp, bodyExp) =>

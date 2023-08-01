@@ -20,7 +20,7 @@ class TermVarTypeSystem extends TypeSystem[LExpression]:
       else if v == "const" then
         for
           _ <- checkEnvSize(env, 2)
-          t2 <- env.get("pi")
+          _ <- env.get("pi")
           t1 <- env.get("const")
         yield
           t1

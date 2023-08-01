@@ -2,6 +2,7 @@ package tyes.compiler
 
 import java.nio.file.Path
 import tyes.model.TypeSystemDecl
+import tyes.compiler.ir.IRNodeDataFlowAdapter
 import tyes.compiler.ir.IRNodeSimplifier
 import tyes.compiler.ir.TargetCodeIRGeneratorImpl
 import tyes.compiler.target.ScalaTargetCodeAdapter
@@ -18,7 +19,8 @@ class TyesCompilerImpl extends TyesCompiler:
     val expVar: TCN.Var = TCN.Var("exp")
     val commonEnvName = TyesEnvDesugarer.inferEnvVarName(tsDecl).getOrElse("env")
 
-    val tcIRGenerator = new IRNodeSimplifier().simplify
+    val tcIRGenerator = new IRNodeDataFlowAdapter().adapt
+      .andThen(new IRNodeSimplifier().simplify)
       .andThen(new TargetCodeIRGeneratorImpl(expVar).generate)
     
     val tsDeclToScalaCode = 

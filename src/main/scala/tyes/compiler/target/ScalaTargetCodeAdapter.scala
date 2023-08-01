@@ -18,7 +18,7 @@ class ScalaTargetCodeAdapter:
   def adapt(tcUnit: TargetCodeUnit): TargetCodeUnit =
     tcUnit.copy(decls = tcUnit.decls.map(adapt))
 
-  def adapt(tcDecl: TargetCodeDecl): TargetCodeDecl = applyToChildren(tcDecl, adapt)
+  def adapt(tcDecl: TargetCodeDecl): TargetCodeDecl = applyToChildren(tcDecl, n => adapt(n))
 
   def adapt(tcNode: TargetCodeNode): TargetCodeNode = applyUntil(tcNode, {
     // Scala doesn't support cursor-lets as the first in a for-comprehension

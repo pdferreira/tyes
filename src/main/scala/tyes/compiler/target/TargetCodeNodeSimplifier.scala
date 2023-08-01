@@ -11,7 +11,7 @@ class TargetCodeNodeSimplifier:
   def simplify(tcUnit: TargetCodeUnit): TargetCodeUnit =
     tcUnit.copy(decls = tcUnit.decls.map(simplify))
 
-  def simplify(tcDecl: TargetCodeDecl): TargetCodeDecl = applyToChildren(tcDecl, simplify)
+  def simplify(tcDecl: TargetCodeDecl): TargetCodeDecl = applyToChildren(tcDecl, n => simplify(n))
 
   def simplify(tcNode: TargetCodeNode): TargetCodeNode = applyUntil(tcNode, {
     case n1 @ TCN.Let(TCP.Var(name1), exp1, n2 @ TCN.Let(TCP.Var(name2), exp2, body)) if name1 != name2 =>
