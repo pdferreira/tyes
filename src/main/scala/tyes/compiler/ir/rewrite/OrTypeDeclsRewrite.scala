@@ -43,21 +43,24 @@ object OrTypeDeclsRewrite extends Rewrite[IRNode]:
             IRCond.TypeDecl(
               TCP.Var("resT"),
               IRNode.Or(
-                IRNode.And(
-                  if ex1.isEmpty || ex1 == ex then 
-                    cs1
-                  else
-                    expectToCond(declVar, ex1.get) +: cs1,
-                  n1
+                extendAndWithExpectation(
+                  thisAndNode = IRNode.And(cs1, n1),
+                  thisDeclPat = p1,
+                  thisExpectation = ex1,
+                  otherDeclPat = p2,
+                  commonDeclPat = p,
+                  commonDeclVar = declVar,
+                  commonExpectation = ex
                 ),
-                IRNode.And(
-                  if ex2.isEmpty || ex2 == ex then 
-                    cs2
-                  else
-                    expectToCond(declVar, ex2.get) +: cs2,
-                  n2
-                )
-              ),
+                extendAndWithExpectation(
+                  thisAndNode = IRNode.And(cs2, n2),
+                  thisDeclPat = p2,
+                  thisExpectation = ex2,
+                  otherDeclPat = p1,
+                  commonDeclPat = p,
+                  commonDeclVar = declVar,
+                  commonExpectation = ex
+                )),
               None
             ) :: Nil,
           IRNode.Type(IRType.FromCode(TCN.Var("resT"), isOptional = false))
@@ -68,15 +71,11 @@ object OrTypeDeclsRewrite extends Rewrite[IRNode]:
     case _ if pat1 == pat2 => Some(pat1)
     case (TCP.Any, _) => Some(pat2)
     case (_, TCP.Any) => Some(pat1)
+    case (TCP.Var(_), TCP.Var(_)) => Some(pat1) // TODO: choose based on the one not already used in follow-up conditions
     case _ => None
   }
 
-  private def pickMostSpecific[T](opt1: Option[T], opt2: Option[T]): Option[Option[T]] = (opt1, opt2) match {
-    case (Some(v1), Some(v2)) if v1 != v2 => None
-    case _ => Some(opt1.orElse(opt2))
-  }
-
-  private def extractVarFromPattern(pat: TCP): TargetCodeNode = pat match {
+  private def extractVarFromPattern(pat: TCP): TargetCodeNode.Var = pat match {
     case TCP.Var(name) => TCN.Var(name)
     case _ => ???
   }
@@ -96,3 +95,32 @@ object OrTypeDeclsRewrite extends Rewrite[IRNode]:
     }
     case _ => "res"
   }
+
+  private def extendAndWithExpectation(
+    thisAndNode: IRNode.And,
+    thisDeclPat: TCP,
+    thisExpectation: Option[IRTypeExpect],
+    otherDeclPat: TCP,
+    commonDeclPat: TCP,
+    commonDeclVar: TCN.Var,
+    commonExpectation: Option[IRTypeExpect]
+  ): IRNode.And =
+    val IRNode.And(cs, n) = thisDeclPat match {
+      case TCP.Var(thisDeclVarName) 
+        if commonDeclPat == otherDeclPat
+        && otherDeclPat != thisDeclPat
+      =>
+        rename(thisAndNode, thisDeclVarName, commonDeclVar.name)
+      case _ =>
+        thisAndNode
+    }
+    
+    IRNode.And(
+      if thisExpectation.isEmpty || thisExpectation == commonExpectation then 
+        cs
+      else
+        expectToCond(commonDeclVar, thisExpectation.get) +: cs
+      ,
+      n
+    )
+              

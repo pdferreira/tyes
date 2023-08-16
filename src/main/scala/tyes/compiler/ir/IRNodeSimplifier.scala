@@ -70,7 +70,7 @@ def toCodeStr(n: IRNode) = new tyes.compiler.target.ScalaTargetCodeGenerator().g
     None
   )
   val diffDecl2 = IRCond.TypeDecl(
-    TargetCodePattern.Any,
+    TargetCodePattern.Var("t3"),
     IRNode.Type(IRType.Induction(TCN.Var("e2"), TCN.Var("env"))),
     Some(IRTypeExpect.EqualsTo(TCN.ADTConstructorCall(TCTypeRef("Type", "Xpto"))))
   )
@@ -81,7 +81,7 @@ def toCodeStr(n: IRNode) = new tyes.compiler.target.ScalaTargetCodeGenerator().g
     ), 
     IRNode.And(
       commonInstr :: diffDecl2 :: IRCond.EnvSizeIs("env", 2) :: Nil, 
-      IRNode.Type(IRType.FromCode(TCN.Var("z"), isOptional = false))
+      IRNode.Type(IRType.FromCode(TCN.Var("t3"), isOptional = false))
     )
   )
   

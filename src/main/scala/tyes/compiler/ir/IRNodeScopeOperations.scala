@@ -64,3 +64,87 @@ object IRNodeScopeOperations:
     case IRCond.TypeDecl(pat, _, _) => TCNOps.boundNames(pat) 
     case _ => Set()
   }
+
+  def rename(node: IRNode, currName: String, newName: String): IRNode = node match {
+    case IRNode.Unexpected => node
+    case IRNode.And(c +: cs, next) =>
+      if boundNames(c).contains(currName) then
+        node
+      else
+        val IRNode.And(newCs, newNext) = rename(IRNode.And(cs, next), currName, newName)
+        IRNode.And(rename(c, currName, newName) +: newCs, newNext)
+    case IRNode.And(Nil, next) => IRNode.And(Nil, rename(next, currName, newName))
+    case IRNode.Or(main, alt) => IRNode.Or(
+      rename(main, currName, newName),
+      rename(alt, currName, newName)
+    )
+    case IRNode.Error(err) => IRNode.Error(rename(err, currName, newName))
+    case IRNode.Switch(bs, o) => IRNode.Switch(
+      bs.map({ case (c, b) => (rename(c, currName, newName), rename(b, currName, newName)) }),
+      rename(o, currName, newName)
+    )
+    case IRNode.Type(typ) => IRNode.Type(rename(typ, currName, newName))
+  }
+
+  def rename(cond: IRCond, currName: String, newName: String): IRCond = cond match {
+    case IRCond.And(left, right) => IRCond.And(rename(left, currName, newName), rename(right, currName, newName))
+    case IRCond.EnvSizeIs(envVar, size) =>
+      if envVar == currName then
+        IRCond.EnvSizeIs(newName, size)
+      else
+        cond
+    case IRCond.OfType(termCode, typRef) => IRCond.OfType(
+      TCNOps.replace(termCode, currName, TCN.Var(newName)),
+      typRef
+    )
+    case IRCond.TermEquals(t1Code, t2Code) => IRCond.TermEquals(
+      TCNOps.replace(t1Code, currName, TCN.Var(newName)),
+      TCNOps.replace(t2Code, currName, TCN.Var(newName))
+    )
+    case IRCond.TypeEquals(t1Code, t2Code) => IRCond.TypeEquals(
+      TCNOps.replace(t1Code, currName, TCN.Var(newName)),
+      TCNOps.replace(t2Code, currName, TCN.Var(newName))
+    )
+    case IRCond.TypeDecl(declPat, typExp, expect) =>
+      if TCNOps.boundNames(declPat).contains(currName) then
+        cond
+      else
+        IRCond.TypeDecl(declPat, rename(typExp, currName, newName), expect.map(rename(_, currName, newName)))
+  }
+
+  def rename(typExp: IRType, currName: String, newName: String): IRType = typExp match {
+    case IRType.EnvGet(envVar, keyCode) => IRType.EnvGet(
+      if envVar == currName then newName else envVar,
+      TCNOps.replace(keyCode, currName, TCN.Var(newName))
+    )
+    case IRType.FromCode(typCode, isOptional) => IRType.FromCode(
+      TCNOps.replace(typCode, currName, TCN.Var(newName)),
+      isOptional
+    )
+    case IRType.Induction(expCode, envCode) => IRType.Induction(
+      TCNOps.replace(expCode, currName, TCN.Var(newName)),
+      TCNOps.replace(envCode, currName, TCN.Var(newName))
+    )
+  }
+
+  def rename(expect: IRTypeExpect, currName: String, newName: String): IRTypeExpect = expect match {
+    case IRTypeExpect.EqualsTo(typCode) => IRTypeExpect.EqualsTo(
+      TCNOps.replace(typCode, currName, TCN.Var(newName))
+    )
+    case IRTypeExpect.OfType(_) => expect 
+  }
+
+  def rename(err: IRError, currName: String, newName: String): IRError = err match {
+    case IRError.AllOf(errors*) => IRError.AllOf(errors.map(rename(_, currName, newName))*)
+    case IRError.OneOf(errors*) => IRError.OneOf(errors.map(rename(_, currName, newName))*) 
+    case IRError.Generic(message) => IRError.Generic(TCNOps.replace(message, currName, TCN.Var(newName)))
+    case IRError.NoType(exp) => IRError.NoType(TCNOps.replace(exp, currName, TCN.Var(newName)))
+    case IRError.UnexpectedEnvSize(env, size) => IRError.UnexpectedEnvSize(
+      TCNOps.replace(env, currName, TCN.Var(newName)),
+      size
+    )
+    case IRError.UnexpectedType(obtained, expected) => IRError.UnexpectedType(
+      TCNOps.replace(obtained, currName, TCN.Var(newName)),
+      TCNOps.replace(expected, currName, TCN.Var(newName))
+    )
+  }
