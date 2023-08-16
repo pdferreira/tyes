@@ -8,6 +8,7 @@ import tyes.compiler.ir.IRType
 import tyes.compiler.ir.IRTypeExpect
 import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodePattern
+import tyes.compiler.target.{TargetCodeNodeOperations as TCNOps}
 
 object OrTypeDeclsRewrite extends Rewrite[IRNode]:
 
@@ -38,10 +39,11 @@ object OrTypeDeclsRewrite extends Rewrite[IRNode]:
         }
         val ex = if ex1 == ex2 then ex1 else None
         val declVar = extractVarFromPattern(declVarPat)
+        var innerOrDeclName = NameOperations.nameclash("resT", allNames ++ TCNOps.boundNames(declVarPat))
         IRNode.And(
           IRCond.TypeDecl(declVarPat, e1, ex) ::
             IRCond.TypeDecl(
-              TCP.Var("resT"),
+              TCP.Var(innerOrDeclName),
               IRNode.Or(
                 extendAndWithExpectation(
                   thisAndNode = IRNode.And(cs1, n1),
@@ -63,7 +65,7 @@ object OrTypeDeclsRewrite extends Rewrite[IRNode]:
                 )),
               None
             ) :: Nil,
-          IRNode.Type(IRType.FromCode(TCN.Var("resT"), isOptional = false))
+          IRNode.Type(IRType.FromCode(TCN.Var(innerOrDeclName), isOptional = false))
         )
   }
     
