@@ -31,8 +31,9 @@ class IRNodeSimplifier:
       c1 +: (c2 @ IRCond.TypeDecl(p, IRNode.Type(_: IRType.Induction), _)) +: cs,
       n
     ) 
-      if !c1.isInstanceOf[IRCond.TypeDecl]
-        && (freeNames(c1).toSet intersect TCNOps.boundNames(p)).isEmpty 
+      if (c1 match { case IRCond.TypeDecl(_, IRNode.Type(_: IRType.Induction), _) => false ; case _ => true })
+      && (freeNames(c1).toSet intersect TCNOps.boundNames(p)).isEmpty
+      && (freeNames(c2).toSet intersect boundNames(c1)).isEmpty
       =>
         debug("Promoting induction decl in", origNode)
         IRNode.And(c2 +: c1 +: cs, n)
