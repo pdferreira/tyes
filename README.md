@@ -23,7 +23,7 @@ typesystem PlusCommon
     and e2 : t
 ```
 
-It is being developed in a way that allows it to be composed with different languages, but at the moment these rules operate on expressions from a simple language, hardcoded into the system. Several examples can be found in [samples\in](samples\in).
+It is being developed in a way that allows it to be composed with different languages, but at the moment these rules operate on expressions from a simple language, hardcoded into the system. Several examples can be found in [samples/in](samples/in).
 
 Specifications in this DSL can then be either 1) interpreted using `tyer` (Type Experiment Runner), entering an interactive REPL where the type of an expression is evaluated; or 2) compiled using `tyec` (Type Experiment Compiler) to (tentatively) readable code.
 
