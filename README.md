@@ -25,6 +25,28 @@ Currently all the code is written using Scala 3. The compiler also targets Scala
 
 This is my first big project using Scala, first one using Scala 3 in specific, so the code style and organization is bound to evolve as I get more comfortable.
 
+## How to Use
+
+Type Systems in TyES are specified in files with extension .tye.
+
+To start the "REPL" over a specific type system, run the `tyer` command line. For example:
+
+```scala
+sbt "runMain tyer samples/in/LambdaCalculus.tye"
+```
+
+To compile a type system to Scala, run the `tyec` command line, specifying the output directory and then the target file(s). For example:
+
+```scala
+sbt "runMain tyec -out samples/out/new samples/in/LambdaCalculus.tye"
+```
+
+To easily test the generated code, run the `tyer` command line directly over the generated .scala file. For example:
+
+```scala
+sbt "runMain tyer samples/out/new/src/LambdaCalculusTypeSystem.scala"
+```
+
 ## Evolution
 
 This project really is a personal exploration, so it doesn't have a clear roadmap, but it does have several guiding ideas that have and will continue to influence its evolution:
