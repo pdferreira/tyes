@@ -4,7 +4,7 @@ TyES (Type Experiment System) is a personal project in the area of type systems,
 
 Currently it consists on a DSL that allows the declarative specification of type systems by means of inference rules, very similarly to how they are specified in formal works on the topic, already covering enough to type the [STLC](https://en.wikipedia.org/wiki/Simply_typed_lambda_calculus).
 
-[<img alt="Simply Typed Lambda Calculus" src="STLCSample.png" width="80%" height="80%" />](samples/in/LambdaCalculus.tye)
+[<img alt="Simply Typed Lambda Calculus" src="STLCSample.png" width="50%" height="50%" />](samples/in/LambdaCalculus.tye)
 
 It is being developed in a way that allows it to be applied to different language syntaxes and constructs, but at the moment these rules operate on expressions from a simple language, hardcoded into the system. Several examples can be found in [samples/in](samples/in).
 
