@@ -4,34 +4,19 @@ TyES (Type Experiment System) is a personal project in the area of type systems,
 
 Currently it consists on a DSL that allows the declarative specification of type systems by means of inference rules, very similarly to how they are specified in formal works on the topic, already covering enough to type the [STLC](https://en.wikipedia.org/wiki/Simply_typed_lambda_calculus).
 
-```tye
-typesystem PlusCommon
+[<img alt="Simply Typed Lambda Calculus" src="STLCSample.png" width="80%" height="80%" />](samples/in/LambdaCalculus.tye)
 
-  // Rule that states literal 1 has type `one`
-  rule infers 1 : one 
-
-  // Rule that states literal 2 has type `two`
-  rule infers 2 : two
-
-  // Rule that states literal x has some type t from the environment
-  rule Var
-    infers x : t under Env, x : t
-
-  rule Plus
-    infers e1 + e2 : t
-    if e1 : t
-    and e2 : t
-```
-
-It is being developed in a way that allows it to be composed with different languages, but at the moment these rules operate on expressions from a simple language, hardcoded into the system. Several examples can be found in [samples/in](samples/in).
+It is being developed in a way that allows it to be applied to different language syntaxes and constructs, but at the moment these rules operate on expressions from a simple language, hardcoded into the system. Several examples can be found in [samples/in](samples/in).
 
 Specifications in this DSL can then be either 1) interpreted using `tyer` (Type Experiment Runner), entering an interactive REPL where the type of an expression is evaluated; or 2) compiled using `tyec` (Type Experiment Compiler) to (tentatively) readable code.
 
 ```
-> 1 + 2
-No type
-> 1 + 1
-one
+> 1
+const
+> (fun x : const => x)
+const -> const
+> 1 1
+TypeError: expected type Const to be a $FunType instead
 ```
 
 ## Implementation
