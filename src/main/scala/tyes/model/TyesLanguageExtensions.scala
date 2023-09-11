@@ -164,13 +164,22 @@ object TyesLanguageExtensions:
       case HasType(term, typ) => typ
     })
 
-  extension (judg: Judgement)
+  extension (prem: Premise)
 
-    def typeVariables: Set[String] = judg.types.flatMap(_.variables)
+    def typeVariables: Set[String] = prem match {
+      case judg: Judgement => judg.types.flatMap(_.variables)
+      case JudgementRange(from, to) => from.typeVariables ++ to.typeVariables
+    }
 
-    def termVariables: Set[String] = judg.assertion.termVariables ++ judg.env.termVariables
+    def termVariables: Set[String] = prem match {
+      case judg: Judgement => judg.assertion.termVariables ++ judg.env.termVariables
+      case JudgementRange(from, to) => from.termVariables ++ to.termVariables
+    }
 
-    def types: Set[Type] = judg.assertion.types ++ judg.env.types
+    def types: Set[Type] = prem match {
+      case judg: Judgement => judg.assertion.types ++ judg.env.types
+      case JudgementRange(from, to) => from.types ++ to.types
+    }
 
   extension (ruleDecl: RuleDecl)
 

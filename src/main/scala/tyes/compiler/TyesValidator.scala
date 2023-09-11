@@ -3,6 +3,7 @@ package tyes.compiler
 import scala.collection.mutable.ListBuffer
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
+import utils.collections.*
 
 object TyesValidator:
 
@@ -35,7 +36,7 @@ object TyesValidator:
       if !unknownConclEnvTermVariables.isEmpty then
         errors += s"Error: $ruleName conclusion environment uses some identifiers not bound in its term: ${unknownConclEnvTermVariables.mkString(", ")}"
         
-      val HasType(conclTerm, conclTyp) = concl.assertion
+      val HasType(conclTerm, conclTyp) = concl.assertion: @unchecked
       for cTypeVar <- conclTyp.variables do
         if conclTerm.types.exists(t => t.variables.contains(cTypeVar)) then
           () // ok, bound in concl term
@@ -46,10 +47,10 @@ object TyesValidator:
         else if r.premises.isEmpty && concl.env.parts.isEmpty then
           errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVar"
         
-        else if !r.premises.exists(judg => judg.assertion.typeVariables.contains(cTypeVar)) then
+        else if !r.premises.ofType[Judgement].exists(judg => judg.assertion.typeVariables.contains(cTypeVar)) then
           if concl.env.typeVariables.contains(cTypeVar) then
             () // ok, bound in concl env
-          else if !r.premises.exists(judg => judg.env.typeVariables.contains(cTypeVar)) then
+          else if !r.premises.ofType[Judgement].exists(judg => judg.env.typeVariables.contains(cTypeVar)) then
             errors += s"Error: $ruleName conclusion uses an unbound type variable: $cTypeVar"
           else
             errors += s"Error: $ruleName conclusion uses a type variable that is only bound in a premise environment: $cTypeVar"
@@ -64,8 +65,8 @@ object TyesValidator:
         errors += s"Error: duplicate rule name '${dupRuleName.get}'"
 
     for case Seq(r1, r2) <- tsDecl.rules.combinations(2) do
-      val Judgement(_, HasType(e1, t1)) = r1.conclusion
-      val Judgement(_, HasType(e2, t2)) = r2.conclusion
+      val Judgement(_, HasType(e1, t1)) = r1.conclusion: @unchecked
+      val Judgement(_, HasType(e2, t2)) = r2.conclusion: @unchecked
       if t1 != t2 && e1.overlaps(e2) then
         // As a simplification, only perform the validation if there are no premises
         // TODO: replace this by a validation if the premises could ever hold true for the same term

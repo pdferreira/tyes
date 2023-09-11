@@ -54,7 +54,7 @@ class RuleIRGenerator(
   case class GenerateOutput(node: IRNode, condition: Option[IRCond])
 
   def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term): GenerateOutput =
-    val HasType(cTerm, cType) = rule.conclusion.assertion
+    val HasType(cTerm, cType) = rule.conclusion.assertion: @unchecked
 
     val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
 
@@ -96,11 +96,11 @@ class RuleIRGenerator(
       if v.isGround then 
         IRCond.TermEquals(TCN.Var(k), termIRGenerator.generate(v))
       else
-        val Term.Function(name, _*) = v
+        val Term.Function(name, _*) = v: @unchecked
         IRCond.OfType(TCN.Var(k), TCTypeRef(name))
 
   private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRCond] =
-    val HasType(cTerm, _) = concl.assertion
+    val HasType(cTerm, _) = concl.assertion: @unchecked
     
     val envConds = envIRGenerator.generateConditions(concl.env, codeEnv)
     val termConds = genConclusionTermConds(cTerm, codeEnv)
@@ -167,11 +167,13 @@ class RuleIRGenerator(
         typExp = IRNode.Type(IRType.FromCode(TCN.Var(k)))
       )
 
-  private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRCond] =
-    val HasType(pTerm, pType) = premise.assertion
-
-    val inductionCall = IRNode.Type(IRType.Induction(
-      termIRGenerator.generate(pTerm, codeEnv),
-      envIRGenerator.generate(premise.env, codeEnv)
-    ))
-    typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
+  private def genPremiseConds(premise: Premise, idx: Int, codeEnv: TargetCodeEnv): Seq[IRCond] = premise match {
+    case Judgement(env, HasType(pTerm, pType)) => 
+      val inductionCall = IRNode.Type(IRType.Induction(
+        termIRGenerator.generate(pTerm, codeEnv),
+        envIRGenerator.generate(env, codeEnv)
+      ))
+      typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
+    case JudgementRange(from, to) =>
+      genPremiseConds(from, idx, codeEnv) ++ genPremiseConds(to, idx, codeEnv) 
+  }

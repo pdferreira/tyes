@@ -23,10 +23,18 @@ class TyesEnvDesugarer(commonEnvVar: String):
       conclusion = desugar(concl, conclEnvVars.headOption)
     )
 
-  def desugar(judg: Judgement, envVarToReplace: Option[String]): Judgement =
-    judg.copy(
-      env = desugar(judg.env, envVarToReplace)
+  type PremiseMatch[P <: Premise] <: Premise = P match {
+    case Judgement => Judgement
+    case JudgementRange => JudgementRange
+  }
+
+  def desugar(prem: Premise, envVarToReplace: Option[String]): PremiseMatch[prem.type]  = prem match {
+    case judg: Judgement => judg.copy(env = desugar(judg.env, envVarToReplace))
+    case rng: JudgementRange => JudgementRange(
+      desugar(rng.from, envVarToReplace),
+      desugar(rng.to, envVarToReplace)
     )
+  }
 
   def desugar(env: Environment, envVarToReplace: Option[String]): Environment =
     if env.parts.isEmpty then

@@ -82,7 +82,7 @@ object CommandLine:
     val fileName = srcPath.get.getFileName.toString
     val (nameWithoutExt, ext) = fileName.splitAt(fileName.lastIndexOf('.'))
     if ext == ".tye" then
-      invokeInterpreter(srcContent, options.expression)
+      invokeInterpreter(srcContent, options.expression, options.skipValidation)
     else if ext == ".scala" then
       val version = options.versionId.getOrElse("new")
       invokeRunner(nameWithoutExt, srcContent, options.expression, version)
@@ -101,7 +101,7 @@ object CommandLine:
         Some(result)
     }
     
-  private def parseTypeSystem(srcContent: String): Option[TypeSystemDecl] =
+  private def parseTypeSystem(srcContent: String, skipValidation: Boolean): Option[TypeSystemDecl] =
     LExpressionTyesParser.parse(srcContent).withReadableError match {
       case Left(error) => 
         Console.err.println(error)
@@ -112,13 +112,16 @@ object CommandLine:
           Some(tsDecl)
         else
           Console.err.println(validationErrors.mkString("\r\n"))
-          None
+          if skipValidation then
+            Some(tsDecl)
+          else
+            None
     }
 
   private def invokeCompiler(compiler: TyesCompiler, srcPath: Path, scalaDstDirPath: Path, binDstDirPath: Path): Unit = 
     val srcContent = Files.readString(srcPath)
     
-    for tsDecl <- parseTypeSystem(srcContent) do
+    for tsDecl <- parseTypeSystem(srcContent, skipValidation = false) do
       println(s"\tGenerating scala sources...")
       val (dstFileName, generatedCode) = compiler.compile(tsDecl)
 
@@ -131,8 +134,8 @@ object CommandLine:
       if report.hasErrors then
         println(report.summary)
 
-  private def invokeInterpreter(tyesSrc: String, expSrcOption: Option[String]): Unit =
-    for tsDecl <- parseTypeSystem(tyesSrc) do
+  private def invokeInterpreter(tyesSrc: String, expSrcOption: Option[String], skipValidation: Boolean): Unit =
+    for tsDecl <- parseTypeSystem(tyesSrc, skipValidation) do
       val expParser = LExpressionWithModelTypesParser(tsDecl.types)
       runInteractive(line => {
         for exp <- parseLExpression(line, expParser) do
