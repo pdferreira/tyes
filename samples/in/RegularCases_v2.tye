@@ -1,4 +1,4 @@
-typesystem RegularCases
+typesystem RegularCasesV2
 
   rule One infers 1 : one
 

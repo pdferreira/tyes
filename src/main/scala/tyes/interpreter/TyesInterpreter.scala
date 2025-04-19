@@ -1,5 +1,6 @@
 package tyes.interpreter
 
+import scala.util.matching.Regex
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 
@@ -39,26 +40,64 @@ object TyesInterpreter:
             // if one of the premises failed, propagate failure
             case (None, _) => None 
             // otherwise, check the next premise
-            case (Some(typeVarEnv), Judgement(premMetaEnv, HasType(premTerm, premTyp))) => 
-              // replace the term and type variables we already know in the premise env and then produce an
-              // actual term env out of it
+            case (Some(typeVarEnv), judg: Judgement) =>
               val premEnvMatch = EnvironmentMatch(allVarSubst, typeVarEnv, envVarSubst)
-              val premEnvOpt = getSelfOrDefaultIfEmpty(premMetaEnv, refinedMetaEnv).substitute(premEnvMatch).toConcrete
+              typecheck(tsDecl, judg, premEnvMatch, refinedMetaEnv, allTermSubst)
+            case (Some(typeVarEnv), JudgementRange(from, to)) =>
+              val Judgement(fromEnv, HasType(Term.Variable(fromVar), fromTyp)) = from
+              val Judgement(toEnv, HasType(Term.Variable(toVar), toTyp)) = to
+              assert(fromEnv == toEnv, "Both from and to premise must share the environment")
+              assert(fromTyp == toTyp, "Both from and to premise must share the judgement type")
 
-              val refinedPremTerm = premTerm.substitute(allTermSubst)
-              val resTyp = premEnvOpt.flatMap(premEnv => typecheck(tsDecl, refinedPremTerm, premEnv))
-              for
-                resT <- resTyp
-                premTypeSubst <- premTyp.substitute(typeVarEnv).matches(resT)
+              val Array(fromIdent, fromIdxStr) = fromVar.split("_")
+              val Array(toIdent, toIdxStr) = toVar.split("_")
+              assert(fromIdent == toIdent, "Both from and to premise must share the judgement var minus index") // todo: generalize to matched terms?
+              
+              val fromIdx = fromIdxStr.toInt
+              val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
+              // Assumption all the variable indexes are bound in the conclusion
+              val premsToConsider = for
+                (termVar, term) <- allTermSubst
+                if termVar.matches(Regex.quote(fromIdent) + "_" + ".+")
+                currIdx = termVar.split("_")(1).toInt
+                if currIdx >= fromIdx && currIdx <= toIdx
               yield
-                // if the premise expected type matched the obtained, update the type env with any new unifications
-                typeVarEnv ++ premTypeSubst
+                Judgement(fromEnv, HasType(term, fromTyp))
+
+              premsToConsider.foldLeft(Option(typeVarEnv)) {
+                case (None, _) => None
+                case (Some(pTypeVarEnv), judg) =>
+                  val premEnvMatch = EnvironmentMatch(allVarSubst, pTypeVarEnv, envVarSubst)
+                  typecheck(tsDecl, judg, premEnvMatch, refinedMetaEnv, allTermSubst)
+              }
           }
 
           premTypeCheckResult.map(typ.substitute(_))
         }
       }
   }
+
+  def typecheck(
+    tsDecl: TypeSystemDecl,
+    judgement: Judgement,
+    premEnvMatch: EnvironmentMatch,
+    refinedMetaEnv: Environment,
+    allTermSubst: Map[String, Term]
+  ): Option[Map[String, Type]] =
+    val Judgement(premMetaEnv, HasType(premTerm, premTyp)) = judgement: @unchecked
+    
+    // replace the term and type variables we already know in the premise env and then produce an
+    // actual term env out of it
+    val premEnvOpt = getSelfOrDefaultIfEmpty(premMetaEnv, refinedMetaEnv).substitute(premEnvMatch).toConcrete
+
+    val refinedPremTerm = premTerm.substitute(allTermSubst)
+    val resTyp = premEnvOpt.flatMap(premEnv => typecheck(tsDecl, refinedPremTerm, premEnv))
+    for
+      resT <- resTyp
+      premTypeSubst <- premTyp.substitute(premEnvMatch.typeVarSubst).matches(resT)
+    yield
+      // if the premise expected type matched the obtained, update the type env with any new unifications
+      premEnvMatch.typeVarSubst ++ premTypeSubst
 
   def typecheck(tsDecl: TypeSystemDecl, term: Term, env: Map[String, Type]): Option[Type] =
     tsDecl
