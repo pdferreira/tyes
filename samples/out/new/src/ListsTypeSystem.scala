@@ -20,9 +20,15 @@ class ListsTypeSystem extends TypeSystem[LExpression]:
         TypeError.noTypeFor(exp)
 
     case LList(e1, e2) => 
-      if e2 == LNil then
+      if e2.isInstanceOf[LList[Type]] then
         for
           _ <- typecheck(e1, env)
+          LList(e3, eb) = e2
+          _ <- typecheck(e3, env)
+          _ <- eb.expecting[LList[Type]]
+          LList(e4, eb2) = eb
+          _ <- typecheck(e4, env)
+          _ <- checkIf(eb2 == LNil, TypeError.noTypeFor(eb2))
         yield
           Type.List
       else

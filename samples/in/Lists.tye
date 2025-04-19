@@ -6,5 +6,7 @@ typesystem Lists
 
   rule EmptyList infers [ ] : list
 
-  rule NonEmptyList infers [ e1 ] : list
+  rule NonEmptyList infers [ e1, e2, e3 ] : list
     if e1 : t1
+    and e2: t2
+    and e3: t3
