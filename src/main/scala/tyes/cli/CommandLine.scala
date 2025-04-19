@@ -136,12 +136,15 @@ object CommandLine:
       val expParser = LExpressionWithModelTypesParser(tsDecl.types)
       runInteractive(line => {
         for exp <- parseLExpression(line, expParser) do
-          TyesInterpreter.typecheck(tsDecl, exp) match {
-            case Some(typ) if typ.isGround => 
-              println(expParser.prettyPrint(typ))
-            case _ => 
-              Console.err.println("No type for expression")
-          }
+          try
+            TyesInterpreter.typecheck(tsDecl, exp) match {
+              case Some(typ) if typ.isGround => 
+                println(expParser.prettyPrint(typ))
+              case _ => 
+                Console.err.println("No type for expression")
+            }
+          catch case e =>
+            e.printStackTrace()
         },
         expSrcOption)
 
