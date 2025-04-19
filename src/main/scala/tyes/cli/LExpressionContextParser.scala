@@ -24,11 +24,16 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
   )
 
   def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => Term.Function("LNumber", Term.Constant(numStr.toInt)) }
+
+  def list = "[" ~> repsep(expression, ",") <~ "]" ^^ {
+    elems => elems.foldRight(Term.Function("LNil")) { (e, l) => Term.Function("LList", e, l) }
+  }
   
   def leaf = 
     ("(" ~> expression <~ ")") 
     | number 
     | variable
+    | list
 
   def app = leaf ~ leaf.* ^^ {
     case exp ~ rs => rs.foldLeft(exp) { (left, right) => Term.Function("LApp", left, right) }

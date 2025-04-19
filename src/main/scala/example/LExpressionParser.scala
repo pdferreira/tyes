@@ -12,7 +12,11 @@ class LExpressionParser[TType] extends RegexParsers:
 
   def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => LNumber(numStr.toInt) }
   
-  def leaf = ("(" ~> expression <~ ")") | number | variable 
+  def list = "[" ~> repsep(expression, ",") <~ "]" ^^ {
+    elems => elems.foldRight(LNil: LExpression[TType]) { (e, l) => LList(e, l) }
+  }
+
+  def leaf = ("(" ~> expression <~ ")") | number | variable | list
 
   def app = leaf ~ leaf.* ^^ {
     case exp ~ rs => rs.foldLeft(exp) { (left, right) => LApp(left, right) }

@@ -96,8 +96,10 @@ class RuleIRGenerator(
       if v.isGround then 
         IRCond.TermEquals(TCN.Var(k), termIRGenerator.generate(v))
       else
-        val Term.Function(name, _*) = v
-        IRCond.OfType(TCN.Var(k), TCTypeRef(name))
+        val Term.Function(name, args*) = v
+        // TODO: get target type information for now using a heuristic
+        val typeParams = if args.length >= 1 then Seq(typeIRGenerator.typeEnumTypeRef) else Seq()
+        IRCond.OfType(TCN.Var(k), TCTypeRef(name, typeParams*))
 
   private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRCond] =
     val HasType(cTerm, _) = concl.assertion
