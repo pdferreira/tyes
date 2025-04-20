@@ -18,15 +18,19 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
     .filter(id => !keywords.contains(id))
     .into(bindings.identTermParser)
 
+  def metaVariable = bindings.metaTermVariableParser - oneOf(keywords)
+
   def variable = (
-    (bindings.metaTermVariableParser - oneOf(keywords))
+    metaVariable
     ||| ident ^^ { varTerm => Term.Function("LVariable", varTerm) }
   )
 
   def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => Term.Function("LNumber", Term.Constant(numStr.toInt)) }
 
-  def list = "[" ~> repsep(expression, ",") <~ "]" ^^ {
-    elems => elems.foldRight(Term.Function("LNil")) { (e, l) => Term.Function("LList", e, l) }
+  def list = "[" ~> repsep(expression, ",") ~ ("|" ~> metaVariable).? <~ "]" ^^ {
+    case elems ~ tail =>
+      val tailTerm = tail.getOrElse(Term.Function("LNil")) 
+      elems.foldRight(tailTerm) { (e, l) => Term.Function("LList", e, l) }
   }
   
   def leaf = 
