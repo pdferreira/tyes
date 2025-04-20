@@ -21,9 +21,6 @@ object TypeError:
     val expectedType = expectedClass.getSimpleName
     generic(s"expected type $obtained to be a $expectedType instead")
 
-  def unexpectedTerm[E](obtained: E, expected: E) =
-    generic(s"expected term $obtained to be $expected instead")
-
   def unexpectedEnvSize[T <: Type](env: Environment[T], expectedSize: Int) =
     generic(s"expected environment with $expectedSize declarations, but found: $env")
 
