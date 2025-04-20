@@ -213,7 +213,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     case TCP.Var(name) => name
     case TCP.WithType(pat, typeRef) => s"${generate(pat)}: ${generate(typeRef)}"
     case TCP.ADTConstructor(typeRef, args*) =>
-      args
+      generate(typeRef) + args
         .map(generate)
-        .mkString(generate(typeRef) + "(", ", ", ")")
+        .mkStringOrEmpty("(", ", ", ")")
   }

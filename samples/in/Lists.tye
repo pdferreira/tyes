@@ -1,0 +1,12 @@
+typesystem Lists
+
+  rule One infers 1 : one
+
+  rule Two infers 2 : two
+
+  rule EmptyList infers [ ] : list
+
+  rule NonEmptyList infers [ e1, e2 | r ] : list
+    if e1 : t
+    and e2 : t
+    and r : list

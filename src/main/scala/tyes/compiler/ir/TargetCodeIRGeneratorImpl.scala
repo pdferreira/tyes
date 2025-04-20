@@ -104,6 +104,18 @@ class TargetCodeIRGeneratorImpl(
         RuntimeAPIGenerator.genExpecting(t1Code, t2Code)
       )
 
+    case IRCond.TermEquals(t1Code, t2Code) =>
+      TCFC.Iterate(
+        TCP.Any,
+        RuntimeAPIGenerator.genCheck(TCN.Equals(t1Code, t2Code), IRError.NoType(t1Code))
+      )
+
+    case IRCond.OfType(termCode, typRef) =>
+      TCFC.Iterate(
+        TCP.Any,
+        RuntimeAPIGenerator.genExpecting(termCode, typRef)
+      )
+
     case IRCond.TypeDecl(declPat, typExp, None) if !canFail(typExp) =>
       TCFC.Let(declPat, generate(typExp, eitherIsExpected = false))
       
@@ -116,7 +128,7 @@ class TargetCodeIRGeneratorImpl(
           case Some(irExpect) => genExpectationCheck(typExpCode, irExpect)
         }
       )
-
+  
   }
 
   private def genExpectationCheck(
