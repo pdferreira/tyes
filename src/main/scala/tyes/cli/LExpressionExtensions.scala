@@ -27,4 +27,6 @@ object LExpressionExtensions:
             bodyExp.convert
           )
         case LApp(funExp, argExp) => Term.Function("LApp", funExp.convert, argExp.convert)
+        case LNil => Term.Function("LNil")
+        case LList(head, tail) => Term.Function("LList", head.convert, tail.convert)
     }

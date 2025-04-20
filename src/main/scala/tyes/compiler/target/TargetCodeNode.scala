@@ -28,7 +28,7 @@ enum TargetCodeNode:
   case Return(exp: TargetCodeNode)
   case ADTConstructorCall(typeRef: TargetCodeTypeRef, args: TargetCodeNode*)
 
-class TargetCodeTypeRef private(
+case class TargetCodeTypeRef private(
   val name: String, 
   val namespaces: Seq[String], 
   val params: Seq[TargetCodeTypeRef]

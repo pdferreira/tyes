@@ -87,17 +87,10 @@ class RuleIRGenerator(
     val constructor = extractTemplate(term)
     val constructorReqs = constructor.matches(term)
       .get
-      .filter((_, v) => v.isGround || v.isInstanceOf[Term.Function])
       .toSeq
       .sortBy((k, v) => k) // TODO: ideally should sort in order of occurrence ltr
 
-    for (k, v) <- constructorReqs
-    yield
-      if v.isGround then 
-        IRCond.TermEquals(TCN.Var(k), termIRGenerator.generate(v))
-      else
-        val Term.Function(name, _*) = v: @unchecked
-        IRCond.OfType(TCN.Var(k), TCTypeRef(name))
+    genRequiredConds(constructorReqs)
 
   private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRCond] =
     val HasType(cTerm, _) = concl.assertion: @unchecked
@@ -113,7 +106,7 @@ class RuleIRGenerator(
       .collect({ case (k, Term.Type(typ)) => k -> typ })
       .toMap
     
-    val destructureConds = genConclusionDestructureConds(termSubst, codeEnv)
+    val destructureConds = genDestructureConds(termSubst, codeEnv)
     val typeConds = genConclusionTypeConds(constructor.types.toSeq, typeSubst, codeEnv)
     destructureConds ++ typeConds
 
@@ -141,11 +134,24 @@ class RuleIRGenerator(
     yield
       c   
   
-  def genConclusionDestructureConds(termSubst: Map[String, Term], codeEnv: TargetCodeEnv): Seq[IRCond] =
+  def genRequiredConds(requirements: Seq[(String, Term)]): Seq[IRCond] =
+    for (k, v) <- requirements
+    if v.isGround || v.isInstanceOf[Term.Function]
+    yield
+      if v.isGround then 
+        IRCond.TermEquals(TCN.Var(k), termIRGenerator.generate(v))
+      else
+        val Term.Function(name, args*) = v: @unchecked
+        // TODO: get target type information for now using a heuristic
+        val typeParams = if args.length > 1 then Seq(typeIRGenerator.typeEnumTypeRef) else Seq()
+        IRCond.OfType(TCN.Var(k), TCTypeRef(name, typeParams*))
+
+  def genDestructureConds(termSubst: Map[String, Term], codeEnv: TargetCodeEnv): Seq[IRCond] =
+    val res = collection.mutable.Buffer[IRCond]()
     for
       case (k, f: Term.Function) <- termSubst.toSeq
       if !f.isGround
-    yield
+    do
       // Map all args into fresh variables
       val argsAsTemplate = f.args.zipWithIndex.map({
         case (v: Term.Variable, _) => v
@@ -160,12 +166,18 @@ class RuleIRGenerator(
       
       // Generate a composite term pattern with the fresh args and use it for
       // the destructuring declaration.
-      val declTerm = Term.Function(f.name, declTermArgs*)
+      val declTerm = Term.Function(f.name, declTermArgs*): Term.Function
       
-      IRCond.TypeDecl(
+      res += IRCond.TypeDecl(
         declPat = termIRGenerator.generatePattern(declTerm),
         typExp = IRNode.Type(IRType.FromCode(TCN.Var(k)))
       )
+
+      for subst <- declTerm.matches(f) do
+        res ++= genRequiredConds(subst.toSeq)
+        res ++= genDestructureConds(subst, codeEnv)
+      
+    return res.toSeq
 
   private def genPremiseConds(premise: Premise, idx: Int, codeEnv: TargetCodeEnv): Seq[IRCond] = premise match {
     case Judgement(env, HasType(pTerm, pType)) => 
