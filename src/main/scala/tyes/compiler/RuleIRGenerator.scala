@@ -187,5 +187,21 @@ class RuleIRGenerator(
       ))
       typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
     case JudgementRange(from, to) =>
-      genPremiseConds(from, idx, codeEnv) ++ genPremiseConds(to, idx, codeEnv) 
+      val Judgement(fromEnv, HasType(Term.Variable(fromVar), fromTyp)) = from
+      val Judgement(toEnv, HasType(Term.Variable(toVar), toTyp)) = to
+      assert(fromEnv == toEnv, "Both from and to premise must share the environment")
+      assert(fromTyp == toTyp, "Both from and to premise must share the judgement type")
+
+      val Array(fromIdent, fromIdxStr) = fromVar.split("_")
+      val Array(toIdent, toIdxStr) = toVar.split("_")
+      assert(fromIdent == toIdent, "Both from and to premise must share the judgement var minus index") // todo: generalize to matched terms?
+      
+      val fromIdx = fromIdxStr.toInt
+      val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
+      for 
+        i <- codeEnv.getIndexes(fromIdent).toSeq.sorted
+        if i >= fromIdx && i <= toIdx
+        c <- genPremiseConds(Judgement(fromEnv, HasType(Term.Variable(s"${fromIdent}_$i"), fromTyp)), idx, codeEnv)
+      yield
+        c 
   }

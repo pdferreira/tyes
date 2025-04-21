@@ -63,6 +63,13 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
 
   def contains(termVar: TermVariable): Boolean = getIds(termVar).isDefined
 
+  def getIndexes(indexedName: String): Set[Int] =
+    nameToIds.keys
+      .map(_.split("_", 2))
+      .collect({ case Array(name, idxStr) if name == indexedName && idxStr.matches(raw"\d+") => idxStr.toInt })
+      .toSet
+      .union(parent.map(_.getIndexes(indexedName)).getOrElse(Set()))
+
   override def toString(): String =
     val parentStr = parent.map(" <- " + _.toString).getOrElse("")
     val idToCodeStr = idToCode.mkString(", ")
