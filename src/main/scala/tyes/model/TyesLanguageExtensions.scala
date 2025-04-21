@@ -25,6 +25,12 @@ object TyesLanguageExtensions:
           Binding.BindVariable(name, typ.substitute(typeVarSubst))
     }
 
+    def remap(bindingVarSubst: Map[String, String]): Binding = metaBinding match {
+      case Binding.BindVariable(name, typ) if bindingVarSubst.contains(name) =>
+        Binding.BindVariable(bindingVarSubst(name), typ) 
+      case _ => metaBinding
+    }
+
     def toConcrete: Option[(String, Type)] = metaBinding match {
       case Binding.BindName(name, typ) if typ.isGround => Some(name -> typ)
       case _ => None
@@ -90,6 +96,11 @@ object TyesLanguageExtensions:
         } 
     }
 
+    def remap(bindingVarSubst: Map[String, String]): EnvironmentPart = envPart match {
+      case EnvironmentPart.Bindings(bindings) => EnvironmentPart.Bindings(bindings.map(_.remap(bindingVarSubst)))
+      case _ => envPart
+    }
+
     def toConcrete: Option[Map[String, Type]] = envPart match {
       case EnvironmentPart.Bindings(bindings) => 
         bindings.foldLeft(Option(Map[String, Type]())) { (envOpt, binding) =>
@@ -127,6 +138,9 @@ object TyesLanguageExtensions:
 
     def substitute(envMatch: EnvironmentMatch): Environment =
       Environment(metaEnv.parts.map(_.substitute(envMatch)))
+
+    def remap(bindingVarSubst: Map[String, String]): Environment =
+      Environment(metaEnv.parts.map(_.remap(bindingVarSubst)))
 
     def toConcrete: Option[Map[String, Type]] =
       metaEnv.parts.map(_.toConcrete).foldLeft(Option(Map[String, Type]())) { (prevEnvOpt, currEnvOpt) =>
