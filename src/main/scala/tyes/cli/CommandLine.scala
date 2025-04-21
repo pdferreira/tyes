@@ -59,7 +59,7 @@ object CommandLine:
         case "old" => old.TyesCodeGenerator
         case "new" => new TyesCompilerImpl
       }
-      invokeCompiler(compiler, path, scalaDstDirPath, binDstDirPath)
+      invokeCompiler(compiler, path, scalaDstDirPath, binDstDirPath, options.skipValidation)
 
   def tyer(args: String*): Unit =
     val options = InterpreterOptions.parse(args) match {
@@ -118,10 +118,16 @@ object CommandLine:
             None
     }
 
-  private def invokeCompiler(compiler: TyesCompiler, srcPath: Path, scalaDstDirPath: Path, binDstDirPath: Path): Unit = 
+  private def invokeCompiler(
+    compiler: TyesCompiler,
+    srcPath: Path,
+    scalaDstDirPath: Path,
+    binDstDirPath: Path,
+    skipValidation: Boolean
+  ): Unit = 
     val srcContent = Files.readString(srcPath)
     
-    for tsDecl <- parseTypeSystem(srcContent, skipValidation = false) do
+    for tsDecl <- parseTypeSystem(srcContent, skipValidation) do
       println(s"\tGenerating scala sources...")
       val (dstFileName, generatedCode) = compiler.compile(tsDecl)
 
