@@ -44,23 +44,24 @@ object TyesInterpreter:
               val premEnvMatch = EnvironmentMatch(allVarSubst, typeVarEnv, envVarSubst)
               typecheck(tsDecl, judg, premEnvMatch, refinedMetaEnv, allTermSubst)
             case (Some(typeVarEnv), JudgementRange(from, to)) =>
-              val Judgement(fromEnv, HasType(Term.Variable(fromVar), fromTyp)) = from
-              val Judgement(toEnv, HasType(Term.Variable(toVar), toTyp)) = to
+              val Judgement(fromEnv, HasType(Term.Variable(fromVar, Some(fromIdx)), fromTyp)) = from
+              val Judgement(toEnv, HasType(Term.Variable(toVar, Some(toIdx)), toTyp)) = to
               assert(fromEnv == toEnv, "Both from and to premise must share the environment")
               assert(fromTyp == toTyp, "Both from and to premise must share the judgement type")
-
-              val Array(fromIdent, fromIdxStr) = fromVar.split("_")
-              val Array(toIdent, toIdxStr) = toVar.split("_")
-              assert(fromIdent == toIdent, "Both from and to premise must share the judgement var minus index") // todo: generalize to matched terms?
+              assert(fromVar == toVar, "Both from and to premise must share the judgement var minus index") // todo: generalize to matched terms?
+              assert(fromIdx.isInstanceOf[Term.Constant[Int]])
               
-              val fromIdx = fromIdxStr.toInt
-              val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
+              val minIdx = fromIdx match { case Term.Constant[Int](n) => n }
+              val maxIdx = toIdx match {
+                case Term.Constant[Int](n) => n
+                case Term.Variable(_, _) => Int.MaxValue
+              }
               // Assumption all the variable indexes are bound in the conclusion
               val premsToConsider = for
                 (termVar, term) <- allTermSubst
-                if termVar.matches(Regex.quote(fromIdent) + "_" + ".+")
+                if termVar.matches(Regex.quote(fromVar) + "_" + ".+")
                 currIdx = termVar.split("_")(1).toInt
-                if currIdx >= fromIdx && currIdx <= toIdx
+                if currIdx >= minIdx && currIdx <= maxIdx
               yield
                 Judgement(fromEnv, HasType(term, fromTyp))
 

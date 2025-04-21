@@ -2,7 +2,7 @@ package tyes.model
 
 enum Term extends terms.TermOps[Term, Any](TermBuilder):
   case Constant[T](value: T)
-  case Variable(name: String) extends Term, terms.TermVariable
+  case Variable(name: String, index: Option[Term]) extends Term, terms.TermVariable
   case Function(name: String, args: Term*)
   case Type(typ: tyes.model.Type)
 
@@ -62,10 +62,21 @@ private object TermBuilder extends terms.TermBuilder[Term, Any]:
     case _ => None
   }
 
-  override def applyVariable(name: String): Term & terms.TermVariable = Term.Variable(name)
+  override def applyVariable(name: String): Term & terms.TermVariable = name.split("_", 2) match {
+    case Array(varName, idxStr) =>
+      val idxTerm =
+        if raw"\d+".r.matches(idxStr)
+        then Term.Constant(idxStr.toInt)
+        else Term.Variable(idxStr, index = None)
+
+      Term.Variable(varName, index = Some(idxTerm)) 
+    case _ => Term.Variable(name, index = None)
+  }
 
   override def unapplyVariable(term: Term): Option[String] = term match {
-    case Term.Variable(name) => Some(name)
+    case Term.Variable(name, None) => Some(name)
+    case Term.Variable(name, Some(Term.Constant(idxValue: Int))) => Some(s"${name}_${idxValue}")
+    case Term.Variable(name, Some(Term.Variable(idxVarName, None))) => Some(s"${name}_${idxVarName}")
     case _ => None
   }
 

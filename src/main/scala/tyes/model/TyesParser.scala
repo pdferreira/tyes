@@ -9,8 +9,8 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
   // All variables and declaration names: int, Lambda, e1
   def genericIdent = raw"[a-zA-Z][a-zA-Z\d_']*".r.filter(id => !keywords.contains(id))
   
-  // Generic meta variables: e, e1, e', e_1, e_n
-  def metaIdent = raw"[a-z](\d+|'+|(_(\d+|[a-z])))?".r
+  // Generic meta variables: e, e1, e'
+  def metaIdent = raw"[a-z](\d+|'+)?".r
 
   // Meta variables conventioned to match (synctatic) variables: x, y', z2, z_i
   def metaVarIdent = raw"[f-hx-z](\d+|'+|(_(\d+|[a-z])))?".r
@@ -48,11 +48,17 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
     else Binding.BindName(name, tpe) 
   }
   
-  def metaTermVariable = metaIdent.filter(id => !metaVarIdent.matches(id)) ^^ { varName => Term.Variable(varName) }
+  def metaVarIndex =
+    ("0" | raw"[1-9]\d*".r) ^^ { numStr => Term.Constant(numStr.toInt) }
+    | raw"[a-z]".r ^^ { varName => Term.Variable(varName, None) }
+
+  def metaTermVariable = metaIdent.filter(id => !metaVarIdent.matches(id)) ~ ("_" ~> metaVarIndex).? ^^ {
+    case varName ~ idxTermOpt => Term.Variable(varName, index = idxTermOpt)
+  }
 
   def newIdentifierTerm(ident: String): Term =
     if metaVarIdent.matches(ident)
-    then Term.Variable(ident)
+    then Term.Variable(ident, index = None)
     else Term.Constant(ident)
   
   def term: Parser[Term] = buildTermLanguageParser(new TyesTermLanguageBindings {

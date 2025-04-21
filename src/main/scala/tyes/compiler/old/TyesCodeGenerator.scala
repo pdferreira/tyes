@@ -21,7 +21,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
 
   def compile(term: Term, typSubst: Map[String, String]): String = term match {
     case Term.Constant(value) => compileValue(value)
-    case Term.Variable(name) => name
+    case Term.Variable(name, None) => name
     case Term.Function(name, args*) => name + args.map(compile(_, typSubst)).mkString("(", ", ", ")")
     case Term.Type(typ) => TypeCodeGenerator.compile(typ, typSubst) 
   }
@@ -60,9 +60,9 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
     case Term.Function(fnName, args*) =>
       val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
         arg match {
-          case Term.Variable(_) => arg
-          case Term.Constant(_) => Term.Variable(getFreshVarName("c", idx))
-          case Term.Function(_, _*) => Term.Variable(getFreshVarName("e", idx))
+          case Term.Variable(_, None) => arg
+          case Term.Constant(_) => Term.Variable(getFreshVarName("c", idx), None)
+          case Term.Function(_, _*) => Term.Variable(getFreshVarName("e", idx), None)
           case Term.Type(typ) => Term.Type(typ match {
             case Type.Variable(_) => typ
             case Type.Named(_) => Type.Variable(getFreshVarName("ct", idx))
@@ -90,7 +90,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
       yield
         val caseBody = rs match {
           // Special case for catch'all rules with no premises
-          case Seq(r @ RuleDecl(_, Seq(), Judgement(Environment(Seq(EnvironmentPart.Variable(_))), HasType(Term.Variable(_), _)))) => 
+          case Seq(r @ RuleDecl(_, Seq(), Judgement(Environment(Seq(EnvironmentPart.Variable(_))), HasType(Term.Variable(_, _), _)))) => 
             compileRule(r, Map(), Seq(), Map(), indent)
           case _ =>
             val inductionDeclNames = rs.flatMap(_.premises).zipWithIndex.toMap.mapValues(idx => getFreshVarName("t", idx))
@@ -217,7 +217,7 @@ private class TyesCodeGenerator(defaultEnvName: String = "env"):
         res
 
     case HasType(Term.Function(_, fnArgs*), _) if fnArgs.exists(_.variables.nonEmpty) =>
-      for case (Term.Function(fnName, Term.Variable(metaVarName)), idx) <- fnArgs.zipWithIndex yield
+      for case (Term.Function(fnName, Term.Variable(metaVarName, None)), idx) <- fnArgs.zipWithIndex yield
         (
           s"val ${getFreshVarName(metaVarName)} = ${getFreshVarName("e", idx)} match { case $fnName(v) => Right(v) ; case _ => Left(\"Not a $fnName\") }",
           Map()

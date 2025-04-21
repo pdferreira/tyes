@@ -33,13 +33,13 @@ class RuleIRGenerator(
   
       val argsAsVariables = args.zipWithIndex.map { (arg, idx) =>
         arg match {
-          case Term.Variable(_) => arg
+          case Term.Variable(_, _) => arg
           case Term.Constant(_) =>
             // Simple naming heuristic based on the constructor name, while field
             // names are not considered.
             val initial = fnName.findLast(_.isUpper).map(_.toLower).getOrElse('c')
-            Term.Variable(initial + getSuffix(idx))
-          case Term.Function(_, _*) => Term.Variable("e" + getSuffix(idx))
+            Term.Variable(initial + getSuffix(idx), None)
+          case Term.Function(_, _*) => Term.Variable("e" + getSuffix(idx), None)
           case Term.Type(typ) => 
             // Type variable arguments are assumed to be optional, so we match
             // them with a temporary name and only later declare them with their original
@@ -155,14 +155,14 @@ class RuleIRGenerator(
       // Map all args into fresh variables
       val argsAsTemplate = f.args.zipWithIndex.map({
         case (v: Term.Variable, _) => v
-        case (_, argIdx) => Term.Variable(s"e${('a' + argIdx).toChar}"): Term.Variable
+        case (_, argIdx) => Term.Variable(s"e${('a' + argIdx).toChar}", None): Term.Variable
       })
 
       val argsAsCode = argsAsTemplate.map(v =>
         val (_, idCode) = codeEnv.requestIdentifier(v)
         idCode
       )
-      val declTermArgs = argsAsCode.map(vCode => Term.Variable(vCode.name): Term.Variable)
+      val declTermArgs = argsAsCode.map(vCode => Term.Variable(vCode.name, None): Term.Variable)
       
       // Generate a composite term pattern with the fresh args and use it for
       // the destructuring declaration.

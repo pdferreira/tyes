@@ -29,7 +29,7 @@ class TermIRGenerator(
   def generatePattern(term: Term): TargetCodePattern = term match {
     case Term.Constant(value: Int) => TCP.Integer(value)
     case Term.Constant(value: String) => TCP.Text(value)
-    case Term.Variable(name) => TCP.Var(name)
+    case Term.Variable(name, None) => TCP.Var(name)
     case Term.Function(name, args*) => 
       TCP.ADTConstructor(
         TCTypeRef(name),

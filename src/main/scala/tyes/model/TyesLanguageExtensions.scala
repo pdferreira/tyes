@@ -147,7 +147,8 @@ object TyesLanguageExtensions:
 
     def types: Set[Type] = term match {
       case Term.Constant(_) => Set()
-      case Term.Variable(_) => Set()
+      case Term.Variable(_, None) => Set()
+      case Term.Variable(_, Some(idx)) => idx.types
       case Term.Function(_, args*) => args.flatMap(_.types).toSet
       case Term.Type(t) => Set(t)
     }
