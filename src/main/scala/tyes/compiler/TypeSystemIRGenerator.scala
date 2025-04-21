@@ -124,6 +124,6 @@ class TypeSystemIRGenerator(
       if norGroupIdx == -1 then
         Seq(r) +: norGroups
       else
-        val (before, idxGroup +: after) = norGroups.splitAt(norGroupIdx)
+        val (before, idxGroup +: after) = norGroups.splitAt(norGroupIdx): @unchecked
         before ++ ((r +: idxGroup) +: after)
   }
