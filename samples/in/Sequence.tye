@@ -10,8 +10,7 @@ typesystem Sequence
 
   rule infers [ e_1, e_2, e_3 | l ] : t_1 -> t_2 -> t_3 -> t_l
     if e_1 : t_1
-    and
-    ...
+    and ...
     and e_n : t_n
     and l : t_l
 

@@ -2,6 +2,7 @@ package tyes.compiler
 
 import scala.collection.mutable.ListBuffer
 import tyes.model.*
+import tyes.model.indexes.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
@@ -18,6 +19,7 @@ object TyesValidator:
     Seq(
       validateAmbiguity(tsDecl),
       validateScope(tsDecl),
+      validateStructure(tsDecl),
     ).flatten 
 
   def validateScope(tsDecl: TypeSystemDecl): Seq[String] =
@@ -75,4 +77,42 @@ object TyesValidator:
           val r2Name = getRuleDisplayName(r2, tsDecl)
           errors += s"Error: conclusions of $r1Name and $r2Name overlap but result in different types"
     
+    return errors.toSeq
+
+  def validateStructure(tsDecl: TypeSystemDecl): Seq[String] =
+    val errors = ListBuffer.empty[String]
+
+    for
+      r <- tsDecl.rules
+      case jr: JudgementRange <- r.premises
+    do
+      val ruleName = getRuleDisplayName(r, tsDecl)
+      errors ++= validateStructure(ruleName, jr)
+
+    return errors.toSeq
+
+  private def validateStructure(ruleName: String, range: JudgementRange): Seq[String] =
+    val errors = ListBuffer.empty[String]
+
+    val JudgementRange(
+      from @ Judgement(fromEnv, HasType(fromTerm, fromTyp)),
+      to @ Judgement(toEnv, HasType(toTerm, toType))
+    ) = range: @unchecked
+    
+    (fromTerm, toTerm) match {
+      case (Term.Variable(fromVar), Term.Variable(toVar)) => (extractIndex(fromVar), extractIndex(toVar)) match {
+        case (Some((fromIdent, fromIdxStr)), Some((toIdent, toIdxStr))) =>
+          if fromIdent != toIdent then
+            errors += f"Error: $ruleName premise range start and end must type the same variable, module index"
+
+          val idxPlaceholder = "$IDX"
+          if from.replaceIndex(fromIdxStr, idxPlaceholder) != to.replaceIndex(toIdxStr, idxPlaceholder) then
+            errors += f"Error: $ruleName premise range start and end must be the same modulo their respective main index"
+        case (_, _) =>
+          errors += f"Error: $ruleName premise range start and end must type a variable with an index, but at least one doesn't: $fromVar, $toVar"
+      } 
+      case _ =>
+        errors += f"Error: $ruleName premise range start and end must type a variable, but at least one doesn't: $fromTerm, $toTerm"
+    }
+
     return errors.toSeq

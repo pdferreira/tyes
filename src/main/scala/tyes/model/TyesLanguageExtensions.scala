@@ -1,8 +1,20 @@
 package tyes.model
 
+import tyes.model.indexes.*
+
 object TyesLanguageExtensions:
   
   extension (metaBinding: Binding)
+
+    def replaceIndex(oldIdxStr: String, newIdxStr: String): Binding = metaBinding match {
+      case Binding.BindName(name, typ) => Binding.BindName(name, typ.replaceIndex(oldIdxStr, newIdxStr))
+      case Binding.BindVariable(rawName, typ) =>
+        val replacedTyp = typ.replaceIndex(oldIdxStr, newIdxStr)
+        extractIndex(rawName) match {
+          case Some((name, `oldIdxStr`)) => Binding.BindVariable(indexedVar(name, newIdxStr), replacedTyp)
+          case _ => Binding.BindVariable(rawName, replacedTyp)
+        }
+    }
 
     def matches(entry: (String, Type)): Option[(Map[String, String], Map[String, Type])] = 
       val (entryName, entryTyp) = entry
@@ -23,12 +35,6 @@ object TyesLanguageExtensions:
           Binding.BindName(termVarSubst(name), typ.substitute(typeVarSubst))
         else
           Binding.BindVariable(name, typ.substitute(typeVarSubst))
-    }
-
-    def remap(bindingVarSubst: Map[String, String]): Binding = metaBinding match {
-      case Binding.BindVariable(name, typ) if bindingVarSubst.contains(name) =>
-        Binding.BindVariable(bindingVarSubst(name), typ) 
-      case _ => metaBinding
     }
 
     def toConcrete: Option[(String, Type)] = metaBinding match {
@@ -96,9 +102,12 @@ object TyesLanguageExtensions:
         } 
     }
 
-    def remap(bindingVarSubst: Map[String, String]): EnvironmentPart = envPart match {
-      case EnvironmentPart.Bindings(bindings) => EnvironmentPart.Bindings(bindings.map(_.remap(bindingVarSubst)))
-      case _ => envPart
+    def replaceIndex(oldIdxStr: String, newIdxStr: String): EnvironmentPart = envPart match {
+      case EnvironmentPart.Bindings(bindings) => EnvironmentPart.Bindings(bindings.map(_.replaceIndex(oldIdxStr, newIdxStr)))
+      case EnvironmentPart.Variable(envVarName) => extractIndex(envVarName) match {
+        case Some((name, `oldIdxStr`)) => EnvironmentPart.Variable(indexedVar(name, newIdxStr))
+        case _ => envPart
+      }
     }
 
     def toConcrete: Option[Map[String, Type]] = envPart match {
@@ -123,6 +132,9 @@ object TyesLanguageExtensions:
 
   extension (metaEnv: Environment)
 
+    def replaceIndex(oldIdxStr: String, newIdxStr: String): Environment =
+      Environment(metaEnv.parts.map(_.replaceIndex(oldIdxStr, newIdxStr)))
+
     def matches(env: Map[String, Type]): Option[EnvironmentMatch] =
       val remainingEnvVars = metaEnv.envVariables
       if remainingEnvVars.size > 1 then
@@ -139,9 +151,6 @@ object TyesLanguageExtensions:
     def substitute(envMatch: EnvironmentMatch): Environment =
       Environment(metaEnv.parts.map(_.substitute(envMatch)))
 
-    def remap(bindingVarSubst: Map[String, String]): Environment =
-      Environment(metaEnv.parts.map(_.remap(bindingVarSubst)))
-
     def toConcrete: Option[Map[String, Type]] =
       metaEnv.parts.map(_.toConcrete).foldLeft(Option(Map[String, Type]())) { (prevEnvOpt, currEnvOpt) =>
         prevEnvOpt.zip(currEnvOpt).map(_ ++ _)
@@ -157,7 +166,24 @@ object TyesLanguageExtensions:
 
   extension (term: Term)
 
+    def replaceIndex(oldIdxStr: String, newIdxStr: String): Term = term match {
+      case Term.Constant(_) => term
+      case Term.Variable(rawName) => extractIndex(rawName) match {
+        case Some((name, `oldIdxStr`)) => Term.Variable(indexedVar(name, newIdxStr))
+        case _ => term
+      }
+      case Term.Function(name, args*) => Term.Function(name, args.map(_.replaceIndex(oldIdxStr, newIdxStr))*)
+      case Term.Type(typ) => Term.Type(typ.replaceIndex(oldIdxStr, newIdxStr))
+    }
+
     def typeVariables: Set[String] = types.flatMap(_.variables)
+
+    def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
+      case Term.Constant(_) => Set.empty
+      case v: Term.Variable => Set(v)
+      case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
+      case Term.Type(typ) => typ.typeVariables
+    }
 
     def types: Set[Type] = term match {
       case Term.Constant(_) => Set()
@@ -168,6 +194,13 @@ object TyesLanguageExtensions:
 
   extension (asrt: Assertion)
 
+    def replaceIndex(oldIdxStr: String, newIdxStr: String): Assertion = asrt match {
+      case HasType(term, typ) => HasType(
+        term.replaceIndex(oldIdxStr, newIdxStr),
+        typ.replaceIndex(oldIdxStr, newIdxStr)
+      )
+    }
+
     def typeVariables: Set[String] = types.flatMap(_.variables)
     
     def termVariables: Set[String] = asrt match {
@@ -177,6 +210,13 @@ object TyesLanguageExtensions:
     def types: Set[Type] = Set(asrt match {
       case HasType(term, typ) => typ
     })
+
+  extension (judg: Judgement)
+
+    def replaceIndex(oldIdxStr: String, newIdxStr: String): Judgement = Judgement(
+      judg.env.replaceIndex(oldIdxStr, newIdxStr),
+      judg.assertion.replaceIndex(oldIdxStr, newIdxStr)
+    )
 
   extension (prem: Premise)
 
@@ -211,17 +251,17 @@ object TyesLanguageExtensions:
         j <- concl +: prems
         t <- j.types
       yield t).toSet
-
-  extension (term: Term)
-
-    def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
-      case Term.Constant(_) => Set.empty
-      case v: Term.Variable => Set(v)
-      case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
-      case Term.Type(typ) => typ.typeVariables
-    }
   
   extension (typ: Type)
+
+    def replaceIndex(oldIdxStr: String, newIdxStr: String): Type = typ match {
+      case Type.Named(name) => typ
+      case Type.Variable(rawName) => extractIndex(rawName) match {
+        case Some((name, `oldIdxStr`)) => Type.Variable(indexedVar(name, newIdxStr))
+        case _ => Type.Variable(rawName)
+      }
+      case Type.Composite(name, args*) => Type.Composite(name, args.map(_.replaceIndex(oldIdxStr, newIdxStr))*)
+    }
 
     def typeVariables: Iterable[Type.Variable] = typ match {
       case Type.Named(_) => Set.empty

@@ -7,6 +7,7 @@ import tyes.compiler.ir.IRType
 import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodePattern
 import tyes.model.*
+import tyes.model.indexes.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
@@ -187,14 +188,13 @@ class RuleIRGenerator(
       ))
       typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
     case JudgementRange(from, to) =>
-      val Judgement(fromEnv, HasType(Term.Variable(fromVar), fromTyp)) = from
-      val Judgement(toEnv, HasType(Term.Variable(toVar), toTyp)) = to
-      assert(fromEnv == toEnv, "Both from and to premise must share the environment")
-      assert(fromTyp == toTyp, "Both from and to premise must share the judgement type")
+      val Judgement(fromEnv, HasType(Term.Variable(fromVar), fromTyp)) = from: @unchecked
+      val Judgement(toEnv, HasType(Term.Variable(toVar), toTyp)) = to: @unchecked
+      assert(fromEnv == toEnv, "Both from and to premise must share the environment") // TODO: lift limitation
+      assert(fromTyp == toTyp, "Both from and to premise must share the judgement type") // TODO: lift limitation
 
-      val Array(fromIdent, fromIdxStr) = fromVar.split("_")
-      val Array(toIdent, toIdxStr) = toVar.split("_")
-      assert(fromIdent == toIdent, "Both from and to premise must share the judgement var minus index") // todo: generalize to matched terms?
+      val Some((fromIdent, fromIdxStr)) = extractIndex(fromVar): @unchecked
+      val Some((toIdent, toIdxStr)) = extractIndex(toVar): @unchecked
       
       val fromIdx = fromIdxStr.toInt
       val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
