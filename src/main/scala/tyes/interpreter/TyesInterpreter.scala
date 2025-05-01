@@ -45,8 +45,8 @@ object TyesInterpreter:
               val premEnvMatch = EnvironmentMatch(allVarSubst, typeVarEnv, envVarSubst)
               typecheck(tsDecl, judg, premEnvMatch, refinedMetaEnv, allTermSubst)
             case (Some(typeVarEnv), JudgementRange(from, to)) =>
-              val Judgement(fromEnv, HasType(Term.Variable(fromVar), fromTyp)) = from: @unchecked
-              val Judgement(toEnv, HasType(Term.Variable(toVar), toTyp)) = to: @unchecked
+              val HasType(Term.Variable(fromVar), _) = from.assertion: @unchecked
+              val HasType(Term.Variable(toVar), _) = to.assertion: @unchecked
 
               val Some((fromIdent, fromIdxStr)) = extractIndex(fromVar): @unchecked
               val Some((toIdent, toIdxStr)) = extractIndex(toVar): @unchecked

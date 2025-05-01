@@ -1,6 +1,7 @@
 package tyes.compiler
 
 import tyes.model.*
+import tyes.model.indexes.*
 import tyes.model.terms.TermVariable
 import tyes.compiler.target.TargetCodeNode
 
@@ -65,8 +66,8 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
 
   def getIndexes(indexedName: String): Set[Int] =
     nameToIds.keys
-      .map(_.split("_", 2))
-      .collect({ case Array(name, idxStr) if name == indexedName && idxStr.matches(raw"\d+") => idxStr.toInt })
+      .map(extractIndex(_))
+      .collect({ case Some((name, idxStr)) if name == indexedName && idxStr.matches(raw"\d+") => idxStr.toInt })
       .toSet
       .union(parent.map(_.getIndexes(indexedName)).getOrElse(Set()))
 

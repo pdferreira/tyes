@@ -6,16 +6,6 @@ object TyesLanguageExtensions:
   
   extension (metaBinding: Binding)
 
-    def replaceIndex(oldIdxStr: String, newIdxStr: String): Binding = metaBinding match {
-      case Binding.BindName(name, typ) => Binding.BindName(name, typ.replaceIndex(oldIdxStr, newIdxStr))
-      case Binding.BindVariable(rawName, typ) =>
-        val replacedTyp = typ.replaceIndex(oldIdxStr, newIdxStr)
-        extractIndex(rawName) match {
-          case Some((name, `oldIdxStr`)) => Binding.BindVariable(indexedVar(name, newIdxStr), replacedTyp)
-          case _ => Binding.BindVariable(rawName, replacedTyp)
-        }
-    }
-
     def matches(entry: (String, Type)): Option[(Map[String, String], Map[String, Type])] = 
       val (entryName, entryTyp) = entry
       metaBinding match {
@@ -102,14 +92,6 @@ object TyesLanguageExtensions:
         } 
     }
 
-    def replaceIndex(oldIdxStr: String, newIdxStr: String): EnvironmentPart = envPart match {
-      case EnvironmentPart.Bindings(bindings) => EnvironmentPart.Bindings(bindings.map(_.replaceIndex(oldIdxStr, newIdxStr)))
-      case EnvironmentPart.Variable(envVarName) => extractIndex(envVarName) match {
-        case Some((name, `oldIdxStr`)) => EnvironmentPart.Variable(indexedVar(name, newIdxStr))
-        case _ => envPart
-      }
-    }
-
     def toConcrete: Option[Map[String, Type]] = envPart match {
       case EnvironmentPart.Bindings(bindings) => 
         bindings.foldLeft(Option(Map[String, Type]())) { (envOpt, binding) =>
@@ -131,9 +113,6 @@ object TyesLanguageExtensions:
     }
 
   extension (metaEnv: Environment)
-
-    def replaceIndex(oldIdxStr: String, newIdxStr: String): Environment =
-      Environment(metaEnv.parts.map(_.replaceIndex(oldIdxStr, newIdxStr)))
 
     def matches(env: Map[String, Type]): Option[EnvironmentMatch] =
       val remainingEnvVars = metaEnv.envVariables
@@ -166,16 +145,6 @@ object TyesLanguageExtensions:
 
   extension (term: Term)
 
-    def replaceIndex(oldIdxStr: String, newIdxStr: String): Term = term match {
-      case Term.Constant(_) => term
-      case Term.Variable(rawName) => extractIndex(rawName) match {
-        case Some((name, `oldIdxStr`)) => Term.Variable(indexedVar(name, newIdxStr))
-        case _ => term
-      }
-      case Term.Function(name, args*) => Term.Function(name, args.map(_.replaceIndex(oldIdxStr, newIdxStr))*)
-      case Term.Type(typ) => Term.Type(typ.replaceIndex(oldIdxStr, newIdxStr))
-    }
-
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
     def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
@@ -194,13 +163,6 @@ object TyesLanguageExtensions:
 
   extension (asrt: Assertion)
 
-    def replaceIndex(oldIdxStr: String, newIdxStr: String): Assertion = asrt match {
-      case HasType(term, typ) => HasType(
-        term.replaceIndex(oldIdxStr, newIdxStr),
-        typ.replaceIndex(oldIdxStr, newIdxStr)
-      )
-    }
-
     def typeVariables: Set[String] = types.flatMap(_.variables)
     
     def termVariables: Set[String] = asrt match {
@@ -210,13 +172,6 @@ object TyesLanguageExtensions:
     def types: Set[Type] = Set(asrt match {
       case HasType(term, typ) => typ
     })
-
-  extension (judg: Judgement)
-
-    def replaceIndex(oldIdxStr: String, newIdxStr: String): Judgement = Judgement(
-      judg.env.replaceIndex(oldIdxStr, newIdxStr),
-      judg.assertion.replaceIndex(oldIdxStr, newIdxStr)
-    )
 
   extension (prem: Premise)
 
@@ -253,15 +208,6 @@ object TyesLanguageExtensions:
       yield t).toSet
   
   extension (typ: Type)
-
-    def replaceIndex(oldIdxStr: String, newIdxStr: String): Type = typ match {
-      case Type.Named(name) => typ
-      case Type.Variable(rawName) => extractIndex(rawName) match {
-        case Some((name, `oldIdxStr`)) => Type.Variable(indexedVar(name, newIdxStr))
-        case _ => Type.Variable(rawName)
-      }
-      case Type.Composite(name, args*) => Type.Composite(name, args.map(_.replaceIndex(oldIdxStr, newIdxStr))*)
-    }
 
     def typeVariables: Iterable[Type.Variable] = typ match {
       case Type.Named(_) => Set.empty
