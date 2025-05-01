@@ -22,6 +22,8 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   import TargetCodeEnv.*
   private val TCN = TargetCodeNode
 
+  private val DIGIT_REGEX = raw"(\d+)".r
+
   private val idToCode = scala.collection.mutable.Map[Id, TargetCodeNode]()
   private val nameToIds = scala.collection.mutable.Map[String, Seq[Id]]()
   
@@ -67,7 +69,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   def getIndexes(indexedName: String): Set[Int] =
     nameToIds.keys
       .map(extractIndex(_))
-      .collect({ case Some((name, idxStr)) if name == indexedName && idxStr.matches(raw"\d+") => idxStr.toInt })
+      .collect({ case Some((`indexedName`, DIGIT_REGEX(idxStr))) => idxStr.toInt })
       .toSet
       .union(parent.map(_.getIndexes(indexedName)).getOrElse(Set()))
 
