@@ -16,9 +16,10 @@ trait OptionsParser[T]:
   
   protected def options: ArgParsers.Parser[T]
 
-  def parse(args: Seq[String]): Either[String, T] = 
-    if args.isEmpty then
+  def parse(args: Seq[String]): Either[String, T] =
+    val nonEmptyArgs = args.filter(_.nonEmpty)
+    if nonEmptyArgs.isEmpty then
       return Left(s"Syntax: ${commandName} ${optionsSyntaxDocs}")
 
-    ArgParsers.parse(ArgParsers.phrase(options), args)
+    ArgParsers.parse(ArgParsers.phrase(options), nonEmptyArgs)
       .withReadableError(prefix = commandName + " ")
