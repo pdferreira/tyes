@@ -6,10 +6,8 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
   case Function(name: String, args: Term*)
   case Type(typ: tyes.model.Type)
 
-  private def ifBothTypes[B](otherTerm: Term, default: => B)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
+  private def ifBothTypes[B](otherTerm: Term)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
     case (Term.Type(thisType), Term.Type(otherType)) => Some(fn(thisType, otherType))
-    case (Term.Type(_), _) => Some(default)
-    case (_, Term.Type(_)) => Some(default)
     case _ => None
   }
 
@@ -19,14 +17,14 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
   }
 
   override def matches(otherTerm: Term): Option[Map[String, Term]] = 
-    ifBothTypes(otherTerm, None) { (thisType, otherType) =>
+    ifBothTypes(otherTerm) { (thisType, otherType) =>
       thisType.matches(otherType).map(_.mapValues(Term.Type.apply).toMap)
     }.getOrElse { 
       super.matches(otherTerm) 
     }
 
   override def overlaps(otherTerm: Term): Boolean = 
-    ifBothTypes(otherTerm, false) { 
+    ifBothTypes(otherTerm) { 
       _.overlaps(_) 
     }.getOrElse { 
       super.overlaps(otherTerm) 
@@ -43,7 +41,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
     }
 
   override def unifies(otherTerm: Term): Option[Map[String, Term]] =
-    ifBothTypes(otherTerm, None) { (thisType, otherType) =>
+    ifBothTypes(otherTerm) { (thisType, otherType) =>
       thisType.unifies(otherType).map(_.mapValues(Term.Type.apply).toMap)
     }.getOrElse { 
       super.unifies(otherTerm) 

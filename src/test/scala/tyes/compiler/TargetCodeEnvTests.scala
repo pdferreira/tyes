@@ -2,6 +2,7 @@ package tyes.compiler
 
 import org.scalatest.*
 import funspec.*
+import tyes.model.indexes.*
 import tyes.model.Term
 import tyes.compiler.target.TargetCodeNode
 
@@ -79,6 +80,23 @@ class TargetCodeEnvTests extends AnyFunSpec:
 
       }
 
+      describe("can retrieve all indexes with a common root variable") {
+
+        it("returning none if the variable is never indexed") {
+          assert(env.getIndexes(varA.name).isEmpty)
+        }
+
+        it("returning all integer indexes if the variable is indexed") {
+          val rootVarName = "t"
+          
+          for idxStr <- Seq("1", "3", "i") do
+            env.requestIdentifier(Term.Variable(indexedVar(rootVarName, idxStr)))
+
+          assert(env.getIndexes(rootVarName) == Set(1, 3)) 
+        }
+
+      }
+
     }
 
     describe("with a parent") {
@@ -105,6 +123,13 @@ class TargetCodeEnvTests extends AnyFunSpec:
         intercept [NoSuchElementException] {
           parentEnv(localAId)
         }
+      }
+
+      it("includes parent variable indexes") {
+        val rootVarName = "t"
+        parentEnv.requestIdentifier(Term.Variable(indexedVar(rootVarName, "2")))
+        env.requestIdentifier(Term.Variable(indexedVar(rootVarName, "5")))
+        assert(env.getIndexes(rootVarName) == Set(2, 5))
       }
 
     }

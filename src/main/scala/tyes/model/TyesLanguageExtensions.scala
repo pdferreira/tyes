@@ -1,5 +1,7 @@
 package tyes.model
 
+import tyes.model.indexes.*
+
 object TyesLanguageExtensions:
   
   extension (metaBinding: Binding)
@@ -145,6 +147,13 @@ object TyesLanguageExtensions:
 
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
+    def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
+      case Term.Constant(_) => Set.empty
+      case v: Term.Variable => Set(v)
+      case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
+      case Term.Type(typ) => typ.typeVariables
+    }
+
     def types: Set[Type] = term match {
       case Term.Constant(_) => Set()
       case Term.Variable(_) => Set()
@@ -164,13 +173,41 @@ object TyesLanguageExtensions:
       case HasType(term, typ) => typ
     })
 
-  extension (judg: Judgement)
+  extension (prem: Premise)
 
-    def typeVariables: Set[String] = judg.types.flatMap(_.variables)
+    private def combineWithoutWildcard(fromVars: Set[String], toVars: Set[String]): Set[String] = {
+      // `to` premise may contain wildcard index variables, e.g. e_n, which
+      // don't correspond to a *concrete* variable in scope, so we never
+      // want them to be listed.
+      val fromIndexedVars = fromVars.collect(extractIndex.unlift).map(_._1)
+      val toVarsWithoutWildcardIndex = toVars
+        .filter(v => extractIndex(v) match {
+          case Some((name, idxStr)) => !fromIndexedVars.contains(name) || idxStr.toIntOption.isDefined
+          case None => true
+        })
 
-    def termVariables: Set[String] = judg.assertion.termVariables ++ judg.env.termVariables
+      fromVars ++ toVarsWithoutWildcardIndex
+    }
 
-    def types: Set[Type] = judg.assertion.types ++ judg.env.types
+    def termVariables: Set[String] = prem match {
+      case Judgement(env, assertion) => assertion.termVariables ++ env.termVariables
+      case JudgementRange(from, to) => combineWithoutWildcard(from.termVariables, to.termVariables)
+    }
+
+    def termTypeVariables: Set[String] = prem match {
+      case Judgement(_, assertion) => assertion.typeVariables 
+      case JudgementRange(from, to) => combineWithoutWildcard(from.termTypeVariables, to.termTypeVariables)
+    }
+
+    def envTypeVariables: Set[String] = prem match {
+      case Judgement(env, _) => env.typeVariables
+      case JudgementRange(from, to) => combineWithoutWildcard(from.envTypeVariables, to.envTypeVariables)
+    }
+
+    def types: Set[Type] = prem match {
+      case Judgement(env, asrt) => env.types ++ asrt.types
+      case JudgementRange(from, to) => from.types ++ to.types
+    }
 
   extension (ruleDecl: RuleDecl)
 
@@ -188,15 +225,6 @@ object TyesLanguageExtensions:
         j <- concl +: prems
         t <- j.types
       yield t).toSet
-
-  extension (term: Term)
-
-    def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
-      case Term.Constant(_) => Set.empty
-      case v: Term.Variable => Set(v)
-      case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
-      case Term.Type(typ) => typ.typeVariables
-    }
   
   extension (typ: Type)
 

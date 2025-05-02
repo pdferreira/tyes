@@ -25,6 +25,13 @@ trait TypeSystem[E[_]]:
       .map(Right.apply)
       .getOrElse(TypeError.noTypeDeclared(parentExp))
 
+  extension (exp: E[T])
+
+    protected def expecting[TargetT <: E[T]](using ct: ClassTag[TargetT]): Either[String, TargetT] =
+      ct.unapply(exp)
+        .map(Right.apply)
+        .getOrElse(TypeError.noTypeFor(exp))
+
   extension (resT: Result[T])
 
     protected def expecting[TargetT <: T](expected: TargetT): Result[TargetT] = resT.flatMap(t =>
@@ -35,8 +42,7 @@ trait TypeSystem[E[_]]:
     )
 
     protected def expecting[TargetT <: T](using ct: ClassTag[TargetT]) = resT.flatMap(t =>
-      ct.unapply(t) match {
-        case Some(castT) => Right(castT)
-        case None => TypeError.unexpectedType(t, ct.runtimeClass)
-      }
+      ct.unapply(t)
+        .map(Right.apply)
+        .getOrElse(TypeError.unexpectedType(t, ct.runtimeClass))
     )

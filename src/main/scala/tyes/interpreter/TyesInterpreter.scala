@@ -1,6 +1,8 @@
 package tyes.interpreter
 
+import scala.util.matching.Regex
 import tyes.model.*
+import tyes.model.indexes.*
 import tyes.model.TyesLanguageExtensions.*
 
 object TyesInterpreter:
@@ -13,6 +15,28 @@ object TyesInterpreter:
     if env.parts.isEmpty 
     then default
     else env
+
+  private def typecheckJudgement(
+    tsDecl: TypeSystemDecl,
+    judgement: Judgement,
+    premEnvMatch: EnvironmentMatch,
+    refinedMetaEnv: Environment,
+    allTermSubst: Map[String, Term]
+  ): Option[Map[String, Type]] =
+    val Judgement(premMetaEnv, HasType(premTerm, premTyp)) = judgement: @unchecked
+    
+    // replace the term and type variables we already know in the premise env and then produce an
+    // actual term env out of it
+    val premEnvOpt = getSelfOrDefaultIfEmpty(premMetaEnv, refinedMetaEnv).substitute(premEnvMatch).toConcrete
+
+    val refinedPremTerm = premTerm.substitute(allTermSubst)
+    val resTyp = premEnvOpt.flatMap(premEnv => typecheck(tsDecl, refinedPremTerm, premEnv))
+    for
+      resT <- resTyp
+      premTypeSubst <- premTyp.substitute(premEnvMatch.typeVarSubst).matches(resT)
+    yield
+      // if the premise expected type matched the obtained, update the type env with any new unifications
+      premEnvMatch.typeVarSubst ++ premTypeSubst
 
   def typecheck(tsDecl: TypeSystemDecl, ruleDecl: RuleDecl, term: Term, termEnv: Map[String, Type]): Option[Type] = ruleDecl.conclusion match {
     case Judgement(metaEnv, HasType(metaTerm, typ)) =>
@@ -39,20 +63,28 @@ object TyesInterpreter:
             // if one of the premises failed, propagate failure
             case (None, _) => None 
             // otherwise, check the next premise
-            case (Some(typeVarEnv), Judgement(premMetaEnv, HasType(premTerm, premTyp))) => 
-              // replace the term and type variables we already know in the premise env and then produce an
-              // actual term env out of it
+            case (Some(typeVarEnv), judg: Judgement) =>
               val premEnvMatch = EnvironmentMatch(allVarSubst, typeVarEnv, envVarSubst)
-              val premEnvOpt = getSelfOrDefaultIfEmpty(premMetaEnv, refinedMetaEnv).substitute(premEnvMatch).toConcrete
+              typecheckJudgement(tsDecl, judg, premEnvMatch, refinedMetaEnv, allTermSubst)
+            case (Some(typeVarEnv), JudgementRange(from, to)) =>
+              val (rangedVarName, idxRange) = extractRangeVariable(from, to)
 
-              val refinedPremTerm = premTerm.substitute(allTermSubst)
-              val resTyp = premEnvOpt.flatMap(premEnv => typecheck(tsDecl, refinedPremTerm, premEnv))
-              for
-                resT <- resTyp
-                premTypeSubst <- premTyp.substitute(typeVarEnv).matches(resT)
+              // Assume all the variable indexes are bound in the conclusion
+              val premsToConsider = for
+                (termVar, term) <- allTermSubst
+                (termVarName, termVarIdx) <- extractIndex(termVar)
+                if termVarName == rangedVarName
+                currIdx = termVarIdx.toInt
+                if idxRange.contains(currIdx)
               yield
-                // if the premise expected type matched the obtained, update the type env with any new unifications
-                typeVarEnv ++ premTypeSubst
+                from.replaceIndex(idxRange.start.toString, currIdx.toString)
+
+              premsToConsider.foldLeft(Option(typeVarEnv)) {
+                case (None, _) => None
+                case (Some(pTypeVarEnv), judg) =>
+                  val premEnvMatch = EnvironmentMatch(allVarSubst, pTypeVarEnv, envVarSubst)
+                  typecheckJudgement(tsDecl, judg, premEnvMatch, refinedMetaEnv, allTermSubst)
+              }
           }
 
           premTypeCheckResult.map(typ.substitute(_))

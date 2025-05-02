@@ -7,6 +7,7 @@ import tyes.compiler.ir.IRType
 import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodePattern
 import tyes.model.*
+import tyes.model.indexes.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
@@ -54,7 +55,7 @@ class RuleIRGenerator(
   case class GenerateOutput(node: IRNode, condition: Option[IRCond])
 
   def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term): GenerateOutput =
-    val HasType(cTerm, cType) = rule.conclusion.assertion
+    val HasType(cTerm, cType) = rule.conclusion.assertion: @unchecked
 
     val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
 
@@ -89,11 +90,11 @@ class RuleIRGenerator(
       .get
       .toSeq
       .sortBy((k, v) => k) // TODO: ideally should sort in order of occurrence ltr
-    
+
     genRequiredConds(constructorReqs)
-    
+
   private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRCond] =
-    val HasType(cTerm, _) = concl.assertion
+    val HasType(cTerm, _) = concl.assertion: @unchecked
     
     val envConds = envIRGenerator.generateConditions(concl.env, codeEnv)
     val termConds = genConclusionTermConds(cTerm, codeEnv)
@@ -141,7 +142,7 @@ class RuleIRGenerator(
       if v.isGround then 
         IRCond.TermEquals(TCN.Var(k), termIRGenerator.generate(v))
       else
-        val Term.Function(name, args*) = v
+        val Term.Function(name, args*) = v: @unchecked
         // TODO: get target type information for now using a heuristic
         val typeParams = if args.length > 1 then Seq(typeIRGenerator.typeEnumTypeRef) else Seq()
         IRCond.OfType(TCN.Var(k), TCTypeRef(name, typeParams*))
@@ -163,7 +164,7 @@ class RuleIRGenerator(
         idCode
       )
       val declTermArgs = argsAsCode.map(vCode => Term.Variable(vCode.name): Term.Variable)
-
+      
       // Generate a composite term pattern with the fresh args and use it for
       // the destructuring declaration.
       val declTerm = Term.Function(f.name, declTermArgs*): Term.Function
@@ -179,11 +180,19 @@ class RuleIRGenerator(
       
     return res.toSeq
 
-  private def genPremiseConds(premise: Judgement, idx: Int, codeEnv: TargetCodeEnv): Seq[IRCond] =
-    val HasType(pTerm, pType) = premise.assertion
-
-    val inductionCall = IRNode.Type(IRType.Induction(
-      termIRGenerator.generate(pTerm, codeEnv),
-      envIRGenerator.generate(premise.env, codeEnv)
-    ))
-    typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
+  private def genPremiseConds(premise: Premise, idx: Int, codeEnv: TargetCodeEnv): Seq[IRCond] = premise match {
+    case Judgement(env, HasType(pTerm, pType)) => 
+      val inductionCall = IRNode.Type(IRType.Induction(
+        termIRGenerator.generate(pTerm, codeEnv),
+        envIRGenerator.generate(env, codeEnv)
+      ))
+      typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
+    case JudgementRange(from, to) =>
+      val (rangedVarName, idxRange) = extractRangeVariable(from, to)
+      for
+        i <- codeEnv.getIndexes(rangedVarName).toSeq.sorted
+        if idxRange.contains(i)
+        c <- genPremiseConds(from.replaceIndex(idxRange.start.toString, i.toString), idx, codeEnv)
+      yield
+        c 
+  }

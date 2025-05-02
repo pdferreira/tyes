@@ -19,7 +19,7 @@
     "meta-variables": {
       "patterns": [{
         "name": "variable.name.meta-var.tyes",
-        "match": "\\b[a-z](\\d+|'+)?\\b"
+        "match": "\\b[a-z](\\d+|'+|(_(\\d+|[a-z])))?\\b"
       }]
     }
   },

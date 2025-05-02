@@ -1,0 +1,19 @@
+typesystem LetVarV2
+
+  rule infers 1 : one
+
+  rule infers 2 : two
+
+  rule Var
+    infers x : t under x : t
+
+  rule Plus
+    infers e_1 + e_2 : t
+    if e_1 : t
+    and ...
+    and e_n : t
+
+  rule Let
+    infers let x : t1 = e1 in e2 : t2
+    if e1 : t1
+    and e2 : t2 under x : t1

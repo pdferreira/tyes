@@ -1,6 +1,7 @@
 package tyes.compiler
 
 import tyes.model.*
+import tyes.model.indexes.*
 import tyes.model.terms.TermVariable
 import tyes.compiler.target.TargetCodeNode
 
@@ -62,6 +63,13 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
     nameToIds.get(termVar.name).orElse(parent.flatMap(_.getIds(termVar)))
 
   def contains(termVar: TermVariable): Boolean = getIds(termVar).isDefined
+
+  def getIndexes(indexedName: String): Set[Int] =
+    nameToIds.keys
+      .map(extractIntIndex(_))
+      .collect({ case Some((`indexedName`, idx)) => idx })
+      .toSet
+      .union(parent.map(_.getIndexes(indexedName)).getOrElse(Set()))
 
   override def toString(): String =
     val parentStr = parent.map(" <- " + _.toString).getOrElse("")

@@ -1,0 +1,21 @@
+typesystem Sequence
+
+  rule infers 1 : one
+  
+  rule infers 2 : two
+
+  rule infers [] : zero
+
+  rule infers x : t under x : t
+
+  rule infers [ e_1, e_2, e_3 | l ] : t_1 -> t_2 -> t_3 -> t_l
+    if e_1 : t_1
+    and ...
+    and e_n : t_n
+    and l : t_l
+
+  rule infers let x_1 = e_0 in let x_2 = e_1 in let x_3 = e_2 in e_3 : t_3
+    if e_0 : t_0
+    and e_1 : t_1 under x_1 : t_0
+    and ...
+    and e_3 : t_3 under x_3 : t_0
