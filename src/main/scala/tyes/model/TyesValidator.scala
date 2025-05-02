@@ -1,8 +1,9 @@
-package tyes.compiler
+package tyes.model
 
 import scala.collection.mutable.ListBuffer
 import tyes.model.*
 import tyes.model.indexes.*
+import tyes.model.scope.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
@@ -18,8 +19,8 @@ object TyesValidator:
   def validate(tsDecl: TypeSystemDecl): Seq[String] =
     Seq(
       validateAmbiguity(tsDecl),
-      validateScope(tsDecl),
       validateStructure(tsDecl),
+      validateScope(tsDecl),
     ).flatten 
 
   def validateScope(tsDecl: TypeSystemDecl): Seq[String] =
@@ -49,10 +50,10 @@ object TyesValidator:
         else if r.premises.isEmpty && concl.env.parts.isEmpty then
           errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVar"
         
-        else if !r.premises.ofType[Judgement].exists(judg => judg.assertion.typeVariables.contains(cTypeVar)) then
-          if concl.env.typeVariables.contains(cTypeVar) then
+        else if !r.premises.exists(p => p.bindsTypeVariableInTerm(cTypeVar)) then
+          if concl.bindsTypeVariableInEnv(cTypeVar) then
             () // ok, bound in concl env
-          else if !r.premises.ofType[Judgement].exists(judg => judg.env.typeVariables.contains(cTypeVar)) then
+          else if !r.premises.exists(p => p.bindsTypeVariableInEnv(cTypeVar)) then
             errors += s"Error: $ruleName conclusion uses an unbound type variable: $cTypeVar"
           else
             errors += s"Error: $ruleName conclusion uses a type variable that is only bound in a premise environment: $cTypeVar"
@@ -104,6 +105,14 @@ object TyesValidator:
         case (Some((fromIdent, fromIdxStr)), Some((toIdent, toIdxStr))) =>
           if fromIdent != toIdent then
             errors += f"Error: $ruleName premise range start and end must type the same variable, module index"
+
+          try
+            val fromIdx = fromIdxStr.toInt
+            val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
+            if fromIdx > toIdx then
+              errors += f"Error: $ruleName premise range start index must be less than or equal to end index"
+          catch case _: NumberFormatException =>
+            errors += f"Error: $ruleName premise range start must be indexed by an integer: $fromVar"
 
           val idxPlaceholder = "$IDX"
           if from.replaceIndex(fromIdxStr, idxPlaceholder) != to.replaceIndex(toIdxStr, idxPlaceholder) then

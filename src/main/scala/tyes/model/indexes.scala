@@ -10,6 +10,22 @@ object indexes:
       case _ => None
     }
 
+  def extractIntIndex(rawVarName: String): Option[(String, Int)] =
+    extractIndex(rawVarName) match {
+      case Some((varName, idxStr)) => idxStr.toIntOption.map((varName, _))
+      case _ => None
+    }
+
+  def extractRangeVariable(from: Judgement, to: Judgement): (String, Range) =
+    val HasType(Term.Variable(fromVar), _) = from.assertion: @unchecked
+    val HasType(Term.Variable(toVar), _) = to.assertion: @unchecked
+
+    val Some((fromIdent, fromIdx)) = extractIntIndex(fromVar): @unchecked
+    val Some((toIdent, toIdxStr)) = extractIndex(toVar): @unchecked
+
+    val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
+    (fromIdent, Range.inclusive(fromIdx, toIdx))
+
   def indexedVar(varName: String, idxStr: String): String = varName + INDEX_SEP + idxStr
 
   extension (metaBinding: Binding)

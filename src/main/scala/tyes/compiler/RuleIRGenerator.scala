@@ -188,18 +188,11 @@ class RuleIRGenerator(
       ))
       typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
     case JudgementRange(from, to) =>
-      val HasType(Term.Variable(fromVar), _) = from.assertion: @unchecked
-      val HasType(Term.Variable(toVar), _) = to.assertion: @unchecked
-
-      val Some((fromIdent, fromIdxStr)) = extractIndex(fromVar): @unchecked
-      val Some((toIdent, toIdxStr)) = extractIndex(toVar): @unchecked
-      
-      val fromIdx = fromIdxStr.toInt
-      val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
+      val (rangedVarName, idxRange) = extractRangeVariable(from, to)
       for
-        i <- codeEnv.getIndexes(fromIdent).toSeq.sorted
-        if i >= fromIdx && i <= toIdx
-        c <- genPremiseConds(from.replaceIndex(fromIdxStr, i.toString), idx, codeEnv)
+        i <- codeEnv.getIndexes(rangedVarName).toSeq.sorted
+        if idxRange.contains(i)
+        c <- genPremiseConds(from.replaceIndex(idxRange.start.toString, i.toString), idx, codeEnv)
       yield
         c 
   }

@@ -175,18 +175,37 @@ object TyesLanguageExtensions:
 
   extension (prem: Premise)
 
-    def typeVariables: Set[String] = prem match {
-      case judg: Judgement => judg.types.flatMap(_.variables)
-      case JudgementRange(from, to) => from.typeVariables ++ to.typeVariables
+    private def combineWithoutWildcard(fromVars: Set[String], toVars: Set[String]): Set[String] = {
+      // `to` premise may contain wildcard index variables, e.g. e_n, which
+      // don't correspond to a *concrete* variable in scope, so we never
+      // want them to be listed.
+      val fromIndexedVars = fromVars.collect(extractIndex.unlift).map(_._1)
+      val toVarsWithoutWildcardIndex = toVars
+        .filter(v => extractIndex(v) match {
+          case Some((name, idxStr)) => !fromIndexedVars.contains(name) || idxStr.toIntOption.isDefined
+          case None => true
+        })
+
+      fromVars ++ toVarsWithoutWildcardIndex
     }
 
     def termVariables: Set[String] = prem match {
-      case judg: Judgement => judg.assertion.termVariables ++ judg.env.termVariables
-      case JudgementRange(from, to) => from.termVariables ++ to.termVariables
+      case Judgement(env, assertion) => assertion.termVariables ++ env.termVariables
+      case JudgementRange(from, to) => combineWithoutWildcard(from.termVariables, to.termVariables)
+    }
+
+    def termTypeVariables: Set[String] = prem match {
+      case Judgement(_, assertion) => assertion.typeVariables 
+      case JudgementRange(from, to) => combineWithoutWildcard(from.termTypeVariables, to.termTypeVariables)
+    }
+
+    def envTypeVariables: Set[String] = prem match {
+      case Judgement(env, _) => env.typeVariables
+      case JudgementRange(from, to) => combineWithoutWildcard(from.envTypeVariables, to.envTypeVariables)
     }
 
     def types: Set[Type] = prem match {
-      case judg: Judgement => judg.assertion.types ++ judg.env.types
+      case Judgement(env, asrt) => env.types ++ asrt.types
       case JudgementRange(from, to) => from.types ++ to.types
     }
 
