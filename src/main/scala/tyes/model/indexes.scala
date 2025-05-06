@@ -55,18 +55,6 @@ object indexes:
     def replaceIndex(oldIdxStr: String, newIdxStr: String): Environment =
       Environment(metaEnv.parts.map(_.replaceIndex(oldIdxStr, newIdxStr)))
 
-  extension (term: Term)
-
-    def replaceIndex(oldIdxStr: String, newIdxStr: String): Term = term match {
-      case Term.Constant(_) => term
-      case Term.Variable(rawName) => extractIndex(rawName) match {
-        case Some((name, `oldIdxStr`)) => Term.Variable(indexedVar(name, newIdxStr))
-        case _ => term
-      }
-      case Term.Function(name, args*) => Term.Function(name, args.map(_.replaceIndex(oldIdxStr, newIdxStr))*)
-      case Term.Type(typ) => Term.Type(typ.replaceIndex(oldIdxStr, newIdxStr))
-    }
-
   extension (asrt: Assertion)
 
     def replaceIndex(oldIdxStr: String, newIdxStr: String): Assertion = asrt match {

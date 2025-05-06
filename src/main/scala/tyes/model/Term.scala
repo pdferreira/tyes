@@ -5,6 +5,14 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
   case Variable(name: String) extends Term, terms.TermVariable
   case Function(name: String, args: Term*)
   case Type(typ: tyes.model.Type)
+  case Range(
+    function: String,
+    cursor: String,
+    template: Term,
+    minIndex: Int,
+    maxIndex: Either[String, Int],
+    seed: Option[Term] = None
+  )
 
   private def ifBothTypes[B](otherTerm: Term)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
     case (Term.Type(thisType), Term.Type(otherType)) => Some(fn(thisType, otherType))
@@ -47,6 +55,13 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
       super.unifies(otherTerm) 
     }
 
+  override def replaceIndex(oldIdxStr: String, newIdxStr: String): Term = 
+    ifType { typ =>
+      Term.Type(typ.replaceIndex(oldIdxStr, newIdxStr))
+    } getOrElse {
+      super.replaceIndex(oldIdxStr, newIdxStr)
+    }
+
   override def variables: Set[String] = ifType(_.variables).getOrElse { super.variables }
 
   override def toString(): String = ifType(typ => s"T:$typ").getOrElse { super.toString }
@@ -71,5 +86,27 @@ private object TermBuilder extends terms.TermBuilder[Term, Any]:
   
   override def unapplyFunction(term: Term): Option[(String, Seq[Term])] = term match {
     case Term.Function(name, args*) => Some((name, args))
+    case _ => None
+  }
+
+  override def applyRange(
+    function: String,
+    cursor: String,
+    template: Term,
+    minIndex: Int,
+    maxIndex: Either[String, Int],
+    seed: Option[Term] = None
+  ): Term = Term.Range(function, cursor, template, minIndex, maxIndex, seed)
+
+  override def unapplyRange(term: Term): Option[(
+    String,
+    String,
+    Term,
+    Int,
+    Either[String, Int],
+    Option[Term]
+  )] = term match {
+    case Term.Range(function, cursor, template, minIndex, maxIndex, seed) =>
+      Some((function, cursor, template, minIndex, maxIndex, seed))
     case _ => None
   }
