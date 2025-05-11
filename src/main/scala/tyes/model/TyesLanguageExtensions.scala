@@ -1,6 +1,7 @@
 package tyes.model
 
 import tyes.model.indexes.*
+import tyes.model.ranges.*
 
 object TyesLanguageExtensions:
   
@@ -152,6 +153,9 @@ object TyesLanguageExtensions:
       case v: Term.Variable => Set(v)
       case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
       case Term.Type(typ) => typ.typeVariables
+      case r @ Term.Range(_, _, _, _, maxIndex, _) =>
+        val indexVars = maxIndex.left.toOption.map(Term.Variable(_): Term.Variable).toSet
+        indexVars ++ getRangeElems(r, _.termVariables).toSet
     }
 
     def types: Set[Type] = term match {
@@ -159,6 +163,7 @@ object TyesLanguageExtensions:
       case Term.Variable(_) => Set()
       case Term.Function(_, args*) => args.flatMap(_.types).toSet
       case Term.Type(t) => Set(t)
+      case r: Term.Range => getRangeElems(r, _.types).toSet
     }
 
   extension (asrt: Assertion)
@@ -232,4 +237,5 @@ object TyesLanguageExtensions:
       case Type.Named(_) => Set.empty
       case v: Type.Variable => Set(v)
       case Type.Composite(_, args*) => args.flatMap(_.typeVariables).toSet
+      case r: Type.Range => getRangeElems(r, _.typeVariables).toSet
     }

@@ -3,6 +3,7 @@ package tyes.interpreter
 import scala.util.matching.Regex
 import tyes.model.*
 import tyes.model.indexes.*
+import tyes.model.ranges.*
 import tyes.model.TyesLanguageExtensions.*
 
 object TyesInterpreter:
@@ -69,7 +70,7 @@ object TyesInterpreter:
             case (Some(typeVarEnv), JudgementRange(from, to)) =>
               val (rangedVarName, idxRange) = extractRangeVariable(from, to)
 
-              // Assume all the variable indexes are bound in the conclusion
+              // assume all the variable indexes are bound in the conclusion
               val premsToConsider = for
                 (termVar, term) <- allTermSubst
                 (termVarName, termVarIdx) <- extractIndex(termVar)

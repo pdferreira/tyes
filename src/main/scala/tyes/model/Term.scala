@@ -12,7 +12,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
     minIndex: Int,
     maxIndex: Either[String, Int],
     seed: Option[Term] = None
-  )
+  ) extends Term, terms.TermRange[Term, Any]
 
   private def ifBothTypes[B](otherTerm: Term)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
     case (Term.Type(thisType), Term.Type(otherType)) => Some(fn(thisType, otherType))

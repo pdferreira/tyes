@@ -11,7 +11,7 @@ enum Type extends terms.TermOps[Type, String](TypeBuilder):
     minIndex: Int,
     maxIndex: Either[String, Int],
     seed: Option[Type] = None
-  )
+  ) extends Type, terms.TermRange[Type, String]
 
 private object TypeBuilder extends terms.TermBuilder[Type, String]:
 

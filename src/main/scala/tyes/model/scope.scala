@@ -1,6 +1,7 @@
 package tyes.model
 
 import tyes.model.indexes.*
+import tyes.model.ranges.*
 import tyes.model.TyesLanguageExtensions.*
 
 object scope:

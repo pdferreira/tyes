@@ -1,6 +1,7 @@
 package tyes.cli
 
 import tyes.model.*
+import tyes.model.indexes.*
 
 import Parsers.*
 
@@ -39,13 +40,9 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
     | variable
     | list
 
-  def app = leaf ~ leaf.* ^^ {
-    case exp ~ rs => rs.foldLeft(exp) { (left, right) => Term.Function("LApp", left, right) }
-  }
+  def app = bindings.rep1op(leaf, "", "LApp")
 
-  def operator = app ~ ("+" ~> app).* ^^ { 
-    case exp ~ rs => rs.foldLeft(exp) { (left, right) => Term.Function("LPlus", left, right) }
-  }
+  def operator = bindings.rep1op(app, "+", "LPlus")
 
   def tpe = bindings.typeParser
   

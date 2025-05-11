@@ -8,6 +8,7 @@ import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodePattern
 import tyes.model.*
 import tyes.model.indexes.*
+import tyes.model.ranges.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 

@@ -55,8 +55,8 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       else
         None
     case (Constant(v1), Constant(v2)) if v1 == v2 => Some(Map())
-    case (Range(function, cursor, template, minIndex, maxIndex, seed), _) => (maxIndex, otherTerm) match {
-      case (Left(maxVar), Function(`function`, left, right)) =>
+    case (Range(function, cursor, template, minIndex, maxIndex, seed), _) => (maxIndex, seed, otherTerm) match {
+      case (Left(maxVar), _, Function(`function`, left, right)) =>
         val innerMaxVar = "$" + maxVar
         Range(function, cursor, template, minIndex, Left(innerMaxVar), seed)
           .matches(left)
@@ -67,29 +67,38 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
             val lSubst = (innerSubst - innerMaxVar) ++ maxVarSubst
             instance.matches(right).map(lSubst ++ _)
           }
-      case (Right(maxIndexVal), Function(`function`, left, right)) if minIndex < maxIndexVal =>
+          // otherwise, since max is unbounded, let's try to match the seed
+          .orElse {
+            for
+              s <- seed
+              subst <- s.matches(otherTerm)
+            yield
+              subst + (maxVar -> Constant((minIndex - 1).asInstanceOf[TConstant]))
+          }
+      case (Left(maxVar), None, _) =>
+        template.replaceIndex(cursor, minIndex.toString).matches(otherTerm).map { subst =>
+          subst + (maxVar -> Constant(minIndex.asInstanceOf[TConstant]))
+        }
+      case (Left(maxVar), Some(seed), _) =>
+        seed.matches(otherTerm).map { subst =>
+          subst + (maxVar -> Constant((minIndex - 1).asInstanceOf[TConstant]))
+        }
+      case (Right(maxIndexVal), _, Function(`function`, left, right)) if minIndex < maxIndexVal =>
         Range(function, cursor, template, minIndex, Right(maxIndexVal - 1), seed)
           .matches(left)
           .flatMap { innerSubst =>
             val instance = template.replaceIndex(cursor, maxIndexVal.toString).substitute(innerSubst)
             instance.matches(right).map(innerSubst ++ _)
           }
-      case (Right(maxIndexVal), _) if minIndex == maxIndexVal =>
+      case (Right(maxIndexVal), _, _) if minIndex == maxIndexVal =>
         val instance = template.replaceIndex(cursor, minIndex.toString)
         seed match {
           case Some(s) => Function(function, s, instance).matches(otherTerm)
           case None => instance.matches(otherTerm)
         }
-      // either it's unlimited and not matching the expected function, or hit the limit
-      case _ =>
-        for
-          s <- seed
-          subst <- s.matches(otherTerm)
-        yield maxIndex match {
-          case Left(maxVar) => subst + (maxVar -> Constant((minIndex - 1).asInstanceOf[TConstant]))
-          case Right(_) => subst
-        }
-      }
+      case (Right(_), Some(seed), _) => seed.matches(otherTerm)
+      case (Right(_), None, _) => None 
+    }
     case _ => None
   }
 

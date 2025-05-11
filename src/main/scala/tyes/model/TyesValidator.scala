@@ -2,7 +2,7 @@ package tyes.model
 
 import scala.collection.mutable.ListBuffer
 import tyes.model.*
-import tyes.model.indexes.*
+import tyes.model.ranges.*
 import tyes.model.scope.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
@@ -99,29 +99,23 @@ object TyesValidator:
       from @ Judgement(fromEnv, HasType(fromTerm, fromTyp)),
       to @ Judgement(toEnv, HasType(toTerm, toType))
     ) = range: @unchecked
-    
-    (fromTerm, toTerm) match {
-      case (Term.Variable(fromVar), Term.Variable(toVar)) => (extractIndex(fromVar), extractIndex(toVar)) match {
-        case (Some((fromIdent, fromIdxStr)), Some((toIdent, toIdxStr))) =>
-          if fromIdent != toIdent then
-            errors += f"Error: $ruleName premise range start and end must type the same variable, module index"
 
-          try
-            val fromIdx = fromIdxStr.toInt
-            val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
-            if fromIdx > toIdx then
-              errors += f"Error: $ruleName premise range start index must be less than or equal to end index"
-          catch case _: NumberFormatException =>
-            errors += f"Error: $ruleName premise range start must be indexed by an integer: $fromVar"
-
-          val idxPlaceholder = "$IDX"
-          if from.replaceIndex(fromIdxStr, idxPlaceholder) != to.replaceIndex(toIdxStr, idxPlaceholder) then
-            errors += f"Error: $ruleName premise range start and end must be the same modulo their respective main index"
-        case (_, _) =>
-          errors += f"Error: $ruleName premise range start and end must type a variable with an index, but at least one doesn't: $fromVar, $toVar"
-      } 
-      case _ =>
-        errors += f"Error: $ruleName premise range start and end must type a variable, but at least one doesn't: $fromTerm, $toTerm"
+    def judgementAsTerm(judg: Judgement): Term = {
+      val HasType(term, typ) = judg.assertion: @unchecked
+      val envTerm = Term.Function("$Environment", judg.env.parts.map {
+        case EnvironmentPart.Bindings(bindings) => Term.Function("$Bindings", bindings.map {
+          case Binding.BindName(name, typ) => Term.Function("$Binding", Term.Constant(name), Term.Type(typ))
+          case Binding.BindVariable(name, typ) => Term.Function("$Binding", Term.Variable(name), Term.Type(typ))
+        }*)
+        case EnvironmentPart.Variable(envVarName) => Term.Variable(envVarName)
+      }*)
+      Term.Function("$Judgement", envTerm, Term.Function("$HasType", term, Term.Type(typ)))
     }
 
+    for
+      messages <- extractTermRange("", judgementAsTerm(from), judgementAsTerm(to), None, (_, _, _, _, _, _) => ()).left
+      msg <- messages
+    do
+      errors += f"Error: $ruleName premise range $msg"
+    
     return errors.toSeq
