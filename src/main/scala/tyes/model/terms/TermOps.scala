@@ -96,8 +96,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
           case Some(s) => Function(function, s, instance).matches(otherTerm)
           case None => instance.matches(otherTerm)
         }
-      case (Right(_), Some(seed), _) => seed.matches(otherTerm)
-      case (Right(_), None, _) => None 
+      case (Right(_), _, _) => None 
     }
     case _ => None
   }

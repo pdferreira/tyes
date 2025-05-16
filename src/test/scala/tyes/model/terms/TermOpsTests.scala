@@ -1,0 +1,203 @@
+package tyes.model.terms
+
+import org.scalatest.*
+import funspec.*
+import tyes.model.indexes.*
+import tyes.model.terms.*
+
+object TestTermBuilder extends TermBuilder[TestTerm, Any]:
+
+  override def applyConstant(value: Any): TestTerm = TestTerm.Constant(value)
+
+  override def unapplyConstant(term: TestTerm): Option[Any] = term match {
+    case TestTerm.Constant(v) => Some(v)
+    case _ => None
+  }
+
+  override def applyVariable(name: String): TestTerm & TermVariable = TestTerm.Variable(name)
+
+  override def unapplyVariable(term: TestTerm): Option[String] = term match {
+    case TestTerm.Variable(name) => Some(name)
+    case _ => None
+  }
+
+  override def applyFunction(name: String, args: TestTerm*): TestTerm = TestTerm.Function(name, args*)
+
+  override def unapplyFunction(term: TestTerm): Option[(String, Seq[TestTerm])] = term match {
+    case TestTerm.Function(name, args*) => Some((name, args))
+    case _ => None
+  }
+
+  override def applyRange(
+    function: String,
+    cursor: String,
+    template: TestTerm,
+    minIndex: Int,
+    maxIndex: Either[String, Int],
+    seed: Option[TestTerm] = None
+  ): TestTerm = TestTerm.Range(function, cursor, template, minIndex, maxIndex, seed)
+
+  override def unapplyRange(term: TestTerm): Option[(
+    String,
+    String,
+    TestTerm,
+    Int,
+    Either[String, Int],
+    Option[TestTerm]
+  )] = term match {
+    case TestTerm.Range(function, cursor, template, minIndex, maxIndex, seed) =>
+      Some((function, cursor, template, minIndex, maxIndex, seed))
+    case _ => None
+  }
+
+enum TestTerm extends TermOps[TestTerm, Any](TestTermBuilder):
+  case Constant(value: Any)
+  case Variable(name: String) extends TestTerm, TermVariable
+  case Function(name: String, args: TestTerm*)
+  case Range(
+    function: String,
+    cursor: String,
+    template: TestTerm,
+    minIndex: Int,
+    maxIndex: Either[String, Int],
+    seed: Option[TestTerm]
+  ) extends TestTerm, TermRange[TestTerm, Any]
+
+class TermOpsTestTests extends AnyFunSpec:
+  import Assertions.*
+  import TestTerm.*
+
+  private def termFoldLeft1(function: String, seq: Seq[TestTerm]): TestTerm = {
+    seq.drop(1).foldLeft(seq.head)(Function(function, _, _))
+  }
+  
+  describe("A Range term") {
+
+    val function = "f"
+    val cursor = "i"
+    val rootVar = "t"
+    val template = Function("C", Variable(indexedVar(rootVar, cursor)))
+    val values = Seq(Constant(1), Constant("a"), Constant(true))
+
+    describe("with unlimited bounds") {
+
+      val boundsVar = "k"
+
+      describe("and no seed") {
+        val range = Range(function, cursor, template, 0, Left(boundsVar), None)
+
+        it("matches a left-associative term with the target function") {
+          val args = values.map(Function("C", _))
+          val term = termFoldLeft1(function, args)
+          
+          val argsSubst = Map.from(
+            for case (t, i) <- values.zipWithIndex
+            yield indexedVar(rootVar, i.toString) -> t
+          )
+          assert(range.matches(term) == Some(argsSubst + (boundsVar -> Constant(values.length - 1))))
+        }
+
+        it("matches a single term matching the template") {
+          val term = Function("C", values(0))
+          assert(range.matches(term) == Some(Map("t_0" -> values(0), boundsVar -> Constant(0))))
+        }
+
+        it("does not match a left-associative term with sub-terms not matching the template") {
+          val args = values
+          val term = termFoldLeft1(function, args)
+          assert(range.matches(term) == None)
+        }
+
+        it("does not match a left-associative term with a different function") {
+          val args = values.map(Function("C", _))
+          val term = termFoldLeft1("g", args)
+          assert(range.matches(term) == None)
+        }
+        
+        it("does not match a left-associative term with a constant") {
+          val term = Constant(1)
+          assert(range.matches(term) == None)
+        }
+      }
+
+      describe("and a seed") {
+        val seed = Function("K", Variable("a"))
+        val range = Range("f", "i", Function("C", Variable("t_i")), 1, Left("k"), Some(seed))
+        val concreteSeed = Function("K", Constant(true))
+        
+        it("matches a term that matches the seed") {
+          val term = concreteSeed
+          assert(range.matches(term) == Some(Map("a" -> Constant(true), "k" -> Constant(0))))
+        }
+
+        it("matches a term that matches the seed at the innermost position") {
+          val args = values.map(Function("C", _))
+          val term = termFoldLeft1(function, concreteSeed +: args)
+          val argsSubst = Map.from(
+            for case (t, i) <- values.zipWithIndex
+            yield f"t_${i+1}" -> t
+          )
+          assert(range.matches(term) == Some(
+            argsSubst + 
+            ("k" -> Constant(values.length)) + 
+            ("a" -> Constant(true))
+          ))
+        }
+      }
+    }
+
+    describe("with limited bounds") {
+      
+      describe("and no seed") {
+        val range = Range(function, cursor, template, 0, Right(2), None)
+
+        it("matches a left-associative term with the target function") {
+          val args = values.map(Function("C", _))
+          val term = termFoldLeft1(function, args)
+          
+          val argsSubst = Map.from(
+            for case (t, i) <- values.zipWithIndex
+            yield f"t_$i" -> t
+          )
+          assert(range.matches(term) == Some(argsSubst))
+        }
+
+        it("does not match a term with sub-terms below the bound") {
+          val args = values.take(2).map(Function("C", _))
+          val term = termFoldLeft1(function, args)
+          assert(range.matches(term) == None)
+        }
+
+        it("does not match a term with sub-terms above the bound") {
+          val args = (values ++ values).map(Function("C", _))
+          val term = termFoldLeft1(function, args)
+          
+          assert(range.matches(term) == None)
+        }
+      }
+
+      describe("and a seed") {
+        val seed = Function("K", Variable("a"))
+        val range = Range(function, cursor, template, 1, Right(3), Some(seed))
+        val concreteSeed = Function("K", Constant(true))
+
+        it("does not match a term that only matches the seed") {
+          val term = concreteSeed
+          assert(range.matches(term) == None)
+        }
+
+        it("matches a term that matches the seed at the innermost position") {
+          val args = values.map(Function("C", _))
+          val term = termFoldLeft1(function, concreteSeed +: args)
+          val argsSubst = Map.from(
+            for case (t, i) <- values.zipWithIndex
+            yield f"t_${i+1}" -> t
+          )
+          assert(range.matches(term) == Some(
+            argsSubst +  
+            ("a" -> Constant(true))
+          ))
+        }
+      }
+    }
+  }
