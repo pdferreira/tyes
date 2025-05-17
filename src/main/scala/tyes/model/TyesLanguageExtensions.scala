@@ -2,6 +2,7 @@ package tyes.model
 
 import tyes.model.indexes.*
 import tyes.model.ranges.*
+import tyes.model.terms.*
 
 object TyesLanguageExtensions:
   
@@ -154,7 +155,7 @@ object TyesLanguageExtensions:
       case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
       case Term.Type(typ) => typ.typeVariables
       case r @ Term.Range(_, _, _, _, maxIndex, _) =>
-        val indexVars = maxIndex.left.toOption.map(Term.Variable(_): Term.Variable).toSet
+        val indexVars = maxIndex.asVariable.map(v => Term.Variable(v.name): Term.Variable).toSet
         indexVars ++ getRangeElems(r, _.termVariables).toSet
     }
 

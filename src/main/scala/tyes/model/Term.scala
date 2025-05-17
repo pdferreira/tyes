@@ -10,9 +10,9 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
     cursor: String,
     template: Term,
     minIndex: Int,
-    maxIndex: Either[String, Int],
+    maxIndex: terms.Index,
     seed: Option[Term] = None
-  ) extends Term, terms.TermRange[Term, Any]
+  ) extends Term, terms.TermRange[Term]
 
   private def ifBothTypes[B](otherTerm: Term)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
     case (Term.Type(thisType), Term.Type(otherType)) => Some(fn(thisType, otherType))
@@ -94,16 +94,16 @@ private object TermBuilder extends terms.TermBuilder[Term, Any]:
     cursor: String,
     template: Term,
     minIndex: Int,
-    maxIndex: Either[String, Int],
+    maxIndex: terms.Index,
     seed: Option[Term] = None
-  ): Term = Term.Range(function, cursor, template, minIndex, maxIndex, seed)
+  ): Term & terms.TermRange[Term] = Term.Range(function, cursor, template, minIndex, maxIndex, seed)
 
   override def unapplyRange(term: Term): Option[(
     String,
     String,
     Term,
     Int,
-    Either[String, Int],
+    terms.Index,
     Option[Term]
   )] = term match {
     case Term.Range(function, cursor, template, minIndex, maxIndex, seed) =>

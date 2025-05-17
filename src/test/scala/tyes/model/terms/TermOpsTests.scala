@@ -33,16 +33,16 @@ object TestTermBuilder extends TermBuilder[TestTerm, Any]:
     cursor: String,
     template: TestTerm,
     minIndex: Int,
-    maxIndex: Either[String, Int],
+    maxIndex: Index,
     seed: Option[TestTerm] = None
-  ): TestTerm = TestTerm.Range(function, cursor, template, minIndex, maxIndex, seed)
+  ): TestTerm & TermRange[TestTerm] = TestTerm.Range(function, cursor, template, minIndex, maxIndex, seed)
 
   override def unapplyRange(term: TestTerm): Option[(
     String,
     String,
     TestTerm,
     Int,
-    Either[String, Int],
+    Index,
     Option[TestTerm]
   )] = term match {
     case TestTerm.Range(function, cursor, template, minIndex, maxIndex, seed) =>
@@ -59,9 +59,9 @@ enum TestTerm extends TermOps[TestTerm, Any](TestTermBuilder):
     cursor: String,
     template: TestTerm,
     minIndex: Int,
-    maxIndex: Either[String, Int],
+    maxIndex: Index,
     seed: Option[TestTerm]
-  ) extends TestTerm, TermRange[TestTerm, Any]
+  ) extends TestTerm, TermRange[TestTerm]
 
 class TermOpsTestTests extends AnyFunSpec:
   import Assertions.*
@@ -84,7 +84,7 @@ class TermOpsTestTests extends AnyFunSpec:
       val boundsVar = "k"
 
       describe("and no seed") {
-        val range = Range(function, cursor, template, 0, Left(boundsVar), None)
+        val range = Range(function, cursor, template, 0, Index.Variable(boundsVar), None)
 
         it("matches a left-associative term with the target function") {
           val args = values.map(Function("C", _))
@@ -122,7 +122,7 @@ class TermOpsTestTests extends AnyFunSpec:
 
       describe("and a seed") {
         val seed = Function("K", Variable("a"))
-        val range = Range("f", "i", Function("C", Variable("t_i")), 1, Left("k"), Some(seed))
+        val range = Range("f", "i", Function("C", Variable("t_i")), 1, Index.Variable("k"), Some(seed))
         val concreteSeed = Function("K", Constant(true))
         
         it("matches a term that matches the seed") {
@@ -144,12 +144,32 @@ class TermOpsTestTests extends AnyFunSpec:
           ))
         }
       }
+
+      describe("and a minimum of occurrences") {
+        val range = Range("f", "i", Function("C", Variable("t_i")), 0, Index.Variable("k", min = 2), None)
+
+        it("matches a term with greater occurrences") {
+          val args = values.map(Function("C", _))
+          val term = termFoldLeft1(function, args)
+          val argsSubst = Map.from(
+            for case (t, i) <- values.zipWithIndex
+            yield f"t_$i" -> t
+          )
+          assert(range.matches(term) == Some(argsSubst + ("k" -> Constant(values.length - 1))))
+        }
+
+        it("doesn't match a term with lower occurrences") {
+          val term = Function("C", values(0))
+          assert(range.matches(term) == None)
+        }
+
+      }
     }
 
     describe("with limited bounds") {
       
       describe("and no seed") {
-        val range = Range(function, cursor, template, 0, Right(2), None)
+        val range = Range(function, cursor, template, 0, Index.Number(2), None)
 
         it("matches a left-associative term with the target function") {
           val args = values.map(Function("C", _))
@@ -178,7 +198,7 @@ class TermOpsTestTests extends AnyFunSpec:
 
       describe("and a seed") {
         val seed = Function("K", Variable("a"))
-        val range = Range(function, cursor, template, 1, Right(3), Some(seed))
+        val range = Range(function, cursor, template, 1, Index.Number(3), Some(seed))
         val concreteSeed = Function("K", Constant(true))
 
         it("does not match a term that only matches the seed") {

@@ -113,7 +113,14 @@ object TyesValidator:
     }
 
     for
-      messages <- extractTermRange("", judgementAsTerm(from), judgementAsTerm(to), None, (_, _, _, _, _, _) => ()).left
+      messages <- extractTermRange(
+        funName = "",
+        start = judgementAsTerm(from),
+        end = judgementAsTerm(to),
+        seed = None,
+        minOccurs = 1,
+        createRange = (_, _, _, _, _, _) => ()
+      ).left
       msg <- messages
     do
       errors += f"Error: $ruleName premise range $msg"

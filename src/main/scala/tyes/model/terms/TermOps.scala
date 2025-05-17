@@ -1,14 +1,15 @@
 package tyes.model.terms
 
-import tyes.model.indexes.*
 import scala.reflect.ClassTag
+import tyes.model.indexes.*
+import tyes.model.ranges.*
 
 trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilder[TTerm, TConstant]):
   this: TTerm =>
 
   private object Variable:
     def apply(name: String): TTerm & TermVariable = builder.applyVariable(name)
-    def unapply(term: TTerm): Option[String] = builder.unapplyVariable(term)
+    def unapply(term: TTerm & TermVariable): Option[String] = builder.unapplyVariable(term)
 
   private object Constant:
     def apply(value: TConstant): TTerm = builder.applyConstant(value) 
@@ -24,16 +25,16 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       cursor: String,
       template: TTerm,
       minIndex: Int,
-      maxIndex: Either[String, Int],
+      maxIndex: Index,
       seed: Option[TTerm] = None
-    ): TTerm = builder.applyRange(function, cursor, template, minIndex, maxIndex, seed)
+    ): TTerm & TermRange[TTerm] = builder.applyRange(function, cursor, template, minIndex, maxIndex, seed)
 
     def unapply(term: TTerm): Option[(
       String,
       String,
       TTerm,
       Int,
-      Either[String, Int],
+      Index,
       Option[TTerm]
     )] = builder.unapplyRange(term)
 
@@ -56,9 +57,9 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         None
     case (Constant(v1), Constant(v2)) if v1 == v2 => Some(Map())
     case (Range(function, cursor, template, minIndex, maxIndex, seed), _) => (maxIndex, seed, otherTerm) match {
-      case (Left(maxVar), _, Function(`function`, left, right)) =>
+      case (Index.Variable(maxVar, minOccurs), _, Function(`function`, left, right)) =>
         val innerMaxVar = "$" + maxVar
-        Range(function, cursor, template, minIndex, Left(innerMaxVar), seed)
+        Range(function, cursor, template, minIndex, Index.Variable(innerMaxVar, minOccurs - 1), seed)
           .matches(left)
           .flatMap { innerSubst =>
             val realMax = Constant.unapply(innerSubst(innerMaxVar)).get.asInstanceOf[Int] + 1
@@ -67,36 +68,38 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
             val lSubst = (innerSubst - innerMaxVar) ++ maxVarSubst
             instance.matches(right).map(lSubst ++ _)
           }
-          // otherwise, since max is unbounded, let's try to match the seed
+          // otherwise, since max is unbounded, let's try to match the seed as long as the min was matched
           .orElse {
             for
+              _ <- Option.when(minOccurs <= 0)(())
               s <- seed
               subst <- s.matches(otherTerm)
             yield
               subst + (maxVar -> Constant((minIndex - 1).asInstanceOf[TConstant]))
           }
-      case (Left(maxVar), None, _) =>
+      case (Index.Variable(_, n), _, _) if n > 1 => None 
+      case (Index.Variable(maxVar, _), None, _) =>
         template.replaceIndex(cursor, minIndex.toString).matches(otherTerm).map { subst =>
           subst + (maxVar -> Constant(minIndex.asInstanceOf[TConstant]))
         }
-      case (Left(maxVar), Some(seed), _) =>
+      case (Index.Variable(maxVar, _), Some(seed), _) =>
         seed.matches(otherTerm).map { subst =>
           subst + (maxVar -> Constant((minIndex - 1).asInstanceOf[TConstant]))
         }
-      case (Right(maxIndexVal), _, Function(`function`, left, right)) if minIndex < maxIndexVal =>
-        Range(function, cursor, template, minIndex, Right(maxIndexVal - 1), seed)
+      case (Index.Number(maxIndexVal), _, Function(`function`, left, right)) if minIndex < maxIndexVal =>
+        Range(function, cursor, template, minIndex, Index.Number(maxIndexVal - 1), seed)
           .matches(left)
           .flatMap { innerSubst =>
             val instance = template.replaceIndex(cursor, maxIndexVal.toString).substitute(innerSubst)
             instance.matches(right).map(innerSubst ++ _)
           }
-      case (Right(maxIndexVal), _, _) if minIndex == maxIndexVal =>
+      case (Index.Number(maxIndexVal), _, _) if minIndex == maxIndexVal =>
         val instance = template.replaceIndex(cursor, minIndex.toString)
         seed match {
           case Some(s) => Function(function, s, instance).matches(otherTerm)
           case None => instance.matches(otherTerm)
         }
-      case (Right(_), _, _) => None 
+      case (Index.Number(_), _, _) => None 
     }
     case _ => None
   }
@@ -105,15 +108,9 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
     case Variable(name) => Set(name)
     case Constant(_) => Set()
     case Function(_, args*) => Set.concat(args.map(t => t.variables)*)
-    case Range(_, cursor, template, minIndex, maxIndex, seed) =>
-      val indexes = maxIndex match {
-        case Right(i) => (minIndex to i).map(_.toString).toSet
-        case Left(s) => Set(minIndex.toString, s)
-      }
-      val indexVars = maxIndex.left.toOption.toSet
-      val seedVars = seed.map(_.variables).getOrElse(Set())
-      val expandedVars = indexes.flatMap(i => template.replaceIndex(cursor, i).variables)
-      indexVars ++ expandedVars ++ seedVars
+    case Range(params @ (_, _, _, _, maxIndex, _)) =>
+      val indexVars = maxIndex.asVariable.map(_.name).toSet
+      indexVars ++ getRangeElems(Range.apply.tupled(params), _.variables)
   }
 
   def substitute(subst: Map[String, TTerm]): TTerm = this match {
@@ -124,21 +121,20 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         this
     case Constant(_) => this
     case Function(name, args*) => Function(name, args.map(_.substitute(subst))*)
-    case Range(function, cursor, template, minIndex, maxIndex, seed) =>
-      val newMaxIndex = maxIndex match { // TODO: clean this up by defining a proper Index data type
-        case Left(s) if subst.contains(s) => subst(s) match {
-          case Constant(i: Int) => Right(i)
-        }
-        case _ => maxIndex
+    case Range(function, cursor, template, minIndex, Index.Variable(maxIndexVar, _), seed)
+      if subst.contains(maxIndexVar)
+    =>
+      val newMaxIndex = subst(maxIndexVar) match {
+        // TODO: clean this up by defining a proper Index data type
+        case Constant(i: Int) => Index.Number(i): Index.Number
       }
-      if newMaxIndex.isRight then
-        val elems = (minIndex to newMaxIndex.right.get).map(i => template.replaceIndex(cursor, i.toString).substitute(subst))
-        val allElems = seed.map(_.substitute(subst) +: elems).getOrElse(elems)
-        allElems.drop(1).foldLeft(allElems.head) { (acc, elem) => Function(function, acc, elem) }
-      else
-        val newTemplate = template.substitute(subst - cursor)
-        val newSeed = seed.map(_.substitute(subst))
-        Range(function, cursor, newTemplate, minIndex, newMaxIndex, newSeed)
+      val elems = (minIndex to newMaxIndex.value).map(i => template.replaceIndex(cursor, i.toString).substitute(subst))
+      val allElems = seed.map(_.substitute(subst) +: elems).getOrElse(elems)
+      allElems.drop(1).foldLeft(allElems.head) { (acc, elem) => Function(function, acc, elem) }
+    case Range(function, cursor, template, minIndex, maxIndex, seed) =>
+      val newTemplate = template.substitute(subst - cursor)
+      val newSeed = seed.map(_.substitute(subst))
+      Range(function, cursor, newTemplate, minIndex, maxIndex, newSeed)
   }
 
   def unifies(otherTerm: TTerm): Option[Map[String, TTerm]] = (this, otherTerm) match {
@@ -174,10 +170,12 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       if function == otherFunction && minIndex == otherMinIndex then
         for
           maxIdxSubst <- (maxIndex, otherMaxIndex) match {
-            case (Left(s), Left(otherS)) if s == otherS => Some(Map())
-            case (Left(s), Left(otherS)) => Some(Map(s -> Variable(otherS)))
-            case (Left(s), Right(i)) => Some(Map(s -> Constant(i.asInstanceOf[TConstant])))
-            case (Right(i), Right(otherI)) if i == otherI => Some(Map())
+            case (Index.Variable(_, min), Index.Variable(_, otherMin)) if min != otherMin => None
+            case (Index.Variable(name, _), Index.Variable(otherName, _)) if name == otherName => Some(Map[String, TTerm]())
+            case (Index.Variable(name, _), Index.Variable(otherName, _)) => Some(Map(name -> Variable(otherName)))
+            case (Index.Variable(name, min), Index.Number(i)) if i < min => None 
+            case (Index.Variable(name, _), Index.Number(i)) => Some(Map(name -> Constant(i.asInstanceOf[TConstant])))
+            case (Index.Number(i), Index.Number(otherI)) if i == otherI => Some(Map())
             case _ => None
           }
           seedSubst <- (seed, otherSeed) match {
@@ -214,7 +212,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       val newTemplate = if cursor != oldIdxStr then template.replaceIndex(oldIdxStr, newIdxStr) else template
       val newSeed = seed.map(_.replaceIndex(oldIdxStr, newIdxStr))
       val newMaxIndex = maxIndex match {
-        case Left(s) if s == oldIdxStr => oldIdxStr.toIntOption.toRight(newIdxStr)
+        case iv: Index.Variable if iv.name == oldIdxStr => iv.copy(name = newIdxStr)
         case _ => maxIndex
       }
       Range(function, cursor, newTemplate, minIndex, newMaxIndex, newSeed)
@@ -226,6 +224,5 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
     case Function(name, args*) => args.mkString(s"$name(", ", ", ")")
     case Range(function, cursor, template, minIndex, maxIndex, seed) =>
       val seedStr = seed.map(_.toString + ", ").getOrElse("")
-      val maxIndexStr = maxIndex.fold(s => s, i => i.toString)
-      s"R:${function}[$cursor in $minIndex..$maxIndexStr]($seedStr$template)"
+      s"R:${function}[$cursor in $minIndex..$maxIndex]($seedStr$template)"
   }

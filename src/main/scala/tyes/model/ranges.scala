@@ -2,6 +2,7 @@ package tyes.model
 
 import scala.collection.mutable.ListBuffer
 import tyes.model.indexes.*
+import tyes.model.terms.*
 
 object ranges:
   
@@ -15,18 +16,19 @@ object ranges:
     val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
     (fromIdent, Range.inclusive(fromIdx, toIdx))
 
-  def extractTermRange(funName: String, start: Term, end: Term, seed: Option[Term]): Either[List[String], Term.Range] =
-    extractTermRange(funName, start, end, seed, Term.Range.apply)
+  def extractTermRange(funName: String, start: Term, end: Term, seed: Option[Term], minOccurs: Int): Either[List[String], Term.Range] =
+    extractTermRange(funName, start, end, seed, minOccurs, Term.Range.apply)
 
-  def extractTypeRange(funName: String, start: Type, end: Type, seed: Option[Type]): Either[List[String], Type.Range] =
-    extractTermRange(funName, start, end, seed, Type.Range.apply)
+  def extractTypeRange(funName: String, start: Type, end: Type, seed: Option[Type], minOccurs: Int): Either[List[String], Type.Range] =
+    extractTermRange(funName, start, end, seed, minOccurs, Type.Range.apply)
 
   def extractTermRange[TTerm <: terms.TermOps[TTerm, TConstant], TConstant, TRange](
     funName: String,
     start: TTerm,
     end: TTerm,
     seed: Option[TTerm],
-    createRange: (String, String, TTerm, Int, Either[String, Int], Option[TTerm]) => TRange
+    minOccurs: Int,
+    createRange: (String, String, TTerm, Int, Index, Option[TTerm]) => TRange
   ): Either[List[String], TRange] =
     val startIndexedVars = start.variables.collect(extractIndex.unlift)
     val endIndexedVars = end.variables.collect(extractIndex.unlift)
@@ -58,19 +60,22 @@ object ranges:
           cursor,
           template,
           startIndex,
-          endIndex.toIntOption.toRight(endIndex),
+          endIndex.toIntOption match {
+            case None => Index.Variable(endIndex, minOccurs)
+            case Some(i) => Index.Number(i)
+          },
           seed,
         ))
     
     return Left(errors.toList)
 
   def getRangeElems[TTerm <: terms.TermOps[TTerm, TConstant], TConstant, TElem](
-    range: terms.TermRange[TTerm, TConstant],
+    range: terms.TermRange[TTerm],
     getElems: TTerm => Iterable[TElem]
   ): Iterable[TElem] =
     val indexes = range.maxIndex match {
-      case Right(i) => (range.minIndex to i).map(_.toString)
-      case Left(s) => Iterable(range.minIndex.toString, s)
+      case Index.Number(i) => Set(range.minIndex, i).map(_.toString)
+      case Index.Variable(s, _) => Set(range.minIndex.toString, s)
     }
     val seedElems = range.seed.map(getElems(_)).getOrElse(Iterable())
     val expandedElems = indexes.flatMap(i => getElems(range.template.replaceIndex(range.cursor, i)))

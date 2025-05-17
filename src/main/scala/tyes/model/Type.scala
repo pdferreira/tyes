@@ -9,9 +9,9 @@ enum Type extends terms.TermOps[Type, String](TypeBuilder):
     cursor: String,
     template: Type,
     minIndex: Int,
-    maxIndex: Either[String, Int],
+    maxIndex: terms.Index,
     seed: Option[Type] = None
-  ) extends Type, terms.TermRange[Type, String]
+  ) extends Type, terms.TermRange[Type]
 
 private object TypeBuilder extends terms.TermBuilder[Type, String]:
 
@@ -41,16 +41,16 @@ private object TypeBuilder extends terms.TermBuilder[Type, String]:
     cursor: String,
     template: Type,
     minIndex: Int,
-    maxIndex: Either[String, Int],
+    maxIndex: terms.Index,
     seed: Option[Type] = None
-  ): Type = Type.Range(function, cursor, template, minIndex, maxIndex, seed)
+  ): Type & terms.TermRange[Type] = Type.Range(function, cursor, template, minIndex, maxIndex, seed)
 
   override def unapplyRange(term: Type): Option[(
     String,
     String,
     Type,
     Int,
-    Either[String, Int],
+    terms.Index,
     Option[Type]
   )] = term match {
     case Type.Range(function, cursor, template, minIndex, maxIndex, seed) =>

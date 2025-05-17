@@ -19,16 +19,14 @@ trait TyesTermLanguageBindings:
       case (ls @ List(_, _*)) ~ Some(r +: rs) =>
         val start = ls.last
         val end = r
-        extractTermRange(funName, start, end, None)
-          .map(r => {
-            // since this is an operator, the range should match at least two elements
-            // otherwise it should defer to other rules
-            val secondElem = r.template.replaceIndex(r.cursor, (r.minIndex + 1).toString)
-            val seed = Some((ls.tail :+ secondElem).foldLeft(ls.head) { (left, right) => Term.Function(funName, left, right) })
-            val range = r.copy(minIndex = r.minIndex + 2, seed = seed)
+        val seed =
+          if ls.size == 1 then
+            None
+          else 
+            Some(ls.tail.dropRight(1).foldLeft(ls.head) { (left, right) => Term.Function(funName, left, right) })
 
-            rs.foldLeft(range: Term) { (left, right) => Term.Function(funName, left, right) }
-          })
+        extractTermRange(funName, start, end, seed, minOccurs = 2, Term.Range.apply)
+          .map(r => rs.foldLeft(r: Term) { (left, right) => Term.Function(funName, left, right) })
           .fold(msgs => err(msgs.head), success)
       case Nil ~ _ => err("impossible")
       case _ ~ Some(_) => err("impossible")

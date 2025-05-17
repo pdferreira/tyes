@@ -19,15 +19,15 @@ trait TermBuilder[TTerm, TConstant]:
     cursor: String,
     template: TTerm,
     minIndex: Int,
-    maxIndex: Either[String, Int],
+    maxIndex: Index,
     seed: Option[TTerm] = None
-  ): TTerm
+  ): TTerm & TermRange[TTerm]
 
   def unapplyRange(term: TTerm): Option[(
     String,
     String,
     TTerm,
     Int,
-    Either[String, Int],
+    Index,
     Option[TTerm]
   )]

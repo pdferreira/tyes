@@ -1,9 +1,9 @@
 package tyes.model.terms
 
-trait TermRange[TTerm <: TermOps[TTerm, TConstant], TConstant]:
+trait TermRange[TTerm]:
   def function: String
   def cursor: String
   def template: TTerm
   def minIndex: Int
-  def maxIndex: Either[String, Int]
+  def maxIndex: Index
   def seed: Option[TTerm]
