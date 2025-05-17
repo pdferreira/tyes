@@ -240,3 +240,13 @@ object TyesLanguageExtensions:
       case Type.Composite(_, args*) => args.flatMap(_.typeVariables).toSet
       case r: Type.Range => getRangeElems(r, _.typeVariables).toSet
     }
+
+  extension [TTerm <: TermOps[TTerm, TConstant], TConstant](range: TermRange[TTerm])
+
+    def toConcrete(createFunction: (String, TTerm, TTerm) => TTerm): Option[TTerm] = range.maxIndex match {
+      case Index.Number(maxIndex) if range.minIndex < maxIndex =>
+        val args = range.seed.toSeq ++ (range.minIndex to maxIndex).map(i => range.template.replaceIndex(range.cursor, i.toString))
+        val funTerm = args.drop(1).foldLeft(args.head) { (l, r) => createFunction(range.function, l, r) }
+        Some(funTerm)
+      case _ => None
+    }

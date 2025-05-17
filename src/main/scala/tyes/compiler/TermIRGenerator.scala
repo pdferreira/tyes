@@ -4,7 +4,9 @@ import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodePattern
 import tyes.compiler.target.TargetCodeTypeRef
 import tyes.model.Term
+import tyes.model.TyesLanguageExtensions.*
 import tyes.model.Type
+import tyes.model.terms.Index
 
 private val TCN = TargetCodeNode
 private val TCP = TargetCodePattern
@@ -24,6 +26,9 @@ class TermIRGenerator(
         args.map(generate(_, codeEnv))*
       )
     case Term.Type(typ) => typeIRGenerator.generate(typ, codeEnv)
+    case r: Term.Range =>
+      val funTerm = r.toConcrete(Term.Function(_, _, _)).getOrElse(???)
+      generate(funTerm, codeEnv)
   }
 
   def generatePattern(term: Term): TargetCodePattern = term match {
@@ -36,4 +41,7 @@ class TermIRGenerator(
         args.map(generatePattern)*
       )
     case Term.Type(typ) => typeIRGenerator.generatePattern(typ)
+    case r: Term.Range =>
+      val funTerm = r.toConcrete(Term.Function(_, _, _)).getOrElse(???)
+      generatePattern(funTerm)
   }
