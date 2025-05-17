@@ -63,7 +63,7 @@ enum TestTerm extends TermOps[TestTerm, Any](TestTermBuilder):
     seed: Option[TestTerm]
   ) extends TestTerm, TermRange[TestTerm]
 
-class TermOpsTestTests extends AnyFunSpec:
+class TermOpsTests extends AnyFunSpec:
   import Assertions.*
   import TestTerm.*
 
@@ -220,4 +220,36 @@ class TermOpsTestTests extends AnyFunSpec:
         }
       }
     }
+  }
+
+  describe("A Function term") {
+
+    it("matches a bounded Range term with matching function") {
+      val argVars = Seq("a", "b", "c")
+      val funTerm = termFoldLeft1("f", argVars.map(Variable(_)))
+      val rangeTerm = Range("f", "i", Variable("e_i"), 5, Index.Number(7), None)
+
+      val argsSubst = Map.from(
+        for case (v, i) <- argVars.zipWithIndex
+        yield v -> Variable(f"e_${i+5}")
+      )
+      assert(funTerm.matches(rangeTerm) == Some(argsSubst))
+    }
+
+    it("doesn't match a bounded Range term with incompatible bounds") {
+      val argVars = Seq("a", "b", "c")
+      val funTerm = termFoldLeft1("f", argVars.map(v => Function("C", Variable(v))))
+      val rangeTerm = Range("f", "i", Function("C", Variable("e_i")), 5, Index.Number(9), None)
+
+      assert(funTerm.matches(rangeTerm) == None)
+    }
+
+    it("doesn't match a bounded Range term with a different function") {
+      val argVars = Seq("a", "b", "c")
+      val funTerm = termFoldLeft1("f", argVars.map(Variable(_)))
+      val rangeTerm = Range("g", "i", Variable("e_i"), 5, Index.Number(7), None)
+
+      assert(funTerm.matches(rangeTerm) == None)
+    }
+
   }

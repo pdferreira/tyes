@@ -39,7 +39,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
     )] = builder.unapplyRange(term)
 
   def matches(otherTerm: TTerm): Option[Map[String, TTerm]] = (this, otherTerm) match {
-    case (Variable(name), _) => Some(Map(name -> otherTerm))
+    case (Constant(v1), Constant(v2)) if v1 == v2 => Some(Map())
     case (Function(name, args*), Function(otherName, otherArgs*)) =>
       if name == otherName && args.length == otherArgs.length then
         args.zip(otherArgs).foldLeft(Option(Map[String, TTerm]())) {
@@ -55,7 +55,13 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         }
       else
         None
-    case (Constant(v1), Constant(v2)) if v1 == v2 => Some(Map())
+    case (Function(name, left, right), Range(function, cursor, template, minIndex, Index.Number(maxIndex), seed)) if name == function && minIndex < maxIndex =>
+      left
+        .matches(Range(function, cursor, template, minIndex, Index.Number(maxIndex - 1), seed))
+        .flatMap { leftSubst =>
+          val instance = template.replaceIndex(cursor, maxIndex.toString).substitute(leftSubst)
+          right.matches(instance).map(leftSubst ++ _)
+        }
     case (Range(function, cursor, template, minIndex, maxIndex, seed), _) => (maxIndex, seed, otherTerm) match {
       case (Index.Variable(maxVar, minOccurs), _, Function(`function`, left, right)) =>
         val innerMaxVar = "$" + maxVar
@@ -99,8 +105,15 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
           case Some(s) => Function(function, s, instance).matches(otherTerm)
           case None => instance.matches(otherTerm)
         }
-      case (Index.Number(_), _, _) => None 
+      case (Index.Number(_), _, _) => None
     }
+    case (_, Range(function, cursor, template, minIndex, Index.Number(maxIndex), seed)) if minIndex == maxIndex =>
+      val instance = template.replaceIndex(cursor, minIndex.toString)
+      seed match {
+        case None => this.matches(instance)
+        case Some(s) => this.matches(Function(function, s, instance))
+      }
+    case (Variable(name), _) => Some(Map(name -> otherTerm))
     case _ => None
   }
 

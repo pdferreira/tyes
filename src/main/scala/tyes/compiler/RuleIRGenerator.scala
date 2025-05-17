@@ -9,6 +9,7 @@ import tyes.compiler.target.TargetCodePattern
 import tyes.model.*
 import tyes.model.indexes.*
 import tyes.model.ranges.*
+import tyes.model.terms.Index
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
@@ -50,6 +51,9 @@ class RuleIRGenerator(
         }
       }
       Term.Function(fnName, argsAsVariables*)
+    case Term.Range(function, cursor, template, minIndex, Index.Number(maxIndex), seed) if minIndex < maxIndex =>
+      val exps = seed.toSeq ++ (minIndex to maxIndex).map(i => template.replaceIndex(cursor, i.toString))
+      exps.drop(1).foldLeft(exps.head) { (l, r) => Term.Function(function, l, r) }
     case _ => term
   }
 
