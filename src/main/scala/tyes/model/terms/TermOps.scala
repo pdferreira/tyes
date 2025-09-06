@@ -134,17 +134,23 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         this
     case Constant(_) => this
     case Function(name, args*) => Function(name, args.map(_.substitute(subst))*)
-    case Range(function, cursor, template, minIndex, Index.Variable(maxIndexVar, _), seed)
-      if subst.contains(maxIndexVar)
+    case Range(function, cursor, template, minIndex, maxIndex, seed)
+      if maxIndex.fold(v => subst.contains(v.name), n => true)
     =>
-      val newMaxIndex = subst(maxIndexVar) match {
-        // TODO: clean this up by defining a proper Index data type
-        case Constant(i: Int) => Index.Number(i): Index.Number
+      val concreteMaxIndex = maxIndex match {
+        case Index.Number(value) => value
+        case Index.Variable(maxIndexVar, _) => subst(maxIndexVar) match {
+          // TODO: clean this up by defining a proper Index data type
+          case Constant(i: Int) => i
+        }
       }
-      val elems = (minIndex to newMaxIndex.value).map(i => template.replaceIndex(cursor, i.toString).substitute(subst))
+      val elems = (minIndex to concreteMaxIndex).map(i => template.replaceIndex(cursor, i.toString).substitute(subst))
       val allElems = seed.map(_.substitute(subst) +: elems).getOrElse(elems)
       allElems.drop(1).foldLeft(allElems.head) { (acc, elem) => Function(function, acc, elem) }
     case Range(function, cursor, template, minIndex, maxIndex, seed) =>
+      // otherwise, maxIndex is a variable and stays unbound
+      // TODO: case where maxIndex is unbound but we can have a partial substitution
+      // e.g. R:f[i in 1..k](V:e_i).substitute(e_3 -> C:a) ==> R:f[i in 4..k](f(f(V:e_1, V:e_2), C:a), V:e_i)
       val newTemplate = template.substitute(subst - cursor)
       val newSeed = seed.map(_.substitute(subst))
       Range(function, cursor, newTemplate, minIndex, maxIndex, newSeed)
