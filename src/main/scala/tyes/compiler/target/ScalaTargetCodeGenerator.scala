@@ -184,15 +184,16 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
           s"${startIndent}$multiLineObjStr.$field"
       case TCN.Match(matchedExp, branches) =>
         val matchedStr = generate(matchedExp, indentLevel, skipStartIndent)
+        val tailLinesIndent = indent + (if skipStartIndent then "" else "  ")
         val matchesStr = 
           (
             for case (patExp, thenExp) <- branches
             yield
               val patStr = generate(patExp)
               val thenStr = indentIfMultiline(generate(thenExp), indentLevel + 2)
-              s"${indent}  case $patStr => $thenStr"
+              s"${tailLinesIndent}  case $patStr => $thenStr"
           )
-          .mkString("{\r\n", "\r\n", s"\r\n$indent}")
+          .mkString("{\r\n", "\r\n", s"\r\n$tailLinesIndent}")
 
         s"$matchedStr match $matchesStr"
       case TCN.Return(exp) => s"${startIndent}return ${generate(exp)}"
