@@ -117,21 +117,27 @@ class substitute extends AnyFunSpec:
 
       describe("if the bound is not closed by substitution") {
 
-        it("propagates substitution to its template and seed") {
+        it("propagates substitution to its maxIndex, template and seed") {
           val seed = Function("s", Variable("w"))
           val template = Function("t", Variable(indexedVar(rootVar, cursor)), Variable("w"))
           val minIndex = 0
           val maxIndex = Index.Variable(boundsVar, 5)
           val range = Range(function, cursor, template, minIndex, maxIndex, Some(seed))
+
+          val subst = Map(
+            "w" -> Constant(true),
+            boundsVar -> Variable("b")
+          )
+
           val expectedRange = Range(
             function,
             cursor,
             Function("t", Variable(indexedVar(rootVar, cursor)), Constant(true)),
             minIndex,
-            maxIndex,
+            Index.Variable("b", min = 5),
             Some(Function("s", Constant(true)))
           )
-          assert(range.substitute(Map("w" -> Constant(true))) == expectedRange)
+          assert(range.substitute(subst) == expectedRange)
         }
 
       }

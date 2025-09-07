@@ -135,7 +135,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
     case Constant(_) => this
     case Function(name, args*) => Function(name, args.map(_.substitute(subst))*)
     case Range(function, cursor, template, minIndex, maxIndex, seed)
-      if maxIndex.fold(v => subst.contains(v.name), n => true)
+      if maxIndex.fold(v => subst.get(v.name).exists(_.isGround), n => true)
     =>
       val concreteMaxIndex = maxIndex match {
         case Index.Number(value) => value
@@ -152,8 +152,14 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       // TODO: case where maxIndex is unbound but we can have a partial substitution
       // e.g. R:f[i in 1..k](V:e_i).substitute(e_3 -> C:a) ==> R:f[i in 4..k](f(f(V:e_1, V:e_2), C:a), V:e_i)
       val newTemplate = template.substitute(subst - cursor)
+      val newMaxIndex = maxIndex match {
+        case Index.Variable(name, min) if subst.contains(name) =>
+          val newName = subst(name).asInstanceOf[TermVariable].name
+          Index.Variable(newName, min)
+        case _ => maxIndex 
+      }
       val newSeed = seed.map(_.substitute(subst))
-      Range(function, cursor, newTemplate, minIndex, maxIndex, newSeed)
+      Range(function, cursor, newTemplate, minIndex, newMaxIndex, newSeed)
   }
 
   def unifies(otherTerm: TTerm): Option[Map[String, TTerm]] = (this, otherTerm) match {
