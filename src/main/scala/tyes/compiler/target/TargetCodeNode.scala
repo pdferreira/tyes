@@ -54,6 +54,7 @@ enum TargetCodePattern:
   case Var(name: String)
   case WithType(pat: TargetCodePattern, typeRef: TargetCodeTypeRef)
   case ADTConstructor(typeRef: TargetCodeTypeRef, args: TargetCodePattern*)
+  case Extract(extractorName: String, args: TargetCodePattern*)
 
 case class TargetCodeUnit(name: String, decls: Seq[TargetCodeDecl])
 
@@ -63,6 +64,12 @@ enum TargetCodeDecl:
   case Import(namespaces: Seq[String], all: scala.Boolean = false)
   case Class(name: String, inherits: Seq[TargetCodeTypeRef], decls: Seq[TargetCodeDecl])
   case ADT(name: String, inherits: Seq[TargetCodeTypeRef], constructors: Seq[TargetCodeADTConstructor])
+  case Extractor(
+    name: String,
+    param: (String, TargetCodeTypeRef),
+    retTypeRef: TargetCodeTypeRef,
+    body: (success: TargetCodeNode => TargetCodeNode, failure: () => TargetCodeNode) => TargetCodeNode
+  )
 
 case class TargetCodeADTConstructor(
   name: String,

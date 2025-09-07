@@ -7,6 +7,7 @@ private val TCD = TargetCodeDecl
 private val TCFC = TargetCodeForCursor
 private val TCN = TargetCodeNode
 private val TCP = TargetCodePattern
+private val TCTypeRef = TargetCodeTypeRef
 
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
 
@@ -63,6 +64,18 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val caseIndent = s"$indent  "
         val casesStr = caseIndent + cs.map(generate).mkString(s"\r\n${caseIndent}")
         s"${indent}enum ${name}${extendsStr}:\r\n${casesStr}"
+      case TCD.Extractor(name, param, retTypeRef, body) =>
+        val unapplyMethod = TCD.Method(
+          "unapply",
+          params = Seq(param),
+          retTypeRef = TCTypeRef("Option", retTypeRef),
+          body = body(
+            n => TCN.ADTConstructorCall(TCTypeRef("Some"), n),
+            () => TCN.ADTConstructorCall(TCTypeRef("None"))
+          )
+        )
+        val unapplyStr = generate(unapplyMethod, indentLevel + 1)
+        s"${indent}object ${name}:\r\n${unapplyStr}"
     }
 
   private def generate(tcADTCons: TargetCodeADTConstructor): String =
@@ -216,4 +229,6 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       generate(typeRef) + args
         .map(generate)
         .mkStringOrEmpty("(", ", ", ")")
+    case TCP.Extract(extractorName, args*) =>
+      extractorName + args.map(generate).mkString("(", ", ", ")")
   }
