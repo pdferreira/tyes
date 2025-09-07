@@ -9,6 +9,24 @@ class matches extends AnyFunSpec:
   import Assertions.*
   import TestTerm.*
 
+  describe("A Variable term") {
+
+    for term <- Seq(
+      Constant(3),
+      Variable("z"),
+      Function("f", Constant(true), Variable("a")),
+      Range("p", "i", Variable("e_i"), 0, Index.Number(5), Some(Constant(7)))
+    ) do
+      it(s"matches any ${term.getClass().getSimpleName()} term") {
+        assert(Variable("x").matches(term) == Some(Map("x" -> term)))
+      }
+
+    it("matches an equal variable with an empty substitution") {
+      assert(Variable("x").matches(Variable("x")) == Some(Map()))
+    }
+
+  }
+
   describe("A Range term") {
 
     val function = "f"
@@ -40,6 +58,12 @@ class matches extends AnyFunSpec:
           assert(range.matches(term) == Some(Map("t_0" -> values(0), boundsVar -> Constant(0))))
         }
 
+        it("matches a range with matching template modulo their cursors") {
+          val r1 = Range("f", "i", Function("P", Variable("e_i"), Variable("y")), 0, Index.Variable("k"), None)
+          val r2 = Range("f", "j", Function("P", Variable("e_j"), Constant(1)), 0, Index.Number(5), None)
+          assert(r1.matches(r2) == Some(Map("y" -> Constant(1), "k" -> Constant(5))))
+        }
+
         it("does not match a left-associative term with sub-terms not matching the template") {
           val args = values
           val term = termFoldLeft1(function, args)
@@ -55,6 +79,16 @@ class matches extends AnyFunSpec:
         it("does not match a left-associative term with a constant") {
           val term = Constant(1)
           assert(range.matches(term) == None)
+        }
+
+        it("does not match a range in a way that substitutes its ranged-over variables") {
+          val otherRange = Range("f", "j", Function("P", Variable("e_j"), Constant(1)), 0, Index.Number(5), None)
+          assert(range.matches(otherRange) == None)
+        }
+
+        it("does not match a range with a seed") {
+          val otherRange = Range(function, cursor, template, range.minIndex, range.maxIndex, Some(Constant(2)))
+          assert(range.matches(otherRange) == None)
         }
       }
 
@@ -80,6 +114,17 @@ class matches extends AnyFunSpec:
             ("k" -> Constant(values.length)) + 
             ("a" -> Constant(true))
           ))
+        }
+
+        it("matches a range with matching template modulo their cursors") {
+          val r1 = Range("f", "i", Function("P", Variable("e_i"), Variable("y")), 0, Index.Variable("k"), Some(Variable("y")))
+          val r2 = Range("f", "j", Function("P", Variable("e_j"), Constant(1)), 0, Index.Number(5), Some(Constant(1)))
+          assert(r1.matches(r2) == Some(Map("y" -> Constant(1), "k" -> Constant(5))))
+        }
+
+        it("does not match a range with a non-matching seed") {
+          val otherRange = Range(function, cursor, template, range.minIndex, range.maxIndex, Some(Constant(2)))
+          assert(range.matches(otherRange) == None)
         }
       }
 

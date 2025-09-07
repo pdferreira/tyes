@@ -83,7 +83,31 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
             yield
               subst + (maxVar -> Constant((minIndex - 1).asInstanceOf[TConstant]))
           }
-      case (Index.Variable(_, n), _, _) if n > 1 => None 
+      case (_, seed, Range(`function`, otherCursor, otherTemplate, `minIndex`, otherMaxIndex, otherSeed)) =>
+        for
+          tSubst <- template.matches(otherTemplate.replaceIndex(otherCursor, cursor))
+            .map(_.map(_ -> _.replaceIndex(otherCursor, cursor)))
+          // only valid if none of the ranged-over variables got a substitution, as
+          // those act more like constants from the range point of view 
+          if tSubst.keys.collect(extractIndex.unlift).forall(_._2 != cursor)
+          mSubst <- maxIndex match {
+            case Index.Variable(maxVar, min) => otherMaxIndex match {
+              case Index.Variable(`maxVar`, `min`) => Some(Map())
+              case Index.Variable(otherMaxVar, `min`) => Some(Map(maxVar -> Variable(otherMaxVar)))
+              case Index.Variable(_, _) => None
+              case Index.Number(v) => Some(Map(maxVar -> Constant(v.asInstanceOf[TConstant])))
+            }
+            case _ => Option.when(maxIndex == otherMaxIndex)(Map[String, TTerm]())
+          }
+          sSubst <- (seed, otherSeed) match {
+            case (None, None) => Some(Map())
+            case (Some(s), Some(os)) => s.substitute(tSubst ++ mSubst).matches(os)
+            case _ => None
+          }
+        yield
+          tSubst ++ (mSubst ++ sSubst)
+      case (_, _, Range(_, _, _ ,_, _, _)) => None
+      case (Index.Variable(_, n), _, _) if n > 1 => None
       case (Index.Variable(maxVar, _), None, _) =>
         template.replaceIndex(cursor, minIndex.toString).matches(otherTerm).map { subst =>
           subst + (maxVar -> Constant(minIndex.asInstanceOf[TConstant]))
@@ -113,6 +137,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         case None => this.matches(instance)
         case Some(s) => this.matches(Function(function, s, instance))
       }
+    case (Variable(_), _) if this == otherTerm => Some((Map()))
     case (Variable(name), _) => Some(Map(name -> otherTerm))
     case _ => None
   }
