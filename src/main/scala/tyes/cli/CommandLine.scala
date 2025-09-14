@@ -40,7 +40,7 @@ object CommandLine:
         Console.err.println(s"File not found: ${path.toString}")
         boundary.break(())
 
-    for path <- srcPaths.get do
+    for path <- srcPaths.get do try
       println(s"Compiling '${path.toString}'")
 
       // Get output dir and ensure required directories exist
@@ -58,6 +58,8 @@ object CommandLine:
 
       val compiler = new TyesCompilerImpl
       invokeCompiler(compiler, path, scalaDstDirPath, binDstDirPath, options.skipValidation)
+    catch case e =>
+      e.printStackTrace()
 
   def tyer(args: String*): Unit =
     val options = InterpreterOptions.parse(args) match {
