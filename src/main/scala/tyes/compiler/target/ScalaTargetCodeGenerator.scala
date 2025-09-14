@@ -30,6 +30,11 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     else
       codeStr
 
+  private def genUncheckedIfNeeded(pat: TargetCodePattern): String = pat match {
+    case TCP.ADTConstructor(_, _*) => ": @unchecked"
+    case _ => "" 
+  }
+
   def getFileName(tcUnit: TargetCodeUnit): Path = Path.of{tcUnit.name + ".scala"}
 
   def generate(tcUnit: TargetCodeUnit): String =
@@ -135,12 +140,13 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val argsStr = typeArgs.map(a => generate(a)).mkString(", ")
         s"${funStr}[${argsStr}]"
       case TCN.TypeCheck(exp, typeRef) =>
-        val expStr = generate(exp, indentLevel, skipStartIndent)
-        val typeRefStr = generate(typeRef)
+        val expStr = generate(exp, indentLevel, skipStartIndent) 
+        val typeRefWithUnknownArgs = typeRef.copy(params = typeRef.params.map(_ => TCTypeRef("?")))
+        val typeRefStr = generate(typeRefWithUnknownArgs)
         s"${expStr}.isInstanceOf[${typeRefStr}]"
       case TCN.Let(varPat, exp, body) =>
         val varPatStr = generate(varPat)
-        val expStr = generate(exp)
+        val expStr = generate(exp) + genUncheckedIfNeeded(varPat)
         val bodyStr = generate(body, indentLevel)
         s"${startIndent}val $varPatStr = $expStr\r\n$bodyStr"
       case TCN.Lambda(name, TCN.Match(TCN.Var(name2), bs)) if name == name2 =>
@@ -198,7 +204,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         s"${indent}$patStr <- ${colIndent}${colStr}"
       case TCFC.Let(pat, exp) =>
         val patStr = generate(pat)
-        val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) 
+        val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) + genUncheckedIfNeeded(pat)
         s"${indent}$patStr = $expStr"
     }
 

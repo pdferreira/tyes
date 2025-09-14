@@ -29,7 +29,7 @@ class SumDeclVarTypeSystem extends TypeSystem[LExpression]:
 
     case LPlus(e1, e) => 
       if e1.isInstanceOf[LVariable] then
-        val LVariable(x) = e1
+        val LVariable(x) = e1: @unchecked
         typecheck(e, Environment(x -> Type.Two))
       else
         TypeError.noTypeFor(exp)
