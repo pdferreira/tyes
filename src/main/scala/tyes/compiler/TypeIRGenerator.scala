@@ -16,12 +16,6 @@ import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
 
-private val TCD = TargetCodeDecl
-private val TCN = TargetCodeNode
-private val TCP = TargetCodePattern
-private val TCTypeRef = TargetCodeTypeRef
-private val TCADTConstructor = TargetCodeADTConstructor
-
 class TypeIRGenerator:
 
   val typeEnumTypeRef = TCTypeRef("Type")

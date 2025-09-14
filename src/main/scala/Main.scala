@@ -72,29 +72,3 @@ object ExampleTypeChecker extends tyes.runtime.old.TypeSystem[LExpression]:
       val interpreterResults = exps.map(e => TyesInterpreter.typecheck(tsDecl.get, e))
       for (e, idx) <- exps.zipWithIndex do
         println(s"$e has type ${interpreterResults(idx)}")
-    
-      println()
-      println("### Run code generation")
-      val (_, src) = tyes.compiler.old.TyesCodeGenerator.compile(tsDecl.get)
-      println(src)
-      println()
-
-      println("### Invoke generated code")
-      val tsClassName = tyes.compiler.old.TyesCodeGenerator.getTypeSystemObjectName(tsDecl.get)
-      val m = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())
-      val e = m.getEngineByName("scala")
-      if e == null then
-        println("No script engine found")
-      else
-        val rtTypeSystem = e.eval(src + s"\r\n$tsClassName").asInstanceOf[tyes.runtime.old.TypeSystem[LExpression]]
-        for (e, idx) <- exps.zipWithIndex do
-          val typ = rtTypeSystem.typecheck(e, Map())
-          println(s"$e has type $typ")
-
-          // Quick check if the interpreter results match by checking the string representation
-          val interpreterResStr = interpreterResults(idx) match {
-            case Some(Type.Named(name)) => s"Some(${name.capitalize})"
-            case t => t.toString
-          }
-          if typ.toOption.toString != interpreterResStr then
-            Console.err.println(s"Error: different interpreter result for $e: ${interpreterResults(idx)} vs $typ")

@@ -39,7 +39,7 @@ case class TargetCodeTypeRef private(
 object TargetCodeTypeRef:
   def apply(name: String, params: TargetCodeTypeRef*) = new TargetCodeTypeRef(name, Seq(), params)
   def apply(qualifiedName: String*) = 
-    val ns :+ name = qualifiedName
+    val ns :+ name = qualifiedName: @unchecked
     new TargetCodeTypeRef(name, ns, Seq())
 
 enum TargetCodeForCursor:

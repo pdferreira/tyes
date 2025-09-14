@@ -6,6 +6,7 @@ import scala.io.StdIn
 import scala.jdk.CollectionConverters.*
 import scala.util.Using
 import scala.util.Try
+import scala.util.boundary
 import scala.util.parsing.combinator.Parsers
 import dotty.tools.dotc.Compiler
 import dotty.tools.dotc.core.Contexts.*
@@ -21,7 +22,7 @@ import utils.StringExtensions.decapitalize
 
 object CommandLine:
 
-  def tyec(args: String*): Unit =
+  def tyec(args: String*): Unit = boundary:
     val options = CompilerOptions.parse(args) match {
       case Left(message) => 
         Console.err.println(message)
@@ -37,7 +38,7 @@ object CommandLine:
     for path <- srcPaths.get do
       if Files.notExists(path) then
         Console.err.println(s"File not found: ${path.toString}")
-        return
+        boundary.break(())
 
     for path <- srcPaths.get do
       println(s"Compiling '${path.toString}'")
@@ -55,10 +56,7 @@ object CommandLine:
       for dirPath <- Seq(scalaDstDirPath, binDstDirPath) do
         Files.createDirectories(dirPath)
 
-      val compiler = options.versionId.getOrElse("new") match {
-        case "old" => old.TyesCodeGenerator
-        case "new" => new TyesCompilerImpl
-      }
+      val compiler = new TyesCompilerImpl
       invokeCompiler(compiler, path, scalaDstDirPath, binDstDirPath, options.skipValidation)
 
   def tyer(args: String*): Unit =
@@ -84,8 +82,7 @@ object CommandLine:
     if ext == ".tye" then
       invokeInterpreter(srcContent, options.expression, options.skipValidation)
     else if ext == ".scala" then
-      val version = options.versionId.getOrElse("new")
-      invokeRunner(nameWithoutExt, srcContent, options.expression, version)
+      invokeRunner(nameWithoutExt, srcContent, options.expression)
     else
       Console.err.println(s"File type not recognized: $ext")   
 
@@ -157,7 +154,7 @@ object CommandLine:
         },
         expSrcOption)
 
-  private def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String], versionId: String): Unit =
+  private def invokeRunner(objName: String, srcContent: String, expSrcOption: Option[String]): Unit =
     val engineManager = new javax.script.ScriptEngineManager(this.getClass().getClassLoader())
     val engine = engineManager.getEngineByName("scala")
     if engine == null then
@@ -167,17 +164,13 @@ object CommandLine:
 
       val tsClassName = objName
       val tsVarName = "ts"
-      if (versionId == "old") {
-        invokeOldRunner(engine, tsClassName, tsVarName, expSrcOption)
-        return;
-      }
 
       val rtTypeSystem = engine
         .eval((s"\r\nval $tsVarName = new $tsClassName(); $tsVarName"))
         .asInstanceOf[tyes.runtime.TypeSystem[LExpression]]
 
       val rtTypeEnumClass = engine.eval(s"classOf[$tsVarName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
-      val rtTypeObjectClass = engine.eval(s"$tsVarName.Type.getClass").asInstanceOf[Class[_]]
+      val rtTypeObjectClass = engine.eval(s"$tsVarName.Type.getClass").asInstanceOf[Class[?]]
       val rtTypeObject = engine.eval(s"$tsVarName.Type")
       val expParser = new LExpressionWithRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass, rtTypeObject)
       runInteractive(
@@ -189,27 +182,6 @@ object CommandLine:
             }
         }, 
         expSrcOption)
-
-  private def invokeOldRunner(
-    engine: javax.script.ScriptEngine,
-    tsClassName: String,
-    tsVarName: String,
-    expSrcOption: Option[String]
-  ): Unit =
-    val tsRtObject = engine.eval(s"\r\nval $tsVarName = $tsClassName; $tsVarName")
-    val rtTypeSystem = tsRtObject.asInstanceOf[tyes.runtime.old.TypeSystem[LExpression]]
-    val rtTypeEnumClass = engine.eval(s"classOf[$tsVarName.Type]").asInstanceOf[Class[rtTypeSystem.T]]
-    val rtTypeObjectClass = engine.eval(s"$tsVarName.Type.getClass").asInstanceOf[Class[_]]
-    val expParser = new tyes.cli.old.LExpressionWithOldRuntimeTypesParser(rtTypeEnumClass, rtTypeObjectClass)
-    runInteractive(
-      line => {
-        for exp <- parseLExpression(line, expParser) do 
-          rtTypeSystem.typecheck(exp, Map()) match {
-            case Right(typ) => println(expParser.prettyPrint(typ))
-            case Left(errMsg) => Console.err.println(errMsg)
-          }
-      }, 
-      expSrcOption)
 
   private def runInteractive(processLine: String => Unit, singleInputOpt: Option[String]): Unit =
     singleInputOpt match {

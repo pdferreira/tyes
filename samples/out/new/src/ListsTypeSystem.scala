@@ -20,10 +20,10 @@ class ListsTypeSystem extends TypeSystem[LExpression]:
         TypeError.noTypeFor(exp)
 
     case LList(e1, e2) => 
-      if e2.isInstanceOf[LList[Type]] then
+      if e2.isInstanceOf[LList[?]] then
         for
           t <- typecheck(e1, env)
-          LList(e3, r) = e2
+          LList(e3, r) = e2: @unchecked
           _ <- typecheck(e3, env).expecting(t)
           _ <- typecheck(r, env).expecting(Type.List)
         yield

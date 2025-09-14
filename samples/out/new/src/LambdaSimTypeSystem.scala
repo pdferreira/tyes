@@ -28,7 +28,7 @@ class LambdaSimTypeSystem extends TypeSystem[LExpression]:
     case LPlus(e1, e2) => 
       for
         _ft <- typecheck(e1, env).expecting[Type.$FunType]
-        Type.$FunType(t, t2) = _ft
+        Type.$FunType(t, t2) = _ft: @unchecked
         _ <- typecheck(e2, env).expecting(t)
       yield
         t2

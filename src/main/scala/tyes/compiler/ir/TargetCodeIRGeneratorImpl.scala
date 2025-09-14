@@ -129,6 +129,7 @@ class TargetCodeIRGeneratorImpl(
         }
       )
   
+    case _: IRCond.And => ???
   }
 
   private def genExpectationCheck(

@@ -19,7 +19,7 @@ class LambdaCalculusTypeSystem extends TypeSystem[LExpression]:
     case LApp(e1, e2) => 
       for
         _ft <- typecheck(e1, env).expecting[Type.$FunType]
-        Type.$FunType(t2, t) = _ft
+        Type.$FunType(t2, t) = _ft: @unchecked
         _ <- typecheck(e2, env).expecting(t2)
       yield
         t

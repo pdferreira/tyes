@@ -3,9 +3,6 @@ package tyes.compiler
 import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.ir.IRError
 
-private type TCN = TargetCodeNode
-private val TCN = TargetCodeNode
-
 /**
   * Constants and utilities for generated code that uses definitions from tyes.runtime.* 
   */

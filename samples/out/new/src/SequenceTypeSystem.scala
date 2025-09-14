@@ -28,13 +28,13 @@ class SequenceTypeSystem extends TypeSystem[LExpression]:
         t
 
     case LList(e_1, e2) => 
-      if e2.isInstanceOf[LList[Type]] then
+      if e2.isInstanceOf[LList[?]] then
         for
           t_1 <- typecheck(e_1, env)
-          LList(e_2, eb) = e2
+          LList(e_2, eb) = e2: @unchecked
           t_2 <- typecheck(e_2, env)
           _ <- eb.expecting[LList[Type]]
-          LList(e_3, l) = eb
+          LList(e_3, l) = eb: @unchecked
           t_3 <- typecheck(e_3, env)
           t_l <- typecheck(l, env)
         yield
@@ -43,13 +43,13 @@ class SequenceTypeSystem extends TypeSystem[LExpression]:
         TypeError.noTypeFor(exp)
 
     case LLet(x_1, _, e_0, e4) => 
-      if e4.isInstanceOf[LLet[Type]] then
+      if e4.isInstanceOf[LLet[?]] then
         for
           t_0 <- typecheck(e_0, env)
-          LLet(x_2, _, e_1, ed) = e4
+          LLet(x_2, _, e_1, ed) = e4: @unchecked
           _ <- typecheck(e_1, Environment(x_1 -> t_0))
           _ <- ed.expecting[LLet[Type]]
-          LLet(x_3, _, e_2, e_3) = ed
+          LLet(x_3, _, e_2, e_3) = ed: @unchecked
           _ <- typecheck(e_2, Environment(x_2 -> t_0))
           t_3 <- typecheck(e_3, Environment(x_3 -> t_0))
         yield
