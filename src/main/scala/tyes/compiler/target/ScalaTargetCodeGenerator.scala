@@ -57,7 +57,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         s"${indent}class ${name}${extendsStr}:\r\n${declsStr}"
       case TCD.Method(name, params, rtName, body) =>
         val paramsStr = params.map((n, t) => s"$n: ${generate(t)}").mkString(", ")
-        val bodyStr = generate(body, indentLevel, skipStartIndent = true)
+        val bodyStr = generate(body, indentLevel + 1, skipStartIndent = true)
         s"${indent}def $name($paramsStr): ${generate(rtName)} = $bodyStr"
       case TCD.ADT(name, inherits, cs) =>
         val extendsStr = inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "")
@@ -184,16 +184,15 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
           s"${startIndent}$multiLineObjStr.$field"
       case TCN.Match(matchedExp, branches) =>
         val matchedStr = generate(matchedExp, indentLevel, skipStartIndent)
-        val tailLinesIndent = indent + (if skipStartIndent then "" else "  ")
         val matchesStr = 
           (
             for case (patExp, thenExp) <- branches
             yield
               val patStr = generate(patExp)
-              val thenStr = indentIfMultiline(generate(thenExp), indentLevel + 2)
-              s"${tailLinesIndent}  case $patStr => $thenStr"
+              val thenStr = indentIfMultiline(generate(thenExp), indentLevel + 1)
+              s"${indent}case $patStr => $thenStr"
           )
-          .mkString("{\r\n", "\r\n", s"\r\n$tailLinesIndent}")
+          .mkString("{\r\n", "\r\n", s"\r\n${indent.substring(2)}}")
 
         s"$matchedStr match $matchesStr"
       case TCN.Return(exp) => s"${startIndent}return ${generate(exp)}"
