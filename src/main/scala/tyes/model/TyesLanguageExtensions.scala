@@ -250,3 +250,11 @@ object TyesLanguageExtensions:
         Some(funTerm)
       case _ => None
     }
+
+    def iteratedVariables: Set[String] = Set.from(
+      for
+        case extractIndex.unlift(name, idxStr) <- range.template.variables
+        if idxStr == range.cursor
+      yield
+        name
+    )

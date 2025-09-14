@@ -13,7 +13,8 @@ private val TCP = TargetCodePattern
 private val TCTypeRef = TargetCodeTypeRef
 
 class TermIRGenerator(
-  private val typeIRGenerator: TypeIRGenerator
+  private val typeIRGenerator: TypeIRGenerator,
+  private val rangeIRGenerator: RangeIRGenerator,
 ):
   
   def generate(term: Term, codeEnv: TargetCodeEnv = TargetCodeEnv()): TargetCodeNode = term match {
@@ -27,8 +28,9 @@ class TermIRGenerator(
       )
     case Term.Type(typ) => typeIRGenerator.generate(typ, codeEnv)
     case r: Term.Range =>
-      val funTerm = r.toConcrete(Term.Function(_, _, _)).getOrElse(???)
-      generate(funTerm, codeEnv)
+      r.toConcrete(Term.Function(_, _, _)).map(generate(_, codeEnv)).getOrElse {
+        rangeIRGenerator.generateConstructor(r)
+      }
   }
 
   def generatePattern(term: Term): TargetCodePattern = term match {
@@ -42,6 +44,8 @@ class TermIRGenerator(
       )
     case Term.Type(typ) => typeIRGenerator.generatePattern(typ)
     case r: Term.Range =>
-      val funTerm = r.toConcrete(Term.Function(_, _, _)).getOrElse(???)
+      val funTerm = r
+        .toConcrete(Term.Function(_, _, _))
+        .getOrElse(rangeIRGenerator.generateUnboundPattern(r))
       generatePattern(funTerm)
   }

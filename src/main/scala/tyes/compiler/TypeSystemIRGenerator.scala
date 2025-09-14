@@ -9,6 +9,7 @@ import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodePattern
 import tyes.compiler.target.TargetCodeTypeRef
 import tyes.compiler.target.TargetCodeUnit
+import tyes.compiler.target.TargetCodeNodeOperations.*
 import tyes.model.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
@@ -28,13 +29,15 @@ class TypeSystemIRGenerator(
   private val expClassTypeRef = TCTypeRef("LExpression")
 
   private val typeIRGenerator = new TypeIRGenerator()
-  private val termIRGenerator = new TermIRGenerator(typeIRGenerator)
+  private val rangeIRGenerator = new RangeIRGenerator(typeIRGenerator, expClassTypeRef)
+  private val termIRGenerator = new TermIRGenerator(typeIRGenerator, rangeIRGenerator)
   private val envIRGenerator = new EnvironmentIRGenerator(typeIRGenerator, commonEnvName)
   private val ruleIRGenerator = new RuleIRGenerator(typeIRGenerator, termIRGenerator, envIRGenerator, expVar)
 
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
     val className = s"${tsDecl.name.getOrElse("")}TypeSystem"
     val typeEnumTypeRef = typeIRGenerator.typeEnumTypeRef
+    val expClassParametrizedTypeRef = expClassTypeRef.copy(params = Seq(typeEnumTypeRef))
 
     TargetCodeUnit(className, Seq(
       TCD.Import(Seq("tyes", "runtime"), all = true),
@@ -50,12 +53,16 @@ class TypeSystemIRGenerator(
           TCD.Method(
             "typecheck",
             params = Seq(
-              expVar.name -> expClassTypeRef.copy(params = Seq(typeEnumTypeRef)),
+              expVar.name -> expClassParametrizedTypeRef,
               envIRGenerator.generateParameter()
             ),
             retTypeRef = TCTypeRef("Either", TCTypeRef("String"), typeEnumTypeRef),
             body = generateTypecheckBody(expVar, tsDecl.rules)
           )
+        ) ++ (for
+          case r: Term.Range <- tsDecl.rules.map(ruleIRGenerator.getTemplate)
+        yield
+          rangeIRGenerator.generateExtractor(r)
         )
       )
     ))
@@ -75,11 +82,12 @@ class TypeSystemIRGenerator(
     )
 
   private def generateTypecheckCase(rTemplate: Term, rules: Seq[RuleDecl]): (TargetCodePattern, TargetCodeNode) =
-    val codeEnv = TargetCodeEnv()
-    for v <- rTemplate.termVariables do
-      codeEnv.requestIdentifier(v)
-
     val rTemplateCode = termIRGenerator.generatePattern(rTemplate)
+    
+    val codeEnv = TargetCodeEnv()
+    for v <- boundNames(rTemplateCode) do
+      codeEnv.requestIdentifier(Term.Variable(v))
+
     val rImplIntermediateCode = groupNonOverlappingRules(rules)
       // For each of the groups:
       // - if it has a single rule, use its resulting node

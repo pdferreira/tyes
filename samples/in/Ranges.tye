@@ -1,0 +1,12 @@
+typesystem Ranges
+
+  rule One infers 1 : one
+
+  rule Two infers 2 : two
+
+  rule Aux infers e1 e2 : t1 -> t2
+    if e1 : t1
+    and e2 : t2
+
+  rule Sum infers e_1 + ... + e_n : t
+    if e_1 ... e_n : t

@@ -46,3 +46,12 @@ trait TypeSystem[E[_]]:
         .map(Right.apply)
         .getOrElse(TypeError.unexpectedType(t, ct.runtimeClass))
     )
+
+  protected def extractRange(exp: E[T], extractArgs: PartialFunction[E[T], (E[T], E[T])]): Option[Seq[E[T]]] = exp match {
+    case extractArgs(ls, r) =>
+      extractRange(ls, extractArgs) match {
+        case Some(es) => Some(es :+ r)
+        case None => Some(Seq(ls, r))
+      }
+    case _ => None
+  }
