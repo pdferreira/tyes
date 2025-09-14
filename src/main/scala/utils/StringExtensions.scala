@@ -7,4 +7,4 @@ object StringExtensions:
     def decapitalize: String =
       if s.head.isLower 
       then s 
-      else s.head.toLower + s.substring(1)
+      else s.head.toLower.toString + s.substring(1)

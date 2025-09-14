@@ -39,13 +39,14 @@ class RuleIRGenerator(
             // Simple naming heuristic based on the constructor name, while field
             // names are not considered.
             val initial = fnName.findLast(_.isUpper).map(_.toLower).getOrElse('c')
-            Term.Variable(initial + getSuffix(idx))
+            Term.Variable(initial.toString + getSuffix(idx))
           case Term.Function(_, _*) => Term.Variable("e" + getSuffix(idx))
           case Term.Type(typ) => 
             // Type variable arguments are assumed to be optional, so we match
             // them with a temporary name and only later declare them with their original
             // name when checked for content
             Term.Type(typeIRGenerator.getTempTypeVar(typ, nonVarSuffix = getSuffix(idx)))
+          case _: Term.Range => ???
         }
       }
       Term.Function(fnName, argsAsVariables*)

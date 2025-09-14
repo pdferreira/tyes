@@ -1,6 +1,7 @@
 package tyes.cli
 
 import java.lang.reflect.Method
+import scala.collection.immutable.ArraySeq
 import example.*
 import tyes.model.Constants
 import utils.StringExtensions.*
@@ -15,7 +16,7 @@ class LExpressionWithRuntimeTypesParser[T <: tyes.runtime.Type](
 
   override val allNamedTypes = 
     for
-      m <- rtTypeObjectClass.getMethods()
+      m <- ArraySeq.unsafeWrapArray(rtTypeObjectClass.getMethods())
       if m.getParameterCount() == 0 && m.getReturnType() == rtTypeEnumClass
     yield
       m

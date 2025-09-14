@@ -20,8 +20,6 @@ object IRNodeVisitor:
     case IRNode.Error(_) => irNode
     case IRNode.Type(irType) => irNode
     
-    case IRNode.And(Seq(), next) => IRNode.And(Seq(), f(next))
-
     case IRNode.And(c +: cs, next) =>
       val newC = applyToChildren(c, f)
 
@@ -32,6 +30,8 @@ object IRNodeVisitor:
           // TODO: review if there's a cleaner way to have this
           IRNode.And(newC +: cs, next)
       }
+
+    case IRNode.And(_, next) => IRNode.And(Seq(), f(next))
     
     case IRNode.Or(main, alt) =>
       IRNode.Or(f(main), f(alt))

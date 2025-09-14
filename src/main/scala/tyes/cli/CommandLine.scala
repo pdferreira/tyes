@@ -6,6 +6,7 @@ import scala.io.StdIn
 import scala.jdk.CollectionConverters.*
 import scala.util.Using
 import scala.util.Try
+import scala.util.boundary
 import scala.util.parsing.combinator.Parsers
 import dotty.tools.dotc.Compiler
 import dotty.tools.dotc.core.Contexts.*
@@ -21,7 +22,7 @@ import utils.StringExtensions.decapitalize
 
 object CommandLine:
 
-  def tyec(args: String*): Unit =
+  def tyec(args: String*): Unit = boundary:
     val options = CompilerOptions.parse(args) match {
       case Left(message) => 
         Console.err.println(message)
@@ -37,7 +38,7 @@ object CommandLine:
     for path <- srcPaths.get do
       if Files.notExists(path) then
         Console.err.println(s"File not found: ${path.toString}")
-        return
+        boundary.break(())
 
     for path <- srcPaths.get do
       println(s"Compiling '${path.toString}'")

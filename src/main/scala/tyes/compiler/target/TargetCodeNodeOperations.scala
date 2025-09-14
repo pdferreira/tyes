@@ -71,8 +71,8 @@ object TargetCodeNodeOperations extends CodeOperations:
         for c <- adt.constructors 
         yield c.copy(
           inherits = 
-            for TCN.ADTConstructorCall(tr, args*) <- c.inherits 
-            yield TCN.ADTConstructorCall(tr, args.map(f)*)
+            for adtCall <- c.inherits 
+            yield TCN.ADTConstructorCall(adtCall.typeRef, adtCall.args.map(f)*)
         )
     )
     case clazz: TCD.Class => clazz.copy(
@@ -142,23 +142,23 @@ object TargetCodeNodeOperations extends CodeOperations:
       TCN.Lambda(paramName, newBodyExp)
     case TCN.For(Nil, bodyExp) => TCN.For(Nil, replace(bodyExp, key, value))
     case TCN.For(TCFC.Filter(cond) :: cs, bodyExp) =>
-      val TCN.For(newCs, newBodyExp) = replace(TCN.For(cs, bodyExp), key, value)
+      val TCN.For(newCs, newBodyExp) = replace(TCN.For(cs, bodyExp), key, value): @unchecked
       val c = TCFC.Filter(replace(cond, key, value))
       TCN.For(c +: newCs, newBodyExp)
     case TCN.For(TCFC.Iterate(pat, col) :: cs, bodyExp) =>
       val TCN.For(newCs, newBodyExp) = 
         if boundNames(pat).contains(key) then 
-          TCN.For(cs, bodyExp) 
+          TCN.For(cs, bodyExp): TCN.For
         else
-          replace(TCN.For(cs, bodyExp), key, value)
+          replace(TCN.For(cs, bodyExp), key, value).asInstanceOf[TCN.For]
       val c = TCFC.Iterate(pat, replace(col, key, value))
       TCN.For(c +: newCs, newBodyExp)
     case TCN.For(TCFC.Let(pat, exp) :: cs, bodyExp) =>
       val TCN.For(newCs, newBodyExp) = 
         if boundNames(pat).contains(key) then 
-          TCN.For(cs, bodyExp) 
+          TCN.For(cs, bodyExp): TCN.For
         else
-          replace(TCN.For(cs, bodyExp), key, value)
+          replace(TCN.For(cs, bodyExp), key, value).asInstanceOf[TCN.For]
       val c = TCFC.Let(pat, replace(exp, key, value))
       TCN.For(c +: newCs, newBodyExp)
     case TCN.Match(matchedExp, bs) =>

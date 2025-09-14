@@ -115,7 +115,7 @@ object OrTypeDeclsRewrite extends Rewrite[IRNode]:
         rename(thisAndNode, thisDeclVarName, commonDeclVar.name)
       case _ =>
         thisAndNode
-    }
+    }: @unchecked
     
     IRNode.And(
       if thisExpectation.isEmpty || thisExpectation == commonExpectation then 

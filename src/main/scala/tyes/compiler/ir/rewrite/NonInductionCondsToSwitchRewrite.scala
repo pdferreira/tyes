@@ -41,6 +41,10 @@ object NonInductionCondsToSwitchRewrite extends Rewrite[IRNode]:
     case IRCond.TypeDecl(_, IRNode.Type(irTyp), Some(IRTypeExpect.EqualsTo(expectedTypeCode))) =>
       val typCode = irTyp match {
         case IRType.FromCode(typCode, false) => typCode
+        case _ => ???
       }
       IRError.UnexpectedType(typCode, expectedTypeCode)
+    case _: IRCond.TypeDecl => ???
+    case _: IRCond.And => ???
+    case _: IRCond.OfType => ???
   }
