@@ -21,14 +21,14 @@ class LambdaSimRecTypeSystem extends TypeSystem[LExpression]:
     case LVariable(f) => 
       for
         _ft <- env.get(f).expecting[Type.$FunType]
-        Type.$FunType(t2, t) = _ft
+        Type.$FunType(t2, t) = _ft: @unchecked
       yield
         Type.$FunType(t, t2)
 
     case LPlus(e1, e2) => 
       for
         _ft <- typecheck(e1, env).expecting[Type.$FunType]
-        Type.$FunType(t, t2) = _ft
+        Type.$FunType(t, t2) = _ft: @unchecked
         _ <- typecheck(e2, env).expecting(t)
       yield
         t2
@@ -37,7 +37,7 @@ class LambdaSimRecTypeSystem extends TypeSystem[LExpression]:
       if e4 == LVariable("rec") then
         for
           _ft <- checkTypeDeclared(_ft2, exp).expecting[Type.$FunType]
-          Type.$FunType(t, t2) = _ft
+          Type.$FunType(t, t2) = _ft: @unchecked
           _ <- typecheck(e, env + (f -> Type.$FunType(t2, t))).expecting(Type.$FunType(t, t2))
         yield
           Type.$FunType(t, t2)

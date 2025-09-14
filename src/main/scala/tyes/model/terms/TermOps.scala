@@ -245,7 +245,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
 
   def overlaps(otherTerm: TTerm): Boolean =
     val commonVarNames = this.variables.intersect(otherTerm.variables)
-    val freshNamesSubst = Map.from(commonVarNames.map(name => name -> Variable('$' + name)))
+    val freshNamesSubst = Map.from(commonVarNames.map(name => name -> Variable("$" + name)))
     val freshOtherTerm = otherTerm.substitute(freshNamesSubst)
     this.unifies(freshOtherTerm).isDefined
 

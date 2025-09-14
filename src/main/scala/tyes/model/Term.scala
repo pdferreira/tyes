@@ -26,7 +26,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
 
   override def matches(otherTerm: Term): Option[Map[String, Term]] = 
     ifBothTypes(otherTerm) { (thisType, otherType) =>
-      thisType.matches(otherType).map(_.mapValues(Term.Type.apply).toMap)
+      thisType.matches(otherType).map(_.view.mapValues(Term.Type.apply).toMap)
     }.getOrElse { 
       super.matches(otherTerm) 
     }
@@ -50,7 +50,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
 
   override def unifies(otherTerm: Term): Option[Map[String, Term]] =
     ifBothTypes(otherTerm) { (thisType, otherType) =>
-      thisType.unifies(otherType).map(_.mapValues(Term.Type.apply).toMap)
+      thisType.unifies(otherType).map(_.view.mapValues(Term.Type.apply).toMap)
     }.getOrElse { 
       super.unifies(otherTerm) 
     }

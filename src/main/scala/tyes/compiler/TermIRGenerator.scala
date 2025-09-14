@@ -8,10 +8,6 @@ import tyes.model.TyesLanguageExtensions.*
 import tyes.model.Type
 import tyes.model.terms.Index
 
-private val TCN = TargetCodeNode
-private val TCP = TargetCodePattern
-private val TCTypeRef = TargetCodeTypeRef
-
 class TermIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
   private val rangeIRGenerator: RangeIRGenerator,
@@ -20,6 +16,7 @@ class TermIRGenerator(
   def generate(term: Term, codeEnv: TargetCodeEnv = TargetCodeEnv()): TargetCodeNode = term match {
     case Term.Constant(value: Int) => TCN.Integer(value)
     case Term.Constant(value: String) => TCN.Text(value)
+    case Term.Constant(_) => ???
     case v: Term.Variable => codeEnv(v)
     case Term.Function(name, args*) => 
       TCN.ADTConstructorCall(
@@ -36,6 +33,7 @@ class TermIRGenerator(
   def generatePattern(term: Term): TargetCodePattern = term match {
     case Term.Constant(value: Int) => TCP.Integer(value)
     case Term.Constant(value: String) => TCP.Text(value)
+    case Term.Constant(_) => ???
     case Term.Variable(name) => TCP.Var(name)
     case Term.Function(name, args*) => 
       TCP.ADTConstructor(

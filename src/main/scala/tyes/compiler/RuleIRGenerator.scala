@@ -13,9 +13,6 @@ import tyes.model.terms.Index
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
-private val TCN = TargetCodeNode
-private val TCP = TargetCodePattern
-
 class RuleIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
   private val termIRGenerator: TermIRGenerator,
@@ -41,7 +38,7 @@ class RuleIRGenerator(
             // Simple naming heuristic based on the constructor name, while field
             // names are not considered.
             val initial = fnName.findLast(_.isUpper).map(_.toLower).getOrElse('c')
-            Term.Variable(initial + getSuffix(idx))
+            Term.Variable(initial.toString + getSuffix(idx))
           case Term.Function(_, _*) => Term.Variable("e" + getSuffix(idx))
           case Term.Type(typ) => 
             // Type variable arguments are assumed to be optional, so we match

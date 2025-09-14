@@ -71,9 +71,9 @@ object IRNodeScopeOperations:
       if boundNames(c).contains(currName) then
         node
       else
-        val IRNode.And(newCs, newNext) = rename(IRNode.And(cs, next), currName, newName)
+        val IRNode.And(newCs, newNext) = rename(IRNode.And(cs, next), currName, newName): @unchecked
         IRNode.And(rename(c, currName, newName) +: newCs, newNext)
-    case IRNode.And(Nil, next) => IRNode.And(Nil, rename(next, currName, newName))
+    case IRNode.And(_, next) => IRNode.And(Nil, rename(next, currName, newName))
     case IRNode.Or(main, alt) => IRNode.Or(
       rename(main, currName, newName),
       rename(alt, currName, newName)

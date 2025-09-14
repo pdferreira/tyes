@@ -2,7 +2,6 @@ package tyes.cli
 
 case class InterpreterOptions(
   srcFilePath: String,
-  versionId: Option[String],
   expression: Option[String],
   skipValidation: Boolean = false
 )
@@ -12,10 +11,10 @@ object InterpreterOptions extends OptionsParser[InterpreterOptions]:
 
   protected override def commandName = "tyer"
 
-  protected override def optionsSyntaxDocs = "<srcFilePath> [-skipValidation] [-version <versionId>] [-e <expression>]"
+  protected override def optionsSyntaxDocs = "<srcFilePath> [-skipValidation] [-e <expression>]"
 
-  protected override def options = sourceFile ~ skipValidationOption ~ versionOption.? ~ expressionOption.? ^^ { 
-    case srcPath ~ skipValidation ~ versionOpt ~ exprOpt => InterpreterOptions(srcPath, versionOpt, exprOpt, skipValidation)
+  protected override def options = sourceFile ~ skipValidationOption ~ expressionOption.? ^^ { 
+    case srcPath ~ skipValidation ~ exprOpt => InterpreterOptions(srcPath, exprOpt, skipValidation)
   }
 
   private def expressionOption = "-e" ~>! anyNonFlag.+.withFailureMessage("no expression specified") ^^ {
@@ -23,8 +22,6 @@ object InterpreterOptions extends OptionsParser[InterpreterOptions]:
   }
 
   private def sourceFile = anyNonFlag.withFailureMessage("no source file specified")
-
-  private def versionOption = "-version" ~>! anyNonFlag.withFailureMessage("no version specified")
 
   private def skipValidationOption = "-skipValidation".? ^^ {
     case None => false

@@ -3,16 +3,11 @@ package tyes.compiler
 import tyes.compiler.target.TargetCodeDecl
 import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodeTypeRef
+import tyes.compiler.*
 import tyes.model.*
 import tyes.model.terms.TermOps
 import tyes.model.terms.TermRange
 import tyes.model.TyesLanguageExtensions.*
-
-private type TCTypeRef = TargetCodeTypeRef
-private type TCN = TargetCodeNode
-private type TCD = TargetCodeDecl
-private val TCN = TargetCodeNode
-private val TCD = TargetCodeDecl
 
 class RangeIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,

@@ -51,7 +51,7 @@ object TyesInterpreter:
 
         // match the conclusion env to the rule to see if it's applicable at all
         refinedMetaEnv.matches(termEnv).flatMap { case m @ EnvironmentMatch(envTermVarSubst, envTypeVarSubst, envVarSubst) =>
-          val envTermSubst = envTermVarSubst.mapValues(Term.Constant(_)).toMap
+          val envTermSubst = envTermVarSubst.view.mapValues(Term.Constant(_)).toMap
           val refinedMetaTerm = metaTerm.substitute(envTermSubst)
 
           // build variable substitutions considering info from term and environment

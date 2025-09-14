@@ -2,12 +2,7 @@ package tyes.compiler.target
 
 import java.nio.file.Path
 import utils.collections.*
-
-private val TCD = TargetCodeDecl
-private val TCFC = TargetCodeForCursor
-private val TCN = TargetCodeNode
-private val TCP = TargetCodePattern
-private val TCTypeRef = TargetCodeTypeRef
+import tyes.compiler.*
 
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
 
@@ -34,6 +29,11 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       s"($codeStr)"
     else
       codeStr
+
+  private def genUncheckedIfNeeded(pat: TargetCodePattern): String = pat match {
+    case TCP.ADTConstructor(_, _*) => ": @unchecked"
+    case _ => "" 
+  }
 
   def getFileName(tcUnit: TargetCodeUnit): Path = Path.of{tcUnit.name + ".scala"}
 
@@ -152,12 +152,13 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val argsStr = typeArgs.map(a => generate(a)).mkString(", ")
         s"${funStr}[${argsStr}]"
       case TCN.TypeCheck(exp, typeRef) =>
-        val expStr = generate(exp, indentLevel, skipStartIndent)
-        val typeRefStr = generate(typeRef)
+        val expStr = generate(exp, indentLevel, skipStartIndent) 
+        val typeRefWithUnknownArgs = typeRef.copy(params = typeRef.params.map(_ => TCTypeRef("?")))
+        val typeRefStr = generate(typeRefWithUnknownArgs)
         s"${expStr}.isInstanceOf[${typeRefStr}]"
       case TCN.Let(varPat, exp, body) =>
         val varPatStr = generate(varPat)
-        val expStr = generate(exp)
+        val expStr = generate(exp) + genUncheckedIfNeeded(varPat)
         val bodyStr = generate(body, indentLevel)
         s"${startIndent}val $varPatStr = $expStr\r\n$bodyStr"
       case TCN.Lambda(name, TCN.Match(TCN.Var(name2), bs)) if name == name2 =>
@@ -215,7 +216,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         s"${indent}$patStr <- ${colIndent}${colStr}"
       case TCFC.Let(pat, exp) =>
         val patStr = generate(pat)
-        val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) 
+        val expStr = generate(exp, indentLevel + 1, skipStartIndent = true) + genUncheckedIfNeeded(pat)
         s"${indent}$patStr = $expStr"
     }
 
