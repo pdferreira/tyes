@@ -1,11 +1,7 @@
 package tyes.compiler.target
 
 import utils.collections.Multiset
-
-private val TCD = TargetCodeDecl
-private val TCFC = TargetCodeForCursor
-private val TCN = TargetCodeNode
-private val TCP = TargetCodePattern
+import tyes.compiler.*
 
 object TargetCodeNodeOperations extends CodeOperations:
 

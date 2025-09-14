@@ -8,7 +8,7 @@ import utils.StringExtensions.*
 
 class LExpressionWithRuntimeTypesParser[T <: tyes.runtime.Type](
   rtTypeEnumClass: Class[T],
-  rtTypeObjectClass: Class[_],
+  rtTypeObjectClass: Class[?],
   rtTypeObject: Object
 ) extends AbstractLExpressionWithTypesParser[T]:
 

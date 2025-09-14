@@ -11,9 +11,6 @@ import tyes.model.indexes.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.collections.*
 
-private val TCN = TargetCodeNode
-private val TCP = TargetCodePattern
-
 class RuleIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
   private val termIRGenerator: TermIRGenerator,
@@ -46,7 +43,6 @@ class RuleIRGenerator(
             // them with a temporary name and only later declare them with their original
             // name when checked for content
             Term.Type(typeIRGenerator.getTempTypeVar(typ, nonVarSuffix = getSuffix(idx)))
-          case _: Term.Range => ???
         }
       }
       Term.Function(fnName, argsAsVariables*)

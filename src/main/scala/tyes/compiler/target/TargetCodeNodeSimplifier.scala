@@ -2,10 +2,6 @@ package tyes.compiler.target
 
 import TargetCodeNodeOperations.*
 
-private val TCN = TargetCodeNode
-private val TCFC = TargetCodeForCursor
-private val TCP = TargetCodePattern
-
 class TargetCodeNodeSimplifier:
   
   def simplify(tcUnit: TargetCodeUnit): TargetCodeUnit =

@@ -2,11 +2,7 @@ package tyes.compiler.target
 
 import java.nio.file.Path
 import utils.collections.*
-
-private val TCD = TargetCodeDecl
-private val TCFC = TargetCodeForCursor
-private val TCN = TargetCodeNode
-private val TCP = TargetCodePattern
+import tyes.compiler.*
 
 class ScalaTargetCodeGenerator extends TargetCodeGenerator:
 
