@@ -24,8 +24,30 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       val indent = "  ".repeat(indentLevel)
       lines.map(_.prependedAll(indent)).mkString(wrapStart, "", wrapEnd)
 
+  private def ifDefault[T](value: T, default: T, valueIfDefault: T) = if value == default then valueIfDefault else value
+
+  private def needsParenthesis(codeStr: String): Boolean =
+    val firstNonSpaceIdx = codeStr.indexWhere(_ != ' ')
+    
+    // Is there any non-initial parenthesis?
+    val firstInnerSpaceIdx = codeStr.indexOf(' ', firstNonSpaceIdx)
+    if firstInnerSpaceIdx < 0 then
+      return false
+
+    // Is there any space before the first open parenthesis?
+    val firstOpenParenIdx = codeStr.indexOf('(')
+    if firstOpenParenIdx < 0 || firstInnerSpaceIdx < firstOpenParenIdx then
+      return true
+
+    // Is there any space after the last open parenthesis
+    val lastCloseParenIdx = codeStr.lastIndexOf(')')
+    if lastCloseParenIdx >= 0 && codeStr.indexOf(' ', lastCloseParenIdx) >= 0 then
+      return true
+
+    return false
+
   private def parenthesizeIfSpaced(codeStr: String): String =
-    if codeStr.contains(' ') then
+    if needsParenthesis(codeStr) then
       s"($codeStr)"
     else
       codeStr
@@ -177,7 +199,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TCN.Field(obj, field) =>
         val objStr = generate(obj, indentLevel, skipStartIndent)
         if objStr.linesIterator.length <= 1 then
-          s"$objStr.$field"
+          s"${parenthesizeIfSpaced(objStr)}.$field"
         else
           val wrapperIndent = if skipStartIndent then indent else ""
           val wrappers = (s"(\r\n$wrapperIndent", s"\r\n$wrapperIndent)")
