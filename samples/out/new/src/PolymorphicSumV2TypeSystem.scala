@@ -19,8 +19,8 @@ class PolymorphicSumV2TypeSystem extends TypeSystem[LExpression]:
 
     case LPlusRange(es) => 
       for
-        t <- typecheck(es(1), env)
-        _ <- (1 until es.size).foldRange(Seq(t))(i => typecheck(es(i), env).expecting(t))
+        t <- typecheck(es(0), env)
+        _ <- (0 until es.size).foldRange(Seq(t))(i => typecheck(es(i), env).expecting(t))
       yield
         t
 

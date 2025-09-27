@@ -189,8 +189,11 @@ class RuleIRGenerator(
       val collectionVar = Term.Variable(rangedVarName + "s")
       toIdx match {
         case Index.Variable(toIdxVarName, min) if codeEnv.contains(collectionVar) =>
+          val minIndex = (codeEnv.getIndexes(indexedVar(rangedVarName, fromIdx.toString)) + fromIdx).min
+          assert(minIndex == fromIdx, "No support for ranges that only iterate part of the collection")
+
           val collectionVarCode = codeEnv(collectionVar).asInstanceOf[TCN.Var]
-          val fromConds = genPremiseConds(from, codeEnv)
+          val fromConds = genPremiseConds(from.replaceIndex(fromIdx.toString, 0.toString), codeEnv)
           val Judgement(_, HasType(_, fromType)) = from: @unchecked
 
           val rangeCodeEnv = new TargetCodeEnv(codeEnv)
@@ -202,7 +205,7 @@ class RuleIRGenerator(
             TCP.Any,
             IRNode.Range(
               colVar = collectionVarCode.name,
-              startIdx = 1,
+              startIdx = 0,
               seed = typeIRGenerator.generate(fromType, codeEnv),
               cursor = cursorVar.name,
               body = IRNode.And(
