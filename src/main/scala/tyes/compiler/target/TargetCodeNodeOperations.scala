@@ -117,6 +117,7 @@ object TargetCodeNodeOperations extends CodeOperations:
     case TCN.Throw(exc, err) => TCN.Throw(exc, f(err))
     case TCN.Try(t, exc, c) => TCN.Try(f(t), exc, f(c))
     case TCN.ADTConstructorCall(tr, args*) => TCN.ADTConstructorCall(tr, args.map(f)*)
+    case TCN.Tuple(args*) => TCN.Tuple(args.map(f)*)
   }
 
   def applyToChildren(tcCursor: TargetCodeForCursor, f: TargetCodeNode => TargetCodeNode): TargetCodeForCursor = tcCursor match {

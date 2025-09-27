@@ -227,6 +227,9 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val typeRefStr = generate(typeRef)
         val argsStr = args.map(generate).mkStringOrEmpty("(", ", ", ")")
         startIndent + typeRefStr + argsStr
+      case TCN.Tuple(args*) =>
+        assert(args.size >= 2, "Only tuples with 2+ components are supported")
+        startIndent + args.map(generate).mkString("(", ", ", ")")
     }
 
   def generate(tcCursor: TargetCodeForCursor, indentLevel: Int): String = 

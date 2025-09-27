@@ -28,6 +28,7 @@ enum TargetCodeNode:
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodePattern, TargetCodeNode)])
   case Return(exp: TargetCodeNode)
   case ADTConstructorCall(typeRef: TargetCodeTypeRef, args: TargetCodeNode*)
+  case Tuple(args: TargetCodeNode*)
 
 case class TargetCodeTypeRef private(
   val name: String, 
