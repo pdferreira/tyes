@@ -100,6 +100,7 @@ object TargetCodeNodeOperations extends CodeOperations:
     case TCN.TypeCheck(e, tr) => TCN.TypeCheck(f(e), tr) 
     case TCN.Equals(l, r) => TCN.Equals(f(l), f(r)) 
     case TCN.Field(obj, field) => TCN.Field(f(obj), field)
+    case TCN.Index(c, i) => TCN.Index(f(c), f(i))
     case TCN.For(cs, body) => TCN.For(cs.map(applyToChildren(_, f)), f(body))
     case TCN.FormattedText(fs*) => TCN.FormattedText(fs.map({ 
       case n: TargetCodeNode => f(n)

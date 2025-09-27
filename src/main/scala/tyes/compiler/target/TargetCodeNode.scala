@@ -12,6 +12,7 @@ enum TargetCodeNode:
   case Unit
   case Var(name: String)
   case Field(obj: TargetCodeNode, field: String)
+  case Index(colExp: TargetCodeNode, idxExp: TargetCodeNode)
   case Not(exp: TargetCodeNode)
   case Equals(left: TargetCodeNode, right: TargetCodeNode)
   case NotEquals(left: TargetCodeNode, right: TargetCodeNode)

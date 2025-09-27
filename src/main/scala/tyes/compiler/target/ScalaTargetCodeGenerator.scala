@@ -205,6 +205,10 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
           val wrappers = (s"(\r\n$wrapperIndent", s"\r\n$wrapperIndent)")
           val multiLineObjStr = indentIfMultiline(objStr, 1, wrappers)
           s"${startIndent}$multiLineObjStr.$field"
+      case TCN.Index(colExp, idxExp) =>
+        val colStr = generate(colExp, indentLevel, skipStartIndent)
+        val idxStr = generate(idxExp)
+        s"${startIndent}$colStr($idxStr)"
       case TCN.Match(matchedExp, branches) =>
         val matchedStr = generate(matchedExp, indentLevel, skipStartIndent)
         val matchesStr = 
