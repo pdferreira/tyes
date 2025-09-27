@@ -33,6 +33,14 @@ class TargetCodeIRGeneratorImpl(
       if resVar == resVar2 && canFail(typExp)  
     =>
       generate(typExp, eitherIsExpected)
+
+    case IRNode.And(
+      (decl @ IRCond.TypeDecl(_, typExp, Some(expectation @ IRTypeExpect.EqualsTo(typCode)))) :: Nil,
+      IRNode.Type(IRType.FromCode(resNode, /*isOptional*/false))
+    ) 
+      if typCode == resNode && canFail(typExp)
+    =>
+      genExpectationCheck(generate(typExp, eitherIsExpected), expectation)
     
     case IRNode.And(cs :+ IRCond.TypeDecl(TCP.Var(resVar), typExp, None), IRNode.Type(IRType.FromCode(TCN.Var(resVar2), isOptional)))
       if resVar == resVar2 && canFail(typExp) == isOptional
