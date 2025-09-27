@@ -24,8 +24,6 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       val indent = "  ".repeat(indentLevel)
       lines.map(_.prependedAll(indent)).mkString(wrapStart, "", wrapEnd)
 
-  private def ifDefault[T](value: T, default: T, valueIfDefault: T) = if value == default then valueIfDefault else value
-
   private def needsParenthesis(codeStr: String): Boolean =
     val firstNonSpaceIdx = codeStr.indexWhere(_ != ' ')
     
