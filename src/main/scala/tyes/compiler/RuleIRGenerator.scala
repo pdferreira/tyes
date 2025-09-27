@@ -61,11 +61,7 @@ class RuleIRGenerator(
     val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
 
     val conclusionConds = genConclusionConds(rule.conclusion, codeEnv)
-
-    val premiseConds = rule.premises
-      .zipWithIndex
-      .flatMap((p, idx) => genPremiseConds(p, idx, codeEnv))
-
+    val premiseConds = rule.premises.flatMap(p => genPremiseConds(p, codeEnv))
     val conds = conclusionConds ++ premiseConds
 
     var result = IRNode.Type(IRType.FromCode(typeIRGenerator.generate(cType, codeEnv)))
@@ -181,7 +177,7 @@ class RuleIRGenerator(
       
     return res.toSeq
 
-  private def genPremiseConds(premise: Premise, idx: Int, codeEnv: TargetCodeEnv): Seq[IRCond] = premise match {
+  private def genPremiseConds(premise: Premise, codeEnv: TargetCodeEnv): Seq[IRCond] = premise match {
     case Judgement(env, HasType(pTerm, pType)) => 
       val inductionCall = IRNode.Type(IRType.Induction(
         termIRGenerator.generate(pTerm, codeEnv),
@@ -189,11 +185,40 @@ class RuleIRGenerator(
       ))
       typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
     case JudgementRange(from, to) =>
-      val (rangedVarName, idxRange) = extractRangeVariable(from, to)
-      for
-        i <- codeEnv.getIndexes(rangedVarName).toSeq.sorted
-        if idxRange.contains(i)
-        c <- genPremiseConds(from.replaceIndex(idxRange.start.toString, i.toString), idx, codeEnv)
-      yield
-        c 
+      val (rangedVarName, fromIdx, toIdx) = extractRangeVariable(from, to)
+      val collectionVar = Term.Variable(rangedVarName + "s")
+      toIdx match {
+        case Index.Variable(toIdxVarName, min) if codeEnv.contains(collectionVar) =>
+          val collectionVarCode = codeEnv(collectionVar).asInstanceOf[TCN.Var]
+          val fromConds = genPremiseConds(from, codeEnv)
+          val Judgement(_, HasType(_, fromType)) = from: @unchecked
+
+          val rangeCodeEnv = new TargetCodeEnv(codeEnv)
+          val (_, cursorVar) = rangeCodeEnv.requestIdentifier(Term.Variable("i"))
+          val elem = from.replaceIndex(fromIdx.toString, cursorVar.name)
+          val Judgement(_, HasType(_, elemType)) = elem: @unchecked
+          
+          val remainingCond = IRCond.TypeDecl(
+            TCP.Any,
+            IRNode.Range(
+              colVar = collectionVarCode.name,
+              startIdx = 1,
+              seed = typeIRGenerator.generate(fromType, codeEnv),
+              cursor = cursorVar.name,
+              body = IRNode.And(
+                conds = genPremiseConds(elem, rangeCodeEnv),
+                next = IRNode.Type(IRType.FromCode(typeIRGenerator.generate(elemType, rangeCodeEnv)))
+              )
+            )
+          )
+          fromConds ++ Seq(remainingCond)
+        
+        case _ =>
+          for
+            i <- codeEnv.getIndexes(rangedVarName).toSeq.sorted
+            if fromIdx <= i && i <= toIdx.fold(_ => Int.MaxValue, n => n.value)
+            c <- genPremiseConds(from.replaceIndex(fromIdx.toString, i.toString), codeEnv)
+          yield
+            c
+      }
   }

@@ -9,6 +9,13 @@ enum IRNode:
   case Unexpected
   case Error(err: IRError)
   case Type(typ: IRType)
+  case Range(
+    colVar: String,
+    startIdx: Int,
+    seed: TargetCodeNode,
+    cursor: String,
+    body: IRNode
+  )
   case Switch(branches: Seq[(IRCond, IRNode)], otherwise: IRNode)
   case And(conds: Seq[IRCond], next: IRNode)
   case Or(main: IRNode, alternative: IRNode)

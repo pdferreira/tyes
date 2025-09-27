@@ -30,6 +30,6 @@ class RangesTypeSystem extends TypeSystem[LExpression]:
   }
 
   object LPlusRange:
-    def unapply(exp: LExpression[Type]): Option[Seq[LExpression[Type]]] = extractRange(exp, {
-      case LPlus(l, r) => Tuple2(l, r)
+    def unapply(exp: LExpression[Type]): Option[Seq[LExpression[Type]]] = exp.extractRange({
+      case LPlus(l, r) => (l, r)
     })

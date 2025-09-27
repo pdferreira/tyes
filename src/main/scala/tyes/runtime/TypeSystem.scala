@@ -32,6 +32,15 @@ trait TypeSystem[E[_]]:
         .map(Right.apply)
         .getOrElse(TypeError.noTypeFor(exp))
 
+    protected def extractRange(extractArgs: PartialFunction[E[T], (E[T], E[T])]): Option[Seq[E[T]]] = exp match {
+      case extractArgs(ls, r) =>
+        ls.extractRange(extractArgs) match {
+          case Some(es) => Some(es :+ r)
+          case None => Some(Seq(ls, r))
+        }
+      case _ => None
+    }
+
   extension (resT: Result[T])
 
     protected def expecting[TargetT <: T](expected: TargetT): Result[TargetT] = resT.flatMap(t =>
@@ -47,11 +56,13 @@ trait TypeSystem[E[_]]:
         .getOrElse(TypeError.unexpectedType(t, ct.runtimeClass))
     )
 
-  protected def extractRange(exp: E[T], extractArgs: PartialFunction[E[T], (E[T], E[T])]): Option[Seq[E[T]]] = exp match {
-    case extractArgs(ls, r) =>
-      extractRange(ls, extractArgs) match {
-        case Some(es) => Some(es :+ r)
-        case None => Some(Seq(ls, r))
+  extension [A](seq: Seq[A])
+
+    protected def foldRange[B](init: Seq[B])(f: A => Either[String, B]): Either[String, Seq[B]] =
+      seq.foldLeft(Right(init).withLeft[String]) { (accR, curr) => for
+        acc <- accR
+        res <- f(curr)
+      yield
+        acc :+ res
       }
-    case _ => None
-  }
+

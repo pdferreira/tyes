@@ -9,6 +9,11 @@ import tyes.model.terms.TermOps
 import tyes.model.terms.TermRange
 import tyes.model.TyesLanguageExtensions.*
 
+object RangeIRGenerator:
+
+  def getCollectionVarName(elemVarName: String): String = elemVarName + "s"
+
+
 class RangeIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
   private val expClassTypeRef: TCTypeRef,
@@ -21,7 +26,7 @@ class RangeIRGenerator(
   private def getCollectionVarName[TTerm <: TermOps[TTerm, Any]](range: TermRange[TTerm]): Option[String] =
     val vs = range.iteratedVariables
     assert(vs.size <= 1)
-    vs.headOption.map(_ + "s")
+    vs.headOption.map(RangeIRGenerator.getCollectionVarName)
 
   def generateExtractor[TTerm](range: TermRange[TTerm]): TCD =
     val paramVar = TCN.Var("exp"): TCN.Var
@@ -36,8 +41,7 @@ class RangeIRGenerator(
         TCN.Lambda(matchVar.name, TCN.Match(
           matchVar,
           branches = Seq(
-            TCP.ADTConstructor(TCTypeRef(range.function), matchArgNames.map(TCP.Var(_))*) -> TCN.ADTConstructorCall(
-              TCTypeRef("Tuple2"),
+            TCP.ADTConstructor(TCTypeRef(range.function), matchArgNames.map(TCP.Var(_))*) -> TCN.Tuple(
               matchArgNames.map(TCN.Var(_))*
             )
           )

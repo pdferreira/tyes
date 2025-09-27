@@ -28,6 +28,18 @@ class TargetCodeIRGeneratorImpl(
       RuntimeAPIGenerator.genError(err)
 
     case IRNode.Type(irType) => generate(irType, eitherIsExpected)
+
+    case IRNode.Range(colVar, start, seed, cursor, body) =>
+      val idxRangeNode = TCN.InfixApply(
+        TCN.Integer(start),
+        "until",
+        TCN.Field(TCN.Var(colVar), "size")
+      )
+      RuntimeAPIGenerator.genFoldRange(
+        expCode = idxRangeNode,
+        initCode = TCN.ADTConstructorCall(TCTypeRef("Seq"), seed),
+        fCode = TCN.Lambda(cursor, generate(body, eitherIsExpected || canFail(body)))
+      )
     
     case IRNode.And(IRCond.TypeDecl(TCP.Var(resVar), typExp, None) :: Nil, IRNode.Type(IRType.FromCode(TCN.Var(resVar2), /*isOptional*/false))) 
       if resVar == resVar2 && canFail(typExp)  

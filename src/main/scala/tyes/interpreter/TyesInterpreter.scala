@@ -68,7 +68,7 @@ object TyesInterpreter:
               val premEnvMatch = EnvironmentMatch(allVarSubst, typeVarEnv, envVarSubst)
               typecheckJudgement(tsDecl, judg, premEnvMatch, refinedMetaEnv, allTermSubst)
             case (Some(typeVarEnv), JudgementRange(from, to)) =>
-              val (rangedVarName, idxRange) = extractRangeVariable(from, to)
+              val (rangedVarName, fromIdx, toIdx) = extractRangeVariable(from, to)
 
               // assume all the variable indexes are bound in the conclusion
               val premsToConsider = for
@@ -76,9 +76,9 @@ object TyesInterpreter:
                 (termVarName, termVarIdx) <- extractIndex(termVar)
                 if termVarName == rangedVarName
                 currIdx = termVarIdx.toInt
-                if idxRange.contains(currIdx)
+                if fromIdx <= currIdx && currIdx <= toIdx.asNumber.map(_.value).getOrElse(Int.MaxValue)
               yield
-                from.replaceIndex(idxRange.start.toString, currIdx.toString)
+                from.replaceIndex(fromIdx.toString, currIdx.toString)
 
               premsToConsider.foldLeft(Option(typeVarEnv)) {
                 case (None, _) => None

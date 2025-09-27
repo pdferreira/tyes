@@ -17,12 +17,17 @@ class PolymorphicSumV2TypeSystem extends TypeSystem[LExpression]:
       else
         TypeError.noTypeFor(exp)
 
-    case LPlus(e_1, e_2) => 
+    case LPlusRange(es) => 
       for
-        t <- typecheck(e_1, env)
-        _ <- typecheck(e_2, env).expecting(t)
+        t <- typecheck(es(1), env)
+        _ <- (1 until es.size).foldRange(Seq(t))(i => typecheck(es(i), env).expecting(t))
       yield
         t
 
     case _ => TypeError.noTypeFor(exp)
   }
+
+  object LPlusRange:
+    def unapply(exp: LExpression[Type]): Option[Seq[LExpression[Type]]] = exp.extractRange({
+      case LPlus(l, r) => (l, r)
+    })

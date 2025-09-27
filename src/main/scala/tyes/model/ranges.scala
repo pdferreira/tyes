@@ -6,15 +6,15 @@ import tyes.model.terms.*
 
 object ranges:
   
-  def extractRangeVariable(from: Judgement, to: Judgement): (String, Range) =
+  def extractRangeVariable(from: Judgement, to: Judgement): (String, Int, Index) =
     val HasType(Term.Variable(fromVar), _) = from.assertion: @unchecked
     val HasType(Term.Variable(toVar), _) = to.assertion: @unchecked
 
     val Some((fromIdent, fromIdx)) = extractIntIndex(fromVar): @unchecked
     val Some((toIdent, toIdxStr)) = extractIndex(toVar): @unchecked
 
-    val toIdx = toIdxStr.toIntOption.getOrElse(Int.MaxValue)
-    (fromIdent, Range.inclusive(fromIdx, toIdx))
+    val toIdx = toIdxStr.toIntOption.map(Index.Number(_)).getOrElse(Index.Variable(toIdxStr, min = 2))
+    (fromIdent, fromIdx, toIdx)
 
   def extractTermRange(funName: String, start: Term, end: Term, seed: Option[Term], minOccurs: Int): Either[List[String], Term.Range] =
     extractTermRange(funName, start, end, seed, minOccurs, Term.Range.apply)

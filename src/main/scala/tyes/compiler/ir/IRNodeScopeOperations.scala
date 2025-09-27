@@ -9,6 +9,8 @@ object IRNodeScopeOperations:
     case IRNode.Unexpected => Multiset()
     case IRNode.Error(err) => freeNames(err)
     case IRNode.Type(typExp) => freeNames(typExp)
+    case IRNode.Range(colVar, _, seed, cursor, body) =>
+      Multiset(colVar) ++ TCNOps.freeNames(seed) ++ freeNames(body).except(cursor)
     case IRNode.Or(main, alt) => freeNames(main) ++ freeNames(alt)
     case IRNode.And(c +: cs, n) =>
       freeNames(c) ++ freeNames(IRNode.And(cs, n)).except(boundNames(c))
@@ -84,6 +86,11 @@ object IRNodeScopeOperations:
       rename(o, currName, newName)
     )
     case IRNode.Type(typ) => IRNode.Type(rename(typ, currName, newName))
+    case IRNode.Range(colVar, startIdx, seed, cursor, body) =>
+      val newColVar = if colVar == currName then newName else colVar
+      val newBody = if cursor == currName || cursor == newName then body else rename(body, currName, newName)
+      val newSeed = TCNOps.replace(seed, currName, TCN.Var(newName))
+      IRNode.Range(newColVar, startIdx, newSeed, cursor, newBody)
   }
 
   def rename(cond: IRCond, currName: String, newName: String): IRCond = cond match {

@@ -53,8 +53,18 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
     get(id).getOrElse(throw new NoSuchElementException(id.asString))
 
   def apply(termVar: TermVariable): TargetCodeNode =
-    val ids = getIds(termVar).getOrElse(throw new NoSuchElementException(termVar.toString))
-    apply(ids.head)
+    getIds(termVar)
+      .map(ids => apply(ids.head))
+      // TODO: clean this up when indexed vars stop being done ad-hoc
+      .orElse(for
+          (rangedVarName, idxStr) <- extractIndex(termVar.name)
+          colCode <- get(RangeIRGenerator.getCollectionVarName(rangedVarName).toId)
+        yield TCN.Index(
+          colCode,
+          idxStr.toIntOption.map(TCN.Integer(_)).getOrElse(apply(idxStr.toId))
+        )
+      )
+      .getOrElse(throw new NoSuchElementException(termVar.toString))
 
   private def get(id: Id): Option[TargetCodeNode] =
     idToCode.get(id).orElse(parent.flatMap(_.get(id)))

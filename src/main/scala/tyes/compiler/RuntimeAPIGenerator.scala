@@ -48,7 +48,10 @@ object RuntimeAPIGenerator:
     TCN.Apply(TCN.Field(envVarCode, "get"), keyCode)
 
   def genExtractRange(expCode: TCN, extractArgsCode: TCN): TCN =
-    TCN.Apply(TCN.Var("extractRange"), expCode, extractArgsCode)
+    TCN.Apply(TCN.Field(expCode, "extractRange"), extractArgsCode)
+
+  def genFoldRange(expCode: TCN, initCode: TCN, fCode: TCN): TCN =
+    TCN.Apply(TCN.Apply(TCN.Field(expCode, "foldRange"), initCode), fCode)
 
   def genFoldLeft1(colCode: TCN, funCode: TCN): TCN =
     TCN.Apply(
