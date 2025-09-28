@@ -205,7 +205,7 @@ class RuleIRGenerator(
             TCP.Any,
             IRNode.Range(
               colVar = collectionVarCode.name,
-              startIdx = 0,
+              startIdx = 1,
               seed = typeIRGenerator.generate(fromType, codeEnv),
               cursor = cursorVar.name,
               body = IRNode.And(
