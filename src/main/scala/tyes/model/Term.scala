@@ -8,10 +8,12 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
   case Range(
     function: String,
     cursor: String,
-    template: Term,
+    holeArgIdx: Int,
+    argTemplates: Seq[Term],
     minIndex: Int,
     maxIndex: terms.Index,
-    seed: Option[Term] = None
+    holeIsMax: Boolean,
+    holeSeed: Option[Term] = None,
   ) extends Term, terms.TermRange[Term]
 
   private def ifBothTypes[B](otherTerm: Term)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
@@ -92,21 +94,26 @@ private object TermBuilder extends terms.TermBuilder[Term, Any]:
   override def applyRange(
     function: String,
     cursor: String,
-    template: Term,
+    holeArgIdx: Int,
+    argTemplates: Seq[Term],
     minIndex: Int,
     maxIndex: terms.Index,
-    seed: Option[Term] = None
-  ): Term & terms.TermRange[Term] = Term.Range(function, cursor, template, minIndex, maxIndex, seed)
+    holeIsMax: Boolean,
+    holeSeed: Option[Term] = None
+  ): Term & terms.TermRange[Term] =
+    Term.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed)
 
   override def unapplyRange(term: Term): Option[(
     String,
     String,
-    Term,
+    Int,
+    Seq[Term],
     Int,
     terms.Index,
+    Boolean,
     Option[Term]
   )] = term match {
-    case Term.Range(function, cursor, template, minIndex, maxIndex, seed) =>
-      Some((function, cursor, template, minIndex, maxIndex, seed))
+    case Term.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed) =>
+      Some((function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed))
     case _ => None
   }

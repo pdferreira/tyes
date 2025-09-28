@@ -23,18 +23,22 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
     def apply(
       function: String,
       cursor: String,
-      template: TTerm,
+      holeArgIdx: Int,
+      argTemplates: Seq[TTerm],
       minIndex: Int,
       maxIndex: Index,
-      seed: Option[TTerm] = None
-    ): TTerm & TermRange[TTerm] = builder.applyRange(function, cursor, template, minIndex, maxIndex, seed)
+      holeIsMax: Boolean,
+      holeSeed: Option[TTerm] = None
+    ): TTerm & TermRange[TTerm] = builder.applyRange(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed)
 
     def unapply(term: TTerm): Option[(
       String,
       String,
-      TTerm,
+      Int,
+      Seq[TTerm],
       Int,
       Index,
+      Boolean,
       Option[TTerm]
     )] = builder.unapplyRange(term)
 
@@ -55,38 +59,89 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         }
       else
         None
-    case (Function(name, left, right), Range(function, cursor, template, minIndex, Index.Number(maxIndex), seed)) if name == function && minIndex < maxIndex =>
-      left
-        .matches(Range(function, cursor, template, minIndex, Index.Number(maxIndex - 1), seed))
-        .flatMap { leftSubst =>
-          val instance = template.replaceIndex(cursor, maxIndex.toString).substitute(leftSubst)
-          right.matches(instance).map(leftSubst ++ _)
+    case (Function(name, args*), Range(function, cursor, holeArgIdx, argTemplates, minIndex, Index.Number(maxIndex), /*holeIsMax*/false, holeSeed))
+      if name == function && minIndex < maxIndex
+    =>
+      args(holeArgIdx)
+        .matches(Range(function, cursor, holeArgIdx, argTemplates, minIndex, Index.Number(maxIndex - 1), false, holeSeed))
+        .flatMap { holeSubst =>
+          val remainingArgs = args.take(holeArgIdx) ++ args.drop(holeArgIdx + 1)
+          remainingArgs.zip(argTemplates).foldLeft(Option(holeSubst)) {
+            case (None, _) => None
+            case (Some(accSubst), (remainingArg, template)) =>
+              val instance = template.replaceIndex(cursor, maxIndex.toString).substitute(accSubst)
+              remainingArg.matches(instance).map(accSubst ++ _)
+          }
         }
-    case (Range(function, cursor, template, minIndex, maxIndex, seed), _) => (maxIndex, seed, otherTerm) match {
-      case (Index.Variable(maxVar, minOccurs), _, Function(`function`, left, right)) =>
+    case (Function(name, args*), Range(function, cursor, holeArgIdx, argTemplates, minIndex, Index.Number(maxIndex), /*holeIsMax*/true, holeSeed))
+      if name == function && minIndex < maxIndex
+    =>
+      val remainingArgs = args.take(holeArgIdx) ++ args.drop(holeArgIdx + 1)
+      remainingArgs.zip(argTemplates)
+        .foldLeft(Option(Map[String, TTerm]())) {
+          case (None, _) => None
+          case (Some(accSubst), (remainingArg, template)) =>
+            val instance = template.replaceIndex(cursor, maxIndex.toString).substitute(accSubst)
+            remainingArg.matches(instance).map(accSubst ++ _)
+        }
+        .flatMap { rSubst =>
+          args(holeArgIdx)
+            .matches(Range(function, cursor, holeArgIdx, argTemplates, minIndex + 1, Index.Number(maxIndex), true, holeSeed))
+        }
+    case (Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed), _) => (maxIndex, holeIsMax, holeSeed, otherTerm) match {
+      case (Index.Variable(maxVar, minOccurs), /*holeIsMax*/false, _, Function(`function`, args*)) =>
         val innerMaxVar = "$" + maxVar
-        Range(function, cursor, template, minIndex, Index.Variable(innerMaxVar, minOccurs - 1), seed)
-          .matches(left)
-          .flatMap { innerSubst =>
-            val realMax = Constant.unapply(innerSubst(innerMaxVar)).get.asInstanceOf[Int] + 1
-            val instance = template.replaceIndex(cursor, realMax.toString).substitute(innerSubst - innerMaxVar)
+        Range(function, cursor, holeArgIdx, argTemplates, minIndex, Index.Variable(innerMaxVar, minOccurs - 1), false, holeSeed)
+          .matches(args(holeArgIdx))
+          .flatMap { holeSubst =>
+            val realMax = Constant.unapply(holeSubst(innerMaxVar)).get.asInstanceOf[Int] + 1
             val maxVarSubst = Map(maxVar -> Constant(realMax.asInstanceOf[TConstant]))
-            val lSubst = (innerSubst - innerMaxVar) ++ maxVarSubst
-            instance.matches(right).map(lSubst ++ _)
+            val hSubst = (holeSubst - innerMaxVar) ++ maxVarSubst
+            val remainingArgs = args.take(holeArgIdx) ++ args.drop(holeArgIdx + 1)
+            remainingArgs.zip(argTemplates).foldLeft(Option(hSubst)) {
+              case (None, _) => None
+              case (Some(accSubst), (remainingArg, template)) =>
+                val instance = template.replaceIndex(cursor, realMax.toString).substitute(accSubst - innerMaxVar)
+                instance.matches(remainingArg).map(accSubst ++ _)
+            }
           }
           // otherwise, since max is unbounded, let's try to match the seed as long as the min was matched
           .orElse {
             for
               _ <- Option.when(minOccurs <= 0)(())
-              s <- seed
+              s <- holeSeed
               subst <- s.matches(otherTerm)
             yield
               subst + (maxVar -> Constant((minIndex - 1).asInstanceOf[TConstant]))
           }
-      case (_, seed, Range(`function`, otherCursor, otherTemplate, `minIndex`, otherMaxIndex, otherSeed)) =>
+      case (_, /*holeIsMax*/true, _, Function(`function`, args*))
+        if maxIndex.fold(_ => true, n => minIndex < n.value)
+      =>
+        val newMaxIndex = maxIndex.fold(v => v.copy(min = v.min - 1), n => n)
+        val remainingArgs = args.take(holeArgIdx) ++ args.drop(holeArgIdx + 1)
+        remainingArgs.zip(argTemplates)
+          .foldLeft(Option(Map[String, TTerm]())) {
+            case (None, _) => None
+            case (Some(accSubst), (remainingArg, template)) =>
+              val instance = template.replaceIndex(cursor, minIndex.toString).substitute(accSubst)
+              instance.matches(remainingArg).map(accSubst ++ _)
+          }
+          .flatMap { rSubst =>
+            Range(function, cursor, holeArgIdx, argTemplates, minIndex + 1, newMaxIndex, true, holeSeed)
+              .substitute(rSubst)
+              .matches(args(holeArgIdx))
+              .map(rSubst ++ _)
+          }
+      case (_, _, holeSeed, Range(`function`, otherCursor, `holeArgIdx`, otherArgTemplates, `minIndex`, otherMaxIndex, `holeIsMax`, otherHoleSeed))
+        if argTemplates.size == otherArgTemplates.size
+      =>
         for
-          tSubst <- template.matches(otherTemplate.replaceIndex(otherCursor, cursor))
-            .map(_.map(_ -> _.replaceIndex(otherCursor, cursor)))
+          tSubst <- argTemplates.zip(otherArgTemplates).foldLeft(Option(Map[String, TTerm]())) {
+            case (None, _) => None
+            case (Some(accSubst), (thisTemplate, otherTemplate)) =>
+              thisTemplate.substitute(accSubst).matches(otherTemplate.replaceIndex(otherCursor, cursor))
+                .map(accSubst ++ _.map(_ -> _.replaceIndex(otherCursor, cursor)))
+          } 
           // only valid if none of the ranged-over variables got a substitution, as
           // those act more like constants from the range point of view 
           if tSubst.keys.collect(extractIndex.unlift).forall(_._2 != cursor)
@@ -99,43 +154,56 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
             }
             case _ => Option.when(maxIndex == otherMaxIndex)(Map[String, TTerm]())
           }
-          sSubst <- (seed, otherSeed) match {
+          sSubst <- (holeSeed, otherHoleSeed) match {
             case (None, None) => Some(Map())
             case (Some(s), Some(os)) => s.substitute(tSubst ++ mSubst).matches(os)
             case _ => None
           }
         yield
           tSubst ++ (mSubst ++ sSubst)
-      case (_, _, Range(_, _, _ ,_, _, _)) => None
-      case (Index.Variable(_, n), _, _) if n > 1 => None
-      case (Index.Variable(maxVar, _), None, _) =>
-        template.replaceIndex(cursor, minIndex.toString).matches(otherTerm).map { subst =>
+      case (_, _, _, Range(_, _, _, _ ,_, _, _, _)) => None
+      case (Index.Variable(_, n), _, _, _) if n > 1 => None
+      case (Index.Variable(maxVar, n), _, None, _) if n <= 1 && argTemplates.size == 1 =>
+        argTemplates(0).replaceIndex(cursor, minIndex.toString).matches(otherTerm).map { subst =>
           subst + (maxVar -> Constant(minIndex.asInstanceOf[TConstant]))
         }
-      case (Index.Variable(maxVar, _), Some(seed), _) =>
-        seed.matches(otherTerm).map { subst =>
+      case (Index.Variable(_, _), _, None, _) => None
+      case (Index.Variable(maxVar, n), _, Some(holeSeed), _) if n <= 0 =>
+        holeSeed.matches(otherTerm).map { subst =>
           subst + (maxVar -> Constant((minIndex - 1).asInstanceOf[TConstant]))
         }
-      case (Index.Number(maxIndexVal), _, Function(`function`, left, right)) if minIndex < maxIndexVal =>
-        Range(function, cursor, template, minIndex, Index.Number(maxIndexVal - 1), seed)
-          .matches(left)
-          .flatMap { innerSubst =>
-            val instance = template.replaceIndex(cursor, maxIndexVal.toString).substitute(innerSubst)
-            instance.matches(right).map(innerSubst ++ _)
+      case (Index.Variable(_, _), _, Some(_), _) => None
+      case (Index.Number(maxIndexVal), /*holeIsMax*/false, _, Function(`function`, args*)) if minIndex < maxIndexVal =>
+        Range(function, cursor, holeArgIdx, argTemplates, minIndex, Index.Number(maxIndexVal - 1), false, holeSeed)
+          .matches(args(holeArgIdx))
+          .flatMap { holeSubst =>
+            val remainingArgs = args.take(holeArgIdx) ++ args.drop(holeArgIdx + 1)
+            remainingArgs.zip(argTemplates).foldLeft(Option(holeSubst)) {
+              case (None, _) => None
+              case (Some(accSubst), (remainingArg, template)) =>
+                val instance = template.replaceIndex(cursor, maxIndexVal.toString).substitute(accSubst)
+                instance.matches(remainingArg).map(accSubst ++ _)
+            }
           }
-      case (Index.Number(maxIndexVal), _, _) if minIndex == maxIndexVal =>
-        val instance = template.replaceIndex(cursor, minIndex.toString)
-        seed match {
-          case Some(s) => Function(function, s, instance).matches(otherTerm)
-          case None => instance.matches(otherTerm)
+      case (Index.Number(maxIndexVal), _, _, _) if minIndex == maxIndexVal =>
+        val argInstances = argTemplates.map(_.replaceIndex(cursor, minIndex.toString))
+        holeSeed match {
+          case Some(s) =>
+            val args = argInstances.take(holeArgIdx) ++ Seq(s) ++ argInstances.drop(holeArgIdx)
+            Function(function, args*).matches(otherTerm)
+          case None if argInstances.size == 1 => argInstances(0).matches(otherTerm)
+          case None => None
         }
-      case (Index.Number(_), _, _) => None
+      case (Index.Number(_), _, _, _) => None
     }
-    case (_, Range(function, cursor, template, minIndex, Index.Number(maxIndex), seed)) if minIndex == maxIndex =>
-      val instance = template.replaceIndex(cursor, minIndex.toString)
-      seed match {
-        case None => this.matches(instance)
-        case Some(s) => this.matches(Function(function, s, instance))
+    case (_, Range(function, cursor, holeArgIdx, argTemplates, minIndex, Index.Number(maxIndex), holeIsMax, holeSeed)) if minIndex == maxIndex =>
+      val argInstances = argTemplates.map(_.replaceIndex(cursor, minIndex.toString))
+      holeSeed match {
+        case None if argInstances.size == 1 => this.matches(argInstances(0))
+        case None => None
+        case Some(s) =>
+          val args = argInstances.take(holeArgIdx) ++ Seq(s) ++ argInstances.drop(holeArgIdx)
+          this.matches(Function(function, args*))
       }
     case (Variable(_), _) if this == otherTerm => Some((Map()))
     case (Variable(name), _) => Some(Map(name -> otherTerm))
@@ -146,7 +214,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
     case Variable(name) => Set(name)
     case Constant(_) => Set()
     case Function(_, args*) => Set.concat(args.map(t => t.variables)*)
-    case Range(params @ (_, _, _, _, maxIndex, _)) =>
+    case Range(params @ (_, _, _, _, _, maxIndex, _, _)) =>
       val indexVars = maxIndex.asVariable.map(_.name).toSet
       indexVars ++ getRangeElems(Range.apply.tupled(params), _.variables)
   }
@@ -159,7 +227,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         this
     case Constant(_) => this
     case Function(name, args*) => Function(name, args.map(_.substitute(subst))*)
-    case Range(function, cursor, template, minIndex, maxIndex, seed)
+    case Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed)
       if maxIndex.fold(v => subst.get(v.name).exists(_.isGround), n => true)
     =>
       val concreteMaxIndex = maxIndex match {
@@ -169,22 +237,30 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
           case Constant(i: Int) => i
         }
       }
-      val elems = (minIndex to concreteMaxIndex).map(i => template.replaceIndex(cursor, i.toString).substitute(subst))
-      val allElems = seed.map(_.substitute(subst) +: elems).getOrElse(elems)
-      allElems.drop(1).foldLeft(allElems.head) { (acc, elem) => Function(function, acc, elem) }
-    case Range(function, cursor, template, minIndex, maxIndex, seed) =>
+      val concreteArgs = (minIndex to concreteMaxIndex).map(i => argTemplates.map(_.replaceIndex(cursor, i.toString).substitute(subst)))
+      val foldFn = (holeElem: TTerm, rArgs: Seq[TTerm]) => {
+        val args = rArgs.take(holeArgIdx) ++ Seq(holeElem) ++ rArgs.drop(holeArgIdx)
+        Function(function, args*)
+      }
+      (holeSeed, holeIsMax) match {
+        case (Some(s), false) => concreteArgs.foldLeft(s.substitute(subst))(foldFn)
+        case (Some(s), true) => concreteArgs.foldRight(s.substitute(subst))((r, h) => foldFn(h, r))
+        case (None, false) => concreteArgs.tail.foldLeft(concreteArgs.head.head)(foldFn)
+        case (None, true) => concreteArgs.init.foldRight(concreteArgs.last.head)((r, h) => foldFn(h, r))
+      }
+    case Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed) =>
       // otherwise, maxIndex is a variable and stays unbound
       // TODO: case where maxIndex is unbound but we can have a partial substitution
       // e.g. R:f[i in 1..k](V:e_i).substitute(e_3 -> C:a) ==> R:f[i in 4..k](f(f(V:e_1, V:e_2), C:a), V:e_i)
-      val newTemplate = template.substitute(subst - cursor)
+      val newTemplates = argTemplates.map(_.substitute(subst - cursor))
       val newMaxIndex = maxIndex match {
         case Index.Variable(name, min) if subst.contains(name) =>
           val newName = subst(name).asInstanceOf[TermVariable].name
           Index.Variable(newName, min)
         case _ => maxIndex 
       }
-      val newSeed = seed.map(_.substitute(subst))
-      Range(function, cursor, newTemplate, minIndex, newMaxIndex, newSeed)
+      val newSeed = holeSeed.map(_.substitute(subst))
+      Range(function, cursor, holeArgIdx, newTemplates, minIndex, newMaxIndex, holeIsMax, newSeed)
   }
 
   def unifies(otherTerm: TTerm): Option[Map[String, TTerm]] = (this, otherTerm) match {
@@ -214,10 +290,16 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       else
         None
     case (
-      Range(function, cursor, template, minIndex, maxIndex, seed),
-      Range(otherFunction, otherCursor, otherTemplate, otherMinIndex, otherMaxIndex, otherSeed)
+      Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed),
+      Range(otherFunction, otherCursor, otherHoleArgIdx, otherArgTemplates, otherMinIndex, otherMaxIndex, otherHoleIsMax, otherHoleSeed)
     ) =>
-      if function == otherFunction && minIndex == otherMinIndex then
+      if
+        function == otherFunction &&
+        holeArgIdx == otherHoleArgIdx &&
+        argTemplates.size == otherArgTemplates.size &&
+        minIndex == otherMinIndex &&
+        holeIsMax == otherHoleIsMax
+      then
         for
           maxIdxSubst <- (maxIndex, otherMaxIndex) match {
             case (Index.Variable(_, min), Index.Variable(_, otherMin)) if min != otherMin => None
@@ -228,12 +310,16 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
             case (Index.Number(i), Index.Number(otherI)) if i == otherI => Some(Map())
             case _ => None
           }
-          seedSubst <- (seed, otherSeed) match {
+          seedSubst <- (holeSeed, otherHoleSeed) match {
             case (None, None) => Some(Map())
             case (Some(s), Some(otherS)) => s.substitute(maxIdxSubst).unifies(otherS.substitute(maxIdxSubst))
             case _ => None
           }
-          templateSubst <- template.substitute(seedSubst).unifies(otherTemplate.replaceIndex(otherCursor, cursor).substitute(seedSubst))
+          templateSubst <- argTemplates.zip(otherArgTemplates).foldLeft(Option(seedSubst)) {
+            case (None, _) => None
+            case (Some(hSubst), (template, otherTemplate)) =>
+              template.substitute(hSubst).unifies(otherTemplate.replaceIndex(otherCursor, cursor).substitute(hSubst))
+          }
         yield
           val seedSubst2 = seedSubst.map { case (k, v) => (k, v.substitute(templateSubst)) }
           val maxIdxSubst2 = maxIdxSubst.map { case (k, v) => (k, v.substitute(seedSubst2)) }
@@ -258,21 +344,28 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       case _ => this
     }
     case Function(name, args*) => Function(name, args.map(_.replaceIndex(oldIdxStr, newIdxStr))*)
-    case Range(function, cursor, template, minIndex, maxIndex, seed) =>
-      val newTemplate = if cursor != oldIdxStr then template.replaceIndex(oldIdxStr, newIdxStr) else template
-      val newSeed = seed.map(_.replaceIndex(oldIdxStr, newIdxStr))
+    case Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed) =>
+      val newTemplates =
+        if cursor != oldIdxStr
+        then argTemplates.map(_.replaceIndex(oldIdxStr, newIdxStr))
+        else argTemplates
+      val newSeed = holeSeed.map(_.replaceIndex(oldIdxStr, newIdxStr))
       val newMaxIndex = maxIndex match {
         case iv: Index.Variable if iv.name == oldIdxStr => iv.copy(name = newIdxStr)
         case _ => maxIndex
       }
-      Range(function, cursor, newTemplate, minIndex, newMaxIndex, newSeed)
+      Range(function, cursor, holeArgIdx, newTemplates, minIndex, newMaxIndex, holeIsMax, newSeed)
   }
 
   override def toString(): String = this match {
     case Constant(value) => s"C:$value"
     case Variable(name) =>  s"V:$name"
     case Function(name, args*) => args.mkString(s"$name(", ", ", ")")
-    case Range(function, cursor, template, minIndex, maxIndex, seed) =>
-      val seedStr = seed.map(_.toString + ", ").getOrElse("")
-      s"R:${function}[$cursor in $minIndex..$maxIndex]($seedStr$template)"
+    case Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed) =>
+      val seedStr = holeSeed.map(_.toString).getOrElse("_")
+      val argStrs = argTemplates.take(holeArgIdx).map(_.toString) ++ 
+        Seq(seedStr) ++ 
+        argTemplates.drop(holeArgIdx).map(_.toString)
+      val holeIsMaxStr = if holeIsMax then "<-" else "->"
+      s"R:${function}[$cursor in $minIndex..$maxIndex]$holeIsMaxStr(${argStrs.mkString(", ")})"
   }

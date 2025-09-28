@@ -17,17 +17,21 @@ trait TermBuilder[TTerm, TConstant]:
   def applyRange(
     function: String,
     cursor: String,
-    template: TTerm,
+    holeArgIdx: Int,
+    argTemplates: Seq[TTerm],
     minIndex: Int,
     maxIndex: Index,
-    seed: Option[TTerm] = None
+    holeIsMax: Boolean,
+    holeSeed: Option[TTerm] = None,
   ): TTerm & TermRange[TTerm]
 
   def unapplyRange(term: TTerm): Option[(
     String,
     String,
-    TTerm,
+    Int,
+    Seq[TTerm],
     Int,
     Index,
+    Boolean,
     Option[TTerm]
   )]

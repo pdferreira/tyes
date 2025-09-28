@@ -49,7 +49,7 @@ class RuleIRGenerator(
       }
       Term.Function(fnName, argsAsVariables*)
     case r: Term.Range =>
-      r.toConcrete(Term.Function(_, _, _)).getOrElse(term)
+      r.toConcrete(Term.Function(_, _*)).getOrElse(term)
     case _ => term
   }
 

@@ -9,11 +9,11 @@ object Orderings:
     case Type.Named(name) => (0, name)
     case Type.Variable(_) => (0, "")
     case Type.Composite(name, args*) => (args.length, name)
-    case Type.Range(function, _, _, _, _, _) => (2, function)
+    case Type.Range(function, _, _,  argTemplates, _, _, _, _) => (argTemplates.size + 1, function)
   })
 
   given termCompilerOrdering: Ordering[Term] = Ordering.by({
     case Term.Function(name, args*) => (args.length, name)
-    case Term.Range(function, _, _, _, _, _) => (2, function)
+    case Term.Range(function, _, _, argTemplates, _, _, _, _) => (argTemplates.size + 1, function)
     case _ => (0, "")
   })

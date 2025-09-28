@@ -26,22 +26,26 @@ object TestTermBuilder extends TermBuilder[TestTerm, Any]:
   override def applyRange(
     function: String,
     cursor: String,
-    template: TestTerm,
+    holeArgIdx: Int,
+    argTemplates: Seq[TestTerm],
     minIndex: Int,
     maxIndex: Index,
-    seed: Option[TestTerm] = None
-  ): TestTerm & TermRange[TestTerm] = TestTerm.Range(function, cursor, template, minIndex, maxIndex, seed)
+    holeIsMax: Boolean,
+    holeSeed: Option[TestTerm] = None
+  ): TestTerm & TermRange[TestTerm] = TestTerm.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed)
 
   override def unapplyRange(term: TestTerm): Option[(
     String,
     String,
-    TestTerm,
+    Int,
+    Seq[TestTerm],
     Int,
     Index,
+    Boolean,
     Option[TestTerm]
   )] = term match {
-    case TestTerm.Range(function, cursor, template, minIndex, maxIndex, seed) =>
-      Some((function, cursor, template, minIndex, maxIndex, seed))
+    case TestTerm.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed) =>
+      Some((function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed))
     case _ => None
   }
 
@@ -52,10 +56,12 @@ enum TestTerm extends TermOps[TestTerm, Any](TestTermBuilder):
   case Range(
     function: String,
     cursor: String,
-    template: TestTerm,
+    holeArgIdx: Int,
+    argTemplates: Seq[TestTerm],
     minIndex: Int,
     maxIndex: Index,
-    seed: Option[TestTerm]
+    holeIsMax: Boolean,
+    holeSeed: Option[TestTerm]
   ) extends TestTerm, TermRange[TestTerm]
 
 def termFoldLeft1(function: String, seq: Seq[TestTerm]): TestTerm = {

@@ -23,9 +23,9 @@ trait TyesTermLanguageBindings:
           if ls.size == 1 then
             None
           else 
-            Some(ls.tail.dropRight(1).foldLeft(ls.head) { (left, right) => Term.Function(funName, left, right) })
+            Some(ls.tail.init.foldLeft(ls.head) { (left, right) => Term.Function(funName, left, right) })
 
-        extractTermRange(funName, start, end, seed, minOccurs = 2, Term.Range.apply)
+        extractTermRange(funName, holeArgIdx = 0, Seq(start), Seq(end), holeIsMax = false, seed, minOccurs = 2, Term.Range.apply)
           .map(r => rs.foldLeft(r: Term) { (left, right) => Term.Function(funName, left, right) })
           .fold(msgs => err(msgs.head), success)
       case Nil ~ _ => err("impossible")

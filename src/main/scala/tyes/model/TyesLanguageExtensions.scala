@@ -154,7 +154,7 @@ object TyesLanguageExtensions:
       case v: Term.Variable => Set(v)
       case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
       case Term.Type(typ) => typ.typeVariables
-      case r @ Term.Range(_, _, _, _, maxIndex, _) =>
+      case r @ Term.Range(_, _, _, _, _, maxIndex, _, _) =>
         val indexVars = maxIndex.asVariable.map(v => Term.Variable(v.name): Term.Variable).toSet
         indexVars ++ getRangeElems(r, _.termVariables).toSet
     }
@@ -243,17 +243,26 @@ object TyesLanguageExtensions:
 
   extension [TTerm <: TermOps[TTerm, TConstant], TConstant](range: TermRange[TTerm])
 
-    def toConcrete(createFunction: (String, TTerm, TTerm) => TTerm): Option[TTerm] = range.maxIndex match {
+    def toConcrete(createFunction: (String, Seq[TTerm]) => TTerm): Option[TTerm] = range.maxIndex match {
       case Index.Number(maxIndex) if range.minIndex < maxIndex =>
-        val args = range.seed.toSeq ++ (range.minIndex to maxIndex).map(i => range.template.replaceIndex(range.cursor, i.toString))
-        val funTerm = args.drop(1).foldLeft(args.head) { (l, r) => createFunction(range.function, l, r) }
+        val concreteArgs = (range.minIndex to maxIndex).map(i => range.argTemplates.map(t => t.replaceIndex(range.cursor, i.toString))): Seq[Seq[TTerm]]
+        assert(range.argTemplates.size == 1 || range.holeSeed.isDefined) // Invariant guaranteed by TermRange
+        val (remainingArgs, seed) = range.holeSeed match {
+          case Some(s) => (concreteArgs, s)
+          case None => (concreteArgs.tail, concreteArgs.head.head)
+        }
+        val funTerm = remainingArgs.foldLeft(seed) { (holeElem, rArgs) => {
+          val args = rArgs.take(range.holeArgIdx) ++ Seq(holeElem) ++ rArgs.drop(range.holeArgIdx)
+          createFunction(range.function, args)
+        } }
         Some(funTerm)
       case _ => None
     }
 
     def iteratedVariables: Set[String] = Set.from(
       for
-        case extractIndex.unlift(name, idxStr) <- range.template.variables
+        t <- range.argTemplates
+        case extractIndex.unlift(name, idxStr) <- t.variables
         if idxStr == range.cursor
       yield
         name

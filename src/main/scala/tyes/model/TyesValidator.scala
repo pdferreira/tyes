@@ -115,11 +115,13 @@ object TyesValidator:
     for
       messages <- extractTermRange(
         funName = "",
-        start = judgementAsTerm(from),
-        end = judgementAsTerm(to),
-        seed = None,
+        holeArgIdx = 0,
+        startArgs = Seq(judgementAsTerm(from)),
+        endArgs = Seq(judgementAsTerm(to)),
+        holeIsMax = false,
+        holeSeed = None,
         minOccurs = 1,
-        createRange = (_, _, _, _, _, _) => ()
+        createRange = (_, _, _, _, _, _, _, _) => ()
       ).left
       msg <- messages
     do

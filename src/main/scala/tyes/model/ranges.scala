@@ -16,22 +16,40 @@ object ranges:
     val toIdx = toIdxStr.toIntOption.map(Index.Number(_)).getOrElse(Index.Variable(toIdxStr, min = 2))
     (fromIdent, fromIdx, toIdx)
 
-  def extractTermRange(funName: String, start: Term, end: Term, seed: Option[Term], minOccurs: Int): Either[List[String], Term.Range] =
-    extractTermRange(funName, start, end, seed, minOccurs, Term.Range.apply)
+  def extractTermRange(
+    funName: String,
+    holeArgIdx: Int,
+    startArgs: Seq[Term],
+    endArgs: Seq[Term],
+    holeIsMax: Boolean,
+    holeSeed: Option[Term],
+    minOccurs: Int
+  ): Either[List[String], Term.Range] =
+    extractTermRange(funName, holeArgIdx, startArgs, endArgs, holeIsMax, holeSeed, minOccurs, Term.Range.apply)
 
-  def extractTypeRange(funName: String, start: Type, end: Type, seed: Option[Type], minOccurs: Int): Either[List[String], Type.Range] =
-    extractTermRange(funName, start, end, seed, minOccurs, Type.Range.apply)
+  def extractTypeRange(
+    funName: String,
+    holeArgIdx: Int,
+    startArgs: Seq[Type],
+    endArgs: Seq[Type],
+    holeIsMax: Boolean,
+    holeSeed: Option[Type],
+    minOccurs: Int
+  ): Either[List[String], Type.Range] =
+    extractTermRange(funName, holeArgIdx, startArgs, endArgs, holeIsMax, holeSeed, minOccurs, Type.Range.apply)
 
   def extractTermRange[TTerm <: terms.TermOps[TTerm, TConstant], TConstant, TRange](
     funName: String,
-    start: TTerm,
-    end: TTerm,
-    seed: Option[TTerm],
+    holeArgIdx: Int,
+    startArgs: Seq[TTerm],
+    endArgs: Seq[TTerm],
+    holeIsMax: Boolean,
+    holeSeed: Option[TTerm],
     minOccurs: Int,
-    createRange: (String, String, TTerm, Int, Index, Option[TTerm]) => TRange
+    createRange: (String, String, Int, Seq[TTerm], Int, Index, Boolean, Option[TTerm]) => TRange
   ): Either[List[String], TRange] =
-    val startIndexedVars = start.variables.collect(extractIndex.unlift)
-    val endIndexedVars = end.variables.collect(extractIndex.unlift)
+    val startIndexedVars = startArgs.flatMap(_.variables).collect(extractIndex.unlift).toSet
+    val endIndexedVars = endArgs.flatMap(_.variables).collect(extractIndex.unlift).toSet
     val startNonSharedIndexedVars = startIndexedVars -- endIndexedVars
     val endNonSharedIndexedVars = endIndexedVars -- startIndexedVars
     val startIndexes = startNonSharedIndexedVars.map(_._2).toSet.map(_.toIntOption)
@@ -48,8 +66,8 @@ object ranges:
       val startIndex = startIndexes.head.get
       val endIndex = endIndexes.head
       val cursor = "$i"
-      val template = start.replaceIndex(startIndex.toString, cursor)
-      if template != end.replaceIndex(endIndex.toString, cursor) then
+      val argTemplates = startArgs.map(_.replaceIndex(startIndex.toString, cursor))
+      if argTemplates != endArgs.map(_.replaceIndex(endIndex.toString, cursor)) then
         errors += "start and end should be the same modulo their respective main index"
       if startIndex >= endIndex.toIntOption.getOrElse(Int.MaxValue) then
         errors += "start index should be less than the end index"
@@ -58,13 +76,15 @@ object ranges:
         return Right(createRange(
           funName,
           cursor,
-          template,
+          holeArgIdx,
+          argTemplates,
           startIndex,
           endIndex.toIntOption match {
             case None => Index.Variable(endIndex, minOccurs)
             case Some(i) => Index.Number(i)
           },
-          seed,
+          holeIsMax,
+          holeSeed,
         ))
     
     return Left(errors.toList)
@@ -77,7 +97,14 @@ object ranges:
       case Index.Number(i) => Set(range.minIndex, i).map(_.toString)
       case Index.Variable(s, _) => Set(range.minIndex.toString, s)
     }
-    val seedElems = range.seed.map(getElems(_)).getOrElse(Iterable())
-    val expandedElems = indexes.flatMap(i => getElems(range.template.replaceIndex(range.cursor, i)))
+    val seedElems = range.holeSeed.map(getElems(_)).getOrElse(Iterable())
+    val expandedElems =
+      for 
+        i <- indexes
+        t <- range.argTemplates
+        e <- getElems(t.replaceIndex(range.cursor, i))
+      yield
+        e
+    
     expandedElems ++ seedElems
 
