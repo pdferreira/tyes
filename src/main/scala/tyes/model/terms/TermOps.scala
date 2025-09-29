@@ -189,7 +189,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         val argInstances = argTemplates.map(_.replaceIndex(cursor, minIndex.toString))
         holeSeed match {
           case Some(s) =>
-            val args = argInstances.take(holeArgIdx) ++ Seq(s) ++ argInstances.drop(holeArgIdx)
+            val args = argInstances.patch(from = holeArgIdx, Seq(s), replaced = 0)
             Function(function, args*).matches(otherTerm)
           case None if argInstances.size == 1 => argInstances(0).matches(otherTerm)
           case None => None
@@ -202,7 +202,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
         case None if argInstances.size == 1 => this.matches(argInstances(0))
         case None => None
         case Some(s) =>
-          val args = argInstances.take(holeArgIdx) ++ Seq(s) ++ argInstances.drop(holeArgIdx)
+          val args = argInstances.patch(from = holeArgIdx, Seq(s), replaced = 0)
           this.matches(Function(function, args*))
       }
     case (Variable(_), _) if this == otherTerm => Some((Map()))
@@ -239,7 +239,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       }
       val concreteArgs = (minIndex to concreteMaxIndex).map(i => argTemplates.map(_.replaceIndex(cursor, i.toString).substitute(subst)))
       val foldFn = (holeElem: TTerm, rArgs: Seq[TTerm]) => {
-        val args = rArgs.take(holeArgIdx) ++ Seq(holeElem) ++ rArgs.drop(holeArgIdx)
+        val args = rArgs.patch(from = holeArgIdx, Seq(holeElem), replaced = 0)
         Function(function, args*)
       }
       (holeSeed, holeIsMax) match {

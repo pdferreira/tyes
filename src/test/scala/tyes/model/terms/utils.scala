@@ -1,5 +1,7 @@
 package tyes.model.terms
 
+import scala.annotation.targetName
+
 object TestTermBuilder extends TermBuilder[TestTerm, Any]:
 
   override def applyConstant(value: Any): TestTerm = TestTerm.Constant(value)
@@ -65,6 +67,16 @@ enum TestTerm extends TermOps[TestTerm, Any](TestTermBuilder):
   ) extends TestTerm, TermRange[TestTerm]
 
 def termFoldLeft1(function: String, seq: Seq[TestTerm]): TestTerm = {
-  seq.drop(1).foldLeft(seq.head)(TestTerm.Function(function, _, _))
+  seq.tail.foldLeft(seq.head)(TestTerm.Function(function, _, _))
+}
+
+def termFoldLeft1(function: String, seed: TestTerm, holeIdx: Int, argsSeq: Seq[Seq[TestTerm]]): TestTerm = {
+  argsSeq.foldLeft(seed) { (acc, args) =>
+    TestTerm.Function(function, args.patch(from = holeIdx, Seq(acc), replaced = 0)*)
+  }
+}
+
+def termFoldRight1(function: String, seq: Seq[TestTerm]): TestTerm = {
+  seq.init.foldRight(seq.last)(TestTerm.Function(function, _, _))
 }
   

@@ -252,7 +252,7 @@ object TyesLanguageExtensions:
           case None => (concreteArgs.tail, concreteArgs.head.head)
         }
         val funTerm = remainingArgs.foldLeft(seed) { (holeElem, rArgs) => {
-          val args = rArgs.take(range.holeArgIdx) ++ Seq(holeElem) ++ rArgs.drop(range.holeArgIdx)
+          val args = rArgs.patch(from = range.holeArgIdx, Seq(holeElem), replaced = 0)
           createFunction(range.function, args)
         } }
         Some(funTerm)

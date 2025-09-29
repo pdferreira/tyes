@@ -40,6 +40,7 @@ class matches extends AnyFunSpec:
       val boundsVar = "k"
 
       describe("and no seed") {
+
         val range = Range(function, cursor, 0, Seq(template), 0, Index.Variable(boundsVar), false, None)
 
         it("matches a left-associative term with the target function") {
@@ -81,6 +82,12 @@ class matches extends AnyFunSpec:
           assert(range.matches(term) == None)
         }
 
+        it("does not match a right-associative term with the same function") {
+          val args = values
+          val term = termFoldRight1(function, args)
+          assert(range.matches(term) == None)
+        }
+
         it("does not match a range in a way that substitutes its ranged-over variables") {
           val otherRange = Range("f", "j", 0, Seq(Function("P", Variable("e_j"), Constant(1))), 0, Index.Number(5), false, None)
           assert(range.matches(otherRange) == None)
@@ -94,7 +101,13 @@ class matches extends AnyFunSpec:
 
       describe("and a seed") {
         val seed = Function("K", Variable("a"))
-        val range = Range("f", "i", 0, Seq(Function("C", Variable("t_i"))), 1, Index.Variable("k"), false, Some(seed))
+        val holeArgIdx = 2
+        val argTemplates = Seq(
+          Function("C", Variable("t_i")),
+          Variable("e_i"),
+          Constant(true)
+        )
+        val range = Range("f", "i", holeArgIdx, argTemplates, 1, Index.Variable("k"), false, Some(seed))
         val concreteSeed = Function("K", Constant(true))
         
         it("matches a term that matches the seed") {
@@ -103,11 +116,13 @@ class matches extends AnyFunSpec:
         }
 
         it("matches a term that matches the seed at the innermost position") {
-          val args = values.map(Function("C", _))
-          val term = termFoldLeft1(function, concreteSeed +: args)
+          val args = values.map(v => Seq(Function("C", v), v, Constant(true)))
+          val term = termFoldLeft1(function, concreteSeed, holeArgIdx, args)
           val argsSubst = Map.from(
-            for case (t, i) <- values.zipWithIndex
-            yield f"t_${i+1}" -> t
+            for
+              case (t, i) <- values.zipWithIndex
+              vName <- Seq("t", "e")
+            yield f"${vName}_${i+1}" -> t
           )
           assert(range.matches(term) == Some(
             argsSubst + 
@@ -117,13 +132,25 @@ class matches extends AnyFunSpec:
         }
 
         it("matches a range with matching template modulo their cursors") {
-          val r1 = Range("f", "i", 0, Seq(Function("P", Variable("e_i"), Variable("y"))), 0, Index.Variable("k"), false, Some(Variable("y")))
-          val r2 = Range("f", "j", 0, Seq(Function("P", Variable("e_j"), Constant(1))), 0, Index.Number(5), false, Some(Constant(1)))
-          assert(r1.matches(r2) == Some(Map("y" -> Constant(1), "k" -> Constant(5))))
+          val r1Templates = Seq(
+            Function("P", Variable("e_i"), Variable("y")),
+            Function("Q", Variable("x"), Variable("y")),
+          )
+          val r2Templates = Seq(
+            Function("P", Variable("e_j"), Constant(1)),
+            Function("Q", Function("R", Variable("z_j")), Constant(1)),
+          )
+          val r1 = Range("f", "i", holeArgIdx, r1Templates, 0, Index.Variable("k"), false, Some(Variable("y")))
+          val r2 = Range("f", "j", holeArgIdx, r2Templates, 0, Index.Number(5), false, Some(Constant(1)))
+          assert(r1.matches(r2) == Some(Map(
+            "y" -> Constant(1),
+            "x" -> Function("R", Variable("z_i")),
+            "k" -> Constant(5)
+          )))
         }
 
         it("does not match a range with a non-matching seed") {
-          val otherRange = Range(function, cursor, 0, Seq(template), range.minIndex, range.maxIndex, false, Some(Constant(2)))
+          val otherRange = Range(function, cursor, holeArgIdx, argTemplates, range.minIndex, range.maxIndex, false, Some(Constant(2)))
           assert(range.matches(otherRange) == None)
         }
       }
@@ -203,6 +230,36 @@ class matches extends AnyFunSpec:
         }
       }
     }
+
+    describe("with the hole positioned last") {
+
+      val boundsVar = "k"
+      val range = Range(function, cursor, 0, Seq(template), 0, Index.Variable(boundsVar), true, None)
+
+      it("matches a left-associative term with the target function in reverse order") {
+          val args = values.reverse.map(Function("C", _))
+          val term = termFoldLeft1(function, args)
+          
+          val argsSubst = Map.from(
+            for case (t, i) <- values.zipWithIndex
+            yield indexedVar(rootVar, i.toString) -> t
+          )
+          assert(range.matches(term) == Some(argsSubst + (boundsVar -> Constant(values.length - 1))))
+        }
+
+        it("matches a single term matching the template") {
+          val term = Function("C", values(0))
+          assert(range.matches(term) == Some(Map("t_0" -> values(0), boundsVar -> Constant(0))))
+        }
+
+        it("does not match a range with a different direction") {
+          val r1 = Range("f", "i", 0, Seq(Function("P", Variable("e_i"), Variable("y"))), 0, Index.Variable("k"), true, None)
+          val r2 = Range("f", "j", 0, Seq(Function("P", Variable("e_j"), Constant(1))), 0, Index.Number(5), false, None)
+          assert(r1.matches(r2) == None)
+        }
+
+    }
+
   }
 
   describe("A Function term") {
