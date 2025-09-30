@@ -3,6 +3,7 @@ package tyes.model
 import Parsers.*
 import tyes.model.indexes.*
 import tyes.model.ranges.*
+import scala.annotation.targetName
 
 trait TyesTermLanguageBindings:
 
@@ -12,7 +13,7 @@ trait TyesTermLanguageBindings:
 
   def typeParser: Parser[Type]
 
-  def rep1op(elem: Parser[Term], op: Parser[String], funName: String): Parser[Term] =
+  def rep1opL(elem: Parser[Term], op: Parser[String], funName: String): Parser[Term] =
     Parsers.rep1sep(elem, op) ~ (op ~> "..." ~>! op ~>! Parsers.rep1sep(elem, op)).? flatMap {
       case List(exp, rs*) ~ None =>
         success(rs.foldLeft(exp) { (left, right) => Term.Function(funName, left, right) })
@@ -30,4 +31,34 @@ trait TyesTermLanguageBindings:
           .fold(msgs => err(msgs.head), success)
       case Nil ~ _ => err("impossible")
       case _ ~ Some(_) => err("impossible")
+    }
+
+  def rep0opR(elem: Parser[Term], op: Parser[String], funName: String)(seed: Parser[Term]): Parser[Term] =
+    repXopR(elem.map(Seq(_)), op, funName, atLeastOne = false)(seed)
+
+  def repXopR(elemArgs: Parser[Seq[Term]], op: Parser[String], funName: String, atLeastOne: Boolean)(seed: Parser[Term]): Parser[Term] =
+    def buildFunTerm(argSeqs: Seq[Seq[Term]], seed: Term): Term =
+      argSeqs.foldRight(seed) { (leftArgs, right) => Term.Function(funName, (leftArgs :+ right)*) }
+
+    def repX[T](parser: Parser[T]): Parser[Option[T]] =
+      if atLeastOne then
+        parser.map(Option(_))
+      else
+        parser.?
+
+    repX(Parsers.rep1sep(elemArgs, op) ~ (op ~> "..." ~>! op ~>! Parsers.rep1sep(elemArgs, op)).?) ~ seed flatMap {
+      case None ~ s =>
+        success(s)
+      case Some((es @ List(_, _*)) ~ None) ~ s =>
+        success(buildFunTerm(es, s))
+      case Some((ls @ List(_, _*)) ~ Some(rs @ List(_, _*))) ~ s =>
+        val startArgs = ls.last
+        val endArgs = rs.head
+        val seed = Some(buildFunTerm(rs.tail, s))
+
+        extractTermRange(funName, holeArgIdx = startArgs.size, startArgs, endArgs, holeIsMax = true, seed, minOccurs = 1, Term.Range.apply)
+          .map(r => buildFunTerm(ls.init, r))
+          .fold(msgs => err(msgs.head), success)
+      case Some(Nil ~ _) ~ _ => err("impossible")
+      case Some(_ ~ Some(_)) ~ _ => err("impossible")
     }

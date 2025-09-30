@@ -28,11 +28,9 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
 
   def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => Term.Function("LNumber", Term.Constant(numStr.toInt)) }
 
-  def list = "[" ~> repsep(expression, ",") ~ ("|" ~> metaVariable).? <~ "]" ^^ {
-    case elems ~ tail =>
-      val tailTerm = tail.getOrElse(Term.Function("LNil")) 
-      elems.foldRight(tailTerm) { (e, l) => Term.Function("LList", e, l) }
-  }
+  def list = "[" ~> bindings.rep0opR(expression, ",", "LList") { 
+    ("|" ~> metaVariable).? ^^ { tail => tail.getOrElse(Term.Function("LNil")) } 
+  } <~ "]"
   
   def leaf = 
     ("(" ~> expression <~ ")") 
@@ -40,30 +38,36 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
     | variable
     | list
 
-  def app = bindings.rep1op(leaf, "", "LApp")
+  def app = bindings.rep1opL(leaf, "", "LApp")
 
-  def operator = bindings.rep1op(app, "+", "LPlus")
+  def operator = bindings.rep1opL(app, "+", "LPlus")
 
   def tpe = bindings.typeParser
   
-  def let: Parser[Term] = ("let" ~> ident) ~ (":" ~> tpe).? ~ ("=" ~> (expression - let)) ~ ("in" ~> expression) ^^ {
-    case varTerm ~ varTypeOpt ~ varExp ~ inExp => 
-      Term.Function(
-        "LLet",
+  def let: Parser[Term] = bindings.repXopR(
+    ("let" ~> ident) ~ (":" ~> tpe).? ~ ("=" ~> (expression - let)) ^^ {
+      case varTerm ~ varTypeOpt ~ varExp => Seq(
         varTerm,
         Term.Type(varTypeOpt.getOrElse(Constants.Types.any)),
         varExp,
-        inExp)
-  }
+        )
+    },
+    "in",
+    "LLet",
+    atLeastOne = true
+   ) { "in" ~> expression }
 
-  def fun: Parser[Term] = ("fun" ~> ident) ~ (":" ~> tpe).? ~ ("=>" ~> expression) ^^ {
-    case argTerm ~ argTypeOpt ~ bodyExp =>
-      Term.Function(
-        "LFun",
+  def fun: Parser[Term] = bindings.repXopR(
+    ("fun" ~> ident) ~ (":" ~> tpe).? ^^ {
+      case argTerm ~ argTypeOpt => Seq(
         argTerm,
-        Term.Type(argTypeOpt.getOrElse(Constants.Types.any)), 
-        bodyExp)
-  }
+        Term.Type(argTypeOpt.getOrElse(Constants.Types.any))
+      ) 
+    },
+    "=>",
+    "LFun",
+    atLeastOne = true,
+  ) { "=>" ~> expression }
   
   def expression: Parser[Term] = let | fun | operator
 
