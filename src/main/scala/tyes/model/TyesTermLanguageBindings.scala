@@ -26,7 +26,7 @@ trait TyesTermLanguageBindings:
           else 
             Some(ls.tail.init.foldLeft(ls.head) { (left, right) => Term.Function(funName, left, right) })
 
-        extractTermRange(funName, holeArgIdx = 0, Seq(start), Seq(end), holeIsMax = false, seed, minOccurs = 2, Term.Range.apply)
+        extractTermRange(funName, holeArgIdx = 0, Seq(start), Seq(end), seed, minOccurs = 2, Term.Range.apply)
           .map(r => rs.foldLeft(r: Term) { (left, right) => Term.Function(funName, left, right) })
           .fold(msgs => err(msgs.head), success)
       case Nil ~ _ => err("impossible")
@@ -56,7 +56,7 @@ trait TyesTermLanguageBindings:
         val endArgs = rs.head
         val seed = Some(buildFunTerm(rs.tail, s))
 
-        extractTermRange(funName, holeArgIdx = startArgs.size, startArgs, endArgs, holeIsMax = true, seed, minOccurs = 1, Term.Range.apply)
+        extractTermRange(funName, holeArgIdx = startArgs.size, startArgs, endArgs, seed, minOccurs = 1, Term.Range.apply)
           .map(r => buildFunTerm(ls.init, r))
           .fold(msgs => err(msgs.head), success)
       case Some(Nil ~ _) ~ _ => err("impossible")

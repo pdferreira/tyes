@@ -21,7 +21,6 @@ trait TermBuilder[TTerm, TConstant]:
     argTemplates: Seq[TTerm],
     minIndex: Int,
     maxIndex: Index,
-    holeIsMax: Boolean,
     holeSeed: Option[TTerm] = None,
   ): TTerm & TermRange[TTerm]
 
@@ -32,6 +31,5 @@ trait TermBuilder[TTerm, TConstant]:
     Seq[TTerm],
     Int,
     Index,
-    Boolean,
     Option[TTerm]
   )]

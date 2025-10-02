@@ -12,7 +12,6 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
     argTemplates: Seq[Term],
     minIndex: Int,
     maxIndex: terms.Index,
-    holeIsMax: Boolean,
     holeSeed: Option[Term] = None,
   ) extends Term, terms.TermRange[Term]
 
@@ -98,10 +97,9 @@ private object TermBuilder extends terms.TermBuilder[Term, Any]:
     argTemplates: Seq[Term],
     minIndex: Int,
     maxIndex: terms.Index,
-    holeIsMax: Boolean,
     holeSeed: Option[Term] = None
   ): Term & terms.TermRange[Term] =
-    Term.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed)
+    Term.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeSeed)
 
   override def unapplyRange(term: Term): Option[(
     String,
@@ -110,10 +108,9 @@ private object TermBuilder extends terms.TermBuilder[Term, Any]:
     Seq[Term],
     Int,
     terms.Index,
-    Boolean,
     Option[Term]
   )] = term match {
-    case Term.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed) =>
-      Some((function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeIsMax, holeSeed))
+    case Term.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeSeed) =>
+      Some((function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeSeed))
     case _ => None
   }

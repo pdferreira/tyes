@@ -8,7 +8,6 @@ trait TermRange[TTerm]:
   def minIndex: Int
   def maxIndex: Index
   def holeSeed: Option[TTerm]
-  def holeIsMax: Boolean
 
   def replaceIndex(oldIdxStr: String, newIdxStr: String): TTerm
 

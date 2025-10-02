@@ -154,7 +154,7 @@ object TyesLanguageExtensions:
       case v: Term.Variable => Set(v)
       case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
       case Term.Type(typ) => typ.typeVariables
-      case r @ Term.Range(_, _, _, _, _, maxIndex, _, _) =>
+      case r @ Term.Range(_, _, _, _, _, maxIndex, _) =>
         val indexVars = maxIndex.asVariable.map(v => Term.Variable(v.name): Term.Variable).toSet
         indexVars ++ getRangeElems(r, _.termVariables).toSet
     }

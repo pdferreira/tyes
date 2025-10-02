@@ -59,27 +59,22 @@ class substitute extends AnyFunSpec:
         )
         
         it("that is left-associative if the hole is the first argument") {
-          val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Number(2), false, None)
+          val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Number(2), None)
           val expectedFunTerm = termFoldLeft1(function, expectedArgValues.map(Function("C", _)))
           assert(range.substitute(subst) == expectedFunTerm)
         }
 
         it("that is right-associative if the hole is the second argument") {
-          val range = Range(function, cursor, 1, Seq(argTemplates), 0, Index.Number(2), false, None)
-          val expectedFunTerm = termFoldRight1(function, expectedArgValues.reverse.map(Function("C", _)))
+          val range = Range(function, cursor, 1, Seq(argTemplates), 0, Index.Number(2), None)
+          val expectedFunTerm = termFoldRight1(function, expectedArgValues.map(Function("C", _)))
           assert(range.substitute(subst) == expectedFunTerm)
         }
 
-        it("that has indexed variables in reverse order if the hole is last") {
-          val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Number(2), true, None)
-          val expectedFunTerm = termFoldLeft1(function, expectedArgValues.reverse.map(Function("C", _)))
-          assert(range.substitute(subst) == expectedFunTerm)
-        }
       }
 
       it("replaces substitution-matching free variables in the seed") {
         val seed = Function("s", Variable("w"))
-        val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Number(0), false, Some(seed))
+        val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Number(0), Some(seed))
         val subst = Map(
           indexedVar(rootVar, "0") -> Constant("zero"),
           "w" -> Constant(true)
@@ -99,7 +94,7 @@ class substitute extends AnyFunSpec:
       describe("if the bound is closed by substitution") {
         
         it("is replaced by a left-associative function term") {
-          val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Variable(boundsVar), false, None)
+          val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Variable(boundsVar), None)
           val subst = Map(
             boundsVar -> Constant(3),
             indexedVar(rootVar, "1") -> Constant("a"),
@@ -117,7 +112,7 @@ class substitute extends AnyFunSpec:
 
         it("replaces substitution-matching free variables in the seed") {
           val seed = Function("s", Variable("w"))
-          val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Variable(boundsVar), false, Some(seed))
+          val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Variable(boundsVar), Some(seed))
           val subst = Map(
             boundsVar -> Constant(0),
             indexedVar(rootVar, "0") -> Constant("zero"),
@@ -138,7 +133,7 @@ class substitute extends AnyFunSpec:
           val template = Function("t", Variable(indexedVar(rootVar, cursor)), Variable("w"))
           val minIndex = 0
           val maxIndex = Index.Variable(boundsVar, 5)
-          val range = Range(function, cursor, 0, Seq(template), minIndex, maxIndex, false, Some(seed))
+          val range = Range(function, cursor, 0, Seq(template), minIndex, maxIndex, Some(seed))
 
           val subst = Map(
             "w" -> Constant(true),
@@ -152,7 +147,6 @@ class substitute extends AnyFunSpec:
             Seq(Function("t", Variable(indexedVar(rootVar, cursor)), Constant(true))),
             minIndex,
             Index.Variable("b", min = 5),
-            false,
             Some(Function("s", Constant(true)))
           )
           assert(range.substitute(subst) == expectedRange)

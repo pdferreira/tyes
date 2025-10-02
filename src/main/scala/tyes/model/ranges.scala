@@ -21,32 +21,29 @@ object ranges:
     holeArgIdx: Int,
     startArgs: Seq[Term],
     endArgs: Seq[Term],
-    holeIsMax: Boolean,
     holeSeed: Option[Term],
     minOccurs: Int
   ): Either[List[String], Term.Range] =
-    extractTermRange(funName, holeArgIdx, startArgs, endArgs, holeIsMax, holeSeed, minOccurs, Term.Range.apply)
+    extractTermRange(funName, holeArgIdx, startArgs, endArgs, holeSeed, minOccurs, Term.Range.apply)
 
   def extractTypeRange(
     funName: String,
     holeArgIdx: Int,
     startArgs: Seq[Type],
     endArgs: Seq[Type],
-    holeIsMax: Boolean,
     holeSeed: Option[Type],
     minOccurs: Int
   ): Either[List[String], Type.Range] =
-    extractTermRange(funName, holeArgIdx, startArgs, endArgs, holeIsMax, holeSeed, minOccurs, Type.Range.apply)
+    extractTermRange(funName, holeArgIdx, startArgs, endArgs, holeSeed, minOccurs, Type.Range.apply)
 
   def extractTermRange[TTerm <: terms.TermOps[TTerm, TConstant], TConstant, TRange](
     funName: String,
     holeArgIdx: Int,
     startArgs: Seq[TTerm],
     endArgs: Seq[TTerm],
-    holeIsMax: Boolean,
     holeSeed: Option[TTerm],
     minOccurs: Int,
-    createRange: (String, String, Int, Seq[TTerm], Int, Index, Boolean, Option[TTerm]) => TRange
+    createRange: (String, String, Int, Seq[TTerm], Int, Index, Option[TTerm]) => TRange
   ): Either[List[String], TRange] =
     val startIndexedVars = startArgs.flatMap(_.variables).collect(extractIndex.unlift).toSet
     val endIndexedVars = endArgs.flatMap(_.variables).collect(extractIndex.unlift).toSet
@@ -83,7 +80,6 @@ object ranges:
             case None => Index.Variable(endIndex, minOccurs)
             case Some(i) => Index.Number(i)
           },
-          holeIsMax,
           holeSeed,
         ))
     
