@@ -1,0 +1,10 @@
+typesystem SequenceV2
+
+  rule infers 1 : one
+  
+  rule infers 2 : two
+
+  rule infers [ e_1, ..., e_n ] : t -> t
+    if e_1 : t
+    and ...
+    and e_n : t

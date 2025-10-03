@@ -32,26 +32,39 @@ class RangeIRGenerator(
     val paramVar = TCN.Var("exp"): TCN.Var
     val matchVar = TCN.Var("e"): TCN.Var
     val matchArgNames = Seq("l", "r")
+
+    def genExtractArgsCode(argsContainer: Seq[TCN] => TCN): TCN =
+      TCN.Lambda(matchVar.name, TCN.Match(
+        matchVar,
+        branches = Seq(
+          TCP.ADTConstructor(TCTypeRef(range.function), matchArgNames.map(TCP.Var(_))*) -> argsContainer(matchArgNames.map(TCN.Var(_)))
+        )
+      ))
+
+    val argsSize = range.argTemplates.size + 1
+    val genExtractRangeFn =
+      if argsSize == 2 && range.holeArgIdx == 0 && range.holeSeed.isEmpty then
+        RuntimeAPIGenerator.genExtractRangeL
+      else if argsSize == 2 && range.holeArgIdx == 1 && range.holeSeed.isEmpty then
+        RuntimeAPIGenerator.genExtractRangeR
+      else if range.holeArgIdx > 0 && range.holeSeed.isDefined then
+        RuntimeAPIGenerator.genExtractRange(_, _, range.holeArgIdx, _)
+      else
+        throw new NotImplementedError(f"for ${range}")
+
+    val (extractRangeTypeRef, extractRangeCode) = genExtractRangeFn(paramVar, expClassParametrizedTypeRef, genExtractArgsCode)
     TCD.Extractor(
       getExtractorName(range),
       param = (paramVar.name -> expClassParametrizedTypeRef),
-      retTypeRef = TCTypeRef("Seq", expClassParametrizedTypeRef),
-      body = (_, _) => RuntimeAPIGenerator.genExtractRange(
-        paramVar,
-        TCN.Lambda(matchVar.name, TCN.Match(
-          matchVar,
-          branches = Seq(
-            TCP.ADTConstructor(TCTypeRef(range.function), matchArgNames.map(TCP.Var(_))*) -> TCN.Tuple(
-              matchArgNames.map(TCN.Var(_))*
-            )
-          )
-        ))
-      )
+      retTypeRef = extractRangeTypeRef,
+      body = (_, _) => extractRangeCode
     )
 
-  def generateUnboundPattern[TTerm <: TermOps[TTerm, Any]](range: TermRange[TTerm]): Term =
+  def generateUnboundPattern(range: TermRange[Term]): Term =
     val elemsVarName = getCollectionVarName(range).get
-    Term.Function(getExtractorName(range), Term.Variable(elemsVarName))
+    val elemsVar = Term.Variable(elemsVarName)
+    val args = Seq(elemsVar) ++ range.holeSeed.toSeq
+    Term.Function(getExtractorName(range), args*)
 
   def generateConstructor[TTerm <: TermOps[TTerm, Any]](range: TermRange[TTerm]): TCN =
     RuntimeAPIGenerator.genFoldLeft1(

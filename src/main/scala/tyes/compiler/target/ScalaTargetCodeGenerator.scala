@@ -106,6 +106,9 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     s"case ${tcADTCons.name}${paramsStr}${extendsStr}"
 
   private def generate(tcTypeRef: TargetCodeTypeRef): String =
+    if tcTypeRef.name.matches(raw"^Tuple\d*$$") then
+      return tcTypeRef.params.map(generate).mkString("(", ", ", ")")
+
     val nameStr = (tcTypeRef.namespaces :+ tcTypeRef.name).mkString(".")
     val paramsStr = tcTypeRef.params.map(generate).mkStringOrEmpty("[", ", ", "]")
     nameStr + paramsStr

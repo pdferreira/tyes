@@ -32,11 +32,34 @@ trait TypeSystem[E[_]]:
         .map(Right.apply)
         .getOrElse(TypeError.noTypeFor(exp))
 
-    protected def extractRange(extractArgs: PartialFunction[E[T], (E[T], E[T])]): Option[Seq[E[T]]] = exp match {
-      case extractArgs(ls, r) =>
-        ls.extractRange(extractArgs) match {
-          case Some(es) => Some(es :+ r)
-          case None => Some(Seq(ls, r))
+    protected def extractRangeL(extractArgs: PartialFunction[E[T], (E[T], E[T])]): Option[Seq[E[T]]] =
+      extractRangeNoSeed(0, { case extractArgs(args) => Seq(args(0), args(1)) })
+
+    protected def extractRangeR(extractArgs: PartialFunction[E[T], (E[T], E[T])]): Option[Seq[E[T]]] =
+      extractRangeNoSeed(1, { case extractArgs(args) => Seq(args(0), args(1)) })
+
+    private def extractRangeNoSeed(
+      holeIdx: Int,
+      extractArgs: PartialFunction[E[T], Seq[E[T]]]
+    ): Option[Seq[E[T]]] = exp match {
+      case extractArgs(args) =>
+        args(holeIdx).extractRangeNoSeed(holeIdx, extractArgs) match {
+          case Some(as) => Some(args.patch(from = holeIdx, other = as, replaced = 1))
+          case None => Some(args)
+        }
+      case _ => None
+    }
+
+    protected def extractRange(
+      holeIdx: Int,
+      extractArgs: PartialFunction[E[T], Seq[E[T]]],
+    ): Option[(Seq[E[T]], E[T])] = exp match {
+      case extractArgs(args) =>
+        args(holeIdx).extractRange(holeIdx, extractArgs) match {
+          case Some((as, seed)) =>
+            Some((args.patch(from = holeIdx, other = as, replaced = 1), seed))
+          case None => 
+            Some((args.patch(from = holeIdx, other = Seq(), replaced = 1), args(holeIdx)))
         }
       case _ => None
     }

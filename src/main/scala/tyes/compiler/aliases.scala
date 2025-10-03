@@ -7,13 +7,14 @@ import tyes.compiler.target.TargetCodeADTConstructor
 import tyes.compiler.target.TargetCodeDecl
 import tyes.compiler.target.TargetCodeForCursor
 
-private type TCN = TargetCodeNode
-private type TCTypeRef = TargetCodeTypeRef
 private type TCD = TargetCodeDecl
+private type TCN = TargetCodeNode
+private type TCP = TargetCodePattern
+private type TCTypeRef = TargetCodeTypeRef
 
+private val TCADTConstructor = TargetCodeADTConstructor
+private val TCD = TargetCodeDecl
+private val TCFC = TargetCodeForCursor
 private val TCN = TargetCodeNode
 private val TCP = TargetCodePattern
 private val TCTypeRef = TargetCodeTypeRef
-private val TCD = TargetCodeDecl
-private val TCADTConstructor = TargetCodeADTConstructor
-private val TCFC = TargetCodeForCursor

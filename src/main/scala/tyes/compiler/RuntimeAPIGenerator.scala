@@ -47,9 +47,47 @@ object RuntimeAPIGenerator:
   def genEnvironmentGet(envVarCode: TCN, keyCode: TCN): TCN =
     TCN.Apply(TCN.Field(envVarCode, "get"), keyCode)
 
-  def genExtractRange(expCode: TCN, extractArgsCode: TCN): TCN =
-    TCN.Apply(TCN.Field(expCode, "extractRange"), extractArgsCode)
+  type GenExtractArgsCodeFn = (argsContainer: Seq[TCN] => TCN) => TCN
 
+  def genExtractRangeL(
+    expCode: TCN,
+    expTypeRef: TCTypeRef,
+    genExtractArgsCode: GenExtractArgsCodeFn
+  ): (TCTypeRef, TCN) =
+    val typeRef = TCTypeRef("Seq", expTypeRef)
+    val code = TCN.Apply(
+      TCN.Field(expCode, "extractRangeL"),
+      genExtractArgsCode(args => TCN.Tuple(args*))
+    )
+    (typeRef, code)
+
+  def genExtractRangeR(
+    expCode: TCN,
+    expTypeRef: TCTypeRef, 
+    genExtractArgsCode: GenExtractArgsCodeFn
+  ): (TCTypeRef, TCN) =
+      val typeRef = TCTypeRef("Seq", expTypeRef)
+      val code = TCN.Apply(
+        TCN.Field(expCode, "extractRangeR"),
+        genExtractArgsCode(args => TCN.Tuple(args*))
+      )
+      (typeRef, code)
+
+
+  def genExtractRange(
+    expCode: TCN,
+    expTypeRef: TCTypeRef,
+    holeArgIdx: Int,
+    genExtractArgsCode: GenExtractArgsCodeFn
+  ): (TCTypeRef, TCN) =
+    val typeRef = TCTypeRef("Tuple2", TCTypeRef("Seq", expTypeRef), expTypeRef)
+    val code = TCN.Apply(
+      TCN.Field(expCode, "extractRange"),
+      TCN.Integer(holeArgIdx),
+      genExtractArgsCode(args => TCN.Apply(TCN.Var("Seq"), args*))
+    )
+    (typeRef, code)
+    
   def genFoldRange(expCode: TCN, initCode: TCN, fCode: TCN): TCN =
     TCN.Apply(TCN.Apply(TCN.Field(expCode, "foldRange"), initCode), fCode)
 
