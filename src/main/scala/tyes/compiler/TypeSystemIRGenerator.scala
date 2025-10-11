@@ -51,7 +51,7 @@ class TypeSystemIRGenerator(
               expVar.name -> expClassParametrizedTypeRef,
               envIRGenerator.generateParameter()
             ),
-            retTypeRef = TCTypeRef("Either", TCTypeRef("String"), typeEnumTypeRef),
+            retTypeRef = Some(TCTypeRef("Either", TCTypeRef("String"), typeEnumTypeRef)),
             body = generateTypecheckBody(expVar, tsDecl.rules)
           )
         ) ++ (for

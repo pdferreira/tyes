@@ -62,14 +62,14 @@ case class TargetCodeUnit(name: String, decls: Seq[TargetCodeDecl])
 
 enum TargetCodeDecl:
   case Type(alias: String, typeRef: TargetCodeTypeRef)
-  case Method(name: String, params: Seq[(String, TargetCodeTypeRef)], retTypeRef: TargetCodeTypeRef, body: TargetCodeNode)
+  case Method(name: String, params: Seq[(String, TargetCodeTypeRef)], retTypeRef: Option[TargetCodeTypeRef], body: TargetCodeNode)
   case Import(namespaces: Seq[String], all: scala.Boolean = false)
   case Class(name: String, inherits: Seq[TargetCodeTypeRef], decls: Seq[TargetCodeDecl])
   case ADT(name: String, inherits: Seq[TargetCodeTypeRef], constructors: Seq[TargetCodeADTConstructor])
   case Extractor(
     name: String,
     param: (String, TargetCodeTypeRef),
-    retTypeRef: TargetCodeTypeRef,
+    retTypeRef: Option[TargetCodeTypeRef],
     body: (success: TargetCodeNode => TargetCodeNode, failure: () => TargetCodeNode) => TargetCodeNode
   )
 

@@ -78,7 +78,8 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TCD.Method(name, params, rtName, body) =>
         val paramsStr = params.map((n, t) => s"$n: ${generate(t)}").mkString(", ")
         val bodyStr = generate(body, indentLevel + 1, skipStartIndent = true)
-        s"${indent}def $name($paramsStr): ${generate(rtName)} = $bodyStr"
+        val rtStr = rtName.map(n => ": " + generate(n)).getOrElse("")
+        s"${indent}def $name($paramsStr)$rtStr = $bodyStr"
       case TCD.ADT(name, inherits, cs) =>
         val extendsStr = inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "")
         val caseIndent = s"$indent  "
@@ -88,7 +89,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         val unapplyMethod = TCD.Method(
           "unapply",
           params = Seq(param),
-          retTypeRef = TCTypeRef("Option", retTypeRef),
+          retTypeRef = retTypeRef.map(TCTypeRef("Option", _)),
           body = body(
             n => TCN.ADTConstructorCall(TCTypeRef("Some"), n),
             () => TCN.ADTConstructorCall(TCTypeRef("None"))

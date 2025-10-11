@@ -56,7 +56,7 @@ class RangeIRGenerator(
     TCD.Extractor(
       getExtractorName(range),
       param = (paramVar.name -> expClassParametrizedTypeRef),
-      retTypeRef = extractRangeTypeRef,
+      retTypeRef = Some(extraRangeTypeRef),
       body = (_, _) => extractRangeCode
     )
 
