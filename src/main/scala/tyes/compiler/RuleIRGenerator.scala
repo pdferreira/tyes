@@ -49,7 +49,39 @@ class RuleIRGenerator(
       }
       Term.Function(fnName, argsAsVariables*)
     case r: Term.Range =>
-      r.toConcrete(Term.Function(_, _*)).getOrElse(term)
+      r.toConcrete(Term.Function(_, _*)).getOrElse({
+        if !r.argTemplates.forall({
+          case Term.Variable(_) => true
+          case Term.Type(Type.Variable(_)) => true
+          case _ => false
+        }) then
+          throw new NotImplementedError(f"for $r")
+
+        val args = r.argTemplates
+          .map({
+            case v @ Term.Variable(name) => extractIndex(name) match {
+              case Some((name, idxStr)) if idxStr == r.cursor =>
+                Term.Variable(RangeIRGenerator.getCollectionVarName(name))
+              case _ => v
+            }
+            case t @ Term.Type(Type.Variable(name)) => extractIndex(name) match {
+              case Some((name, idxStr)) if idxStr == r.cursor =>
+                Term.Type(Type.Variable(RangeIRGenerator.getCollectionVarName(name)))
+              case _ => t
+            }
+            case t => throw new NotImplementedError(f"for $t")
+          })
+          .patch(from = r.holeArgIdx, other = r.holeSeed.toSeq, replaced = 0)
+        
+        val funTemplate = extractTemplate(Term.Function(r.function, args*)).asInstanceOf[Term.Function]
+        if r.holeSeed.isEmpty then
+          r.copy(argTemplates = funTemplate.args)
+        else
+          r.copy(
+            argTemplates = funTemplate.args.patch(from = r.holeArgIdx, Seq(), replaced = 1),
+            holeSeed = r.holeSeed.map(_ => funTemplate.args(r.holeArgIdx))
+          )
+      })
     case _ => term
   }
 

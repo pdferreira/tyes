@@ -25,11 +25,9 @@ class RangesTypeSystem extends TypeSystem[LExpression]:
       yield
         Type.$FunType(t1, t2)
 
-    case LPlusRange(es) => typecheck(es.tail.foldLeft(es.head)(LApp.apply), env)
+    case LPlusRange((es)) => typecheck(es.tail.foldLeft(es.head)(LApp.apply), env)
     case _ => TypeError.noTypeFor(exp)
   }
 
   object LPlusRange:
-    def unapply(exp: LExpression[Type]): Option[Seq[LExpression[Type]]] = exp.extractRangeL({
-      case LPlus(l, r) => (l, r)
-    })
+    def unapply(exp: LExpression[Type]) = exp.extractRangeLNoSeed[LPlus[Type]]

@@ -42,8 +42,7 @@ class TermIRGenerator(
       )
     case Term.Type(typ) => typeIRGenerator.generatePattern(typ)
     case r: Term.Range =>
-      val funTerm = r
-        .toConcrete(Term.Function(_, _*))
-        .getOrElse(rangeIRGenerator.generateUnboundPattern(r))
-      generatePattern(funTerm)
+      r.toConcrete(Term.Function(_, _*))
+        .map(generatePattern)
+        .getOrElse(rangeIRGenerator.generateUnboundPattern(r, generatePattern))
   }

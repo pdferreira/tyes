@@ -267,5 +267,5 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         .map(generate)
         .mkStringOrEmpty("(", ", ", ")")
     case TCP.Extract(extractorName, args*) =>
-      extractorName + args.map(generate).mkString("(", ", ", ")")
+      extractorName + args.map(generate).mkString("((", ", ", "))")
   }

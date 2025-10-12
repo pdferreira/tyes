@@ -1,12 +1,54 @@
 package tyes.runtime
 
 import scala.reflect.ClassTag
+import scala.compiletime.constValue
+import scala.compiletime.ops.int.-
 
 trait TypeSystem[E[_]]:
   type T <: Type
   def typecheck(exp: E[T], env: Environment[T]): Result[T]
 
   protected type Result[A <: T] = Either[String, A]
+
+  protected type ExtractRangeRes[TTuple <: NonEmptyTuple, HoleIdx <: Int] = Option[
+    Tuple.Concat[
+      Tuple.Map[Tuple.Take[TTuple, HoleIdx], Seq],
+      Tuple.Elem[TTuple, HoleIdx] *: Tuple.Map[Tuple.Tail[Tuple.Drop[TTuple, HoleIdx]], Seq],
+    ]
+  ]
+
+  private def extractRangeFromProduct[
+      TTuple <: NonEmptyTuple,
+    ](
+      exp: Any,
+      holeIdx: Int,
+      extractArgs: PartialFunction[Any, TTuple],
+    ): ExtractRangeRes[TTuple, holeIdx.type] = exp match {
+      case extractArgs(args) =>
+        extractRangeFromProduct(args(holeIdx), holeIdx, extractArgs) match {
+          case Some(tuple) =>
+            def prepend(t1: Tuple, t2: Tuple) = Tuple.fromArray(
+              t1.productIterator
+                .zip(t2.productIterator)
+                .map({ case (a, as) => a +: as.asInstanceOf[Seq[Any]] })
+                .toArray
+            )
+            Some(
+              prepend(args.take(holeIdx), tuple.take(holeIdx))
+                .asInstanceOf[Tuple.Map[Tuple.Take[TTuple, holeIdx.type], Seq]]
+              ++ tuple(holeIdx).asInstanceOf[Tuple.Elem[TTuple, holeIdx.type]]
+              *: prepend(args.drop(holeIdx).tail, tuple.drop(holeIdx).tail)
+                .asInstanceOf[Tuple.Map[Tuple.Tail[Tuple.Drop[TTuple, holeIdx.type]], Seq]]
+            )
+          case None => 
+            Some(
+              args.take(holeIdx).map([A] => a => Seq(a))
+              ++ args(holeIdx)
+              *: args.drop(holeIdx).tail.map([A] => a => Seq(a))
+            )
+        }
+      case _ => None
+    }
 
   protected def checkIf(cond: => Boolean, error: => Either[String, Unit]): Either[String, Unit] =
     if cond then
@@ -32,37 +74,60 @@ trait TypeSystem[E[_]]:
         .map(Right.apply)
         .getOrElse(TypeError.noTypeFor(exp))
 
-    protected def extractRangeL(extractArgs: PartialFunction[E[T], (E[T], E[T])]): Option[Seq[E[T]]] =
-      extractRangeNoSeed(0, { case extractArgs(args) => Seq(args(0), args(1)) })
+    protected inline def extractRangeLNoSeed[P <: Product & E[T]](using
+      m: deriving.Mirror.ProductOf[P] {
+        type MirroredElemTypes <: (?, ?)
+      },
+      ev1: ClassTag[P]
+    ) =
+      extractRangeFromProduct[m.MirroredElemTypes](
+        exp,
+        0,
+        { case p: P => Tuple.fromProductTyped(p) }
+      ).map {
+        case seed *: rs *: EmptyTuple => (seed +: rs.asInstanceOf[Seq[?]]).asInstanceOf[Seq[Tuple.Union[m.MirroredElemTypes]]]
+        case _ => ???
+      }
 
-    protected def extractRangeR(extractArgs: PartialFunction[E[T], (E[T], E[T])]): Option[Seq[E[T]]] =
-      extractRangeNoSeed(1, { case extractArgs(args) => Seq(args(0), args(1)) })
+    protected inline def extractRangeRNoSeed[P <: Product & E[T]](using
+      m: deriving.Mirror.ProductOf[P] {
+        type MirroredElemTypes <: (?, ?)
+      },
+      ev1: ClassTag[P]
+    ) =
+      extractRangeFromProduct[m.MirroredElemTypes](
+        exp,
+        1,
+        { case p: P => Tuple.fromProductTyped(p) }
+      ).map {
+        case ls *: seed *: EmptyTuple => (ls.asInstanceOf[Seq[?]] :+ seed).asInstanceOf[Seq[Tuple.Union[m.MirroredElemTypes]]]
+        case _ => ???
+      }
 
-    private def extractRangeNoSeed(
-      holeIdx: Int,
-      extractArgs: PartialFunction[E[T], Seq[E[T]]]
-    ): Option[Seq[E[T]]] = exp match {
-      case extractArgs(args) =>
-        args(holeIdx).extractRangeNoSeed(holeIdx, extractArgs) match {
-          case Some(as) => Some(args.patch(from = holeIdx, other = as, replaced = 1))
-          case None => Some(args)
-        }
-      case _ => None
-    }
+    protected inline def extractRangeL[P <: Product & E[T]](using
+      m: deriving.Mirror.ProductOf[P] {
+        type MirroredElemTypes <: NonEmptyTuple
+      },
+      ev1: ClassTag[P]
+    ) =
+      extractRangeFromProduct[m.MirroredElemTypes](
+        exp,
+        0,
+        { case p: P => Tuple.fromProductTyped(p) }
+      )
 
-    protected def extractRange(
-      holeIdx: Int,
-      extractArgs: PartialFunction[E[T], Seq[E[T]]],
-    ): Option[(Seq[E[T]], E[T])] = exp match {
-      case extractArgs(args) =>
-        args(holeIdx).extractRange(holeIdx, extractArgs) match {
-          case Some((as, seed)) =>
-            Some((args.patch(from = holeIdx, other = as, replaced = 1), seed))
-          case None => 
-            Some((args.patch(from = holeIdx, other = Seq(), replaced = 1), args(holeIdx)))
-        }
-      case _ => None
-    }
+    protected inline def extractRangeR[P <: Product & E[T]](using
+      m: deriving.Mirror.ProductOf[P] {
+        type MirroredElemTypes <: NonEmptyTuple
+      },
+      ev1: ClassTag[P]
+    ) =
+      val holeIdx = constValue[Tuple.Size[m.MirroredElemTypes] - 1]
+      extractRangeFromProduct[m.MirroredElemTypes](
+        exp,
+        holeIdx,
+        { case p: P => Tuple.fromProductTyped(p) }
+      )
 
   extension (resT: Result[T])
 
@@ -88,4 +153,3 @@ trait TypeSystem[E[_]]:
       yield
         acc :+ res
       }
-

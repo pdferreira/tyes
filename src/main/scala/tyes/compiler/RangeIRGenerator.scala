@@ -5,6 +5,7 @@ import tyes.compiler.target.TargetCodeNode
 import tyes.compiler.target.TargetCodeTypeRef
 import tyes.compiler.*
 import tyes.model.*
+import tyes.model.indexes.*
 import tyes.model.terms.TermOps
 import tyes.model.terms.TermRange
 import tyes.model.TyesLanguageExtensions.*
@@ -31,40 +32,31 @@ class RangeIRGenerator(
   def generateExtractor[TTerm](range: TermRange[TTerm]): TCD =
     val paramVar = TCN.Var("exp"): TCN.Var
     val matchVar = TCN.Var("e"): TCN.Var
-    val matchArgNames = Seq("l", "r")
-
-    def genExtractArgsCode(argsContainer: Seq[TCN] => TCN): TCN =
-      TCN.Lambda(matchVar.name, TCN.Match(
-        matchVar,
-        branches = Seq(
-          TCP.ADTConstructor(TCTypeRef(range.function), matchArgNames.map(TCP.Var(_))*) -> argsContainer(matchArgNames.map(TCN.Var(_)))
-        )
-      ))
-
     val argsSize = range.argTemplates.size + 1
     val genExtractRangeFn =
       if argsSize == 2 && range.holeArgIdx == 0 && range.holeSeed.isEmpty then
-        RuntimeAPIGenerator.genExtractRangeL
+        RuntimeAPIGenerator.genExtractRangeLNoSeed
       else if argsSize == 2 && range.holeArgIdx == 1 && range.holeSeed.isEmpty then
-        RuntimeAPIGenerator.genExtractRangeR
+        RuntimeAPIGenerator.genExtractRangeRNoSeed
       else if range.holeArgIdx > 0 && range.holeSeed.isDefined then
-        RuntimeAPIGenerator.genExtractRange(_, _, range.holeArgIdx, _)
+        RuntimeAPIGenerator.genExtractRangeR
       else
         throw new NotImplementedError(f"for ${range}")
 
-    val (extractRangeTypeRef, extractRangeCode) = genExtractRangeFn(paramVar, expClassParametrizedTypeRef, genExtractArgsCode)
+    val extractRangeCode = genExtractRangeFn(paramVar, TCTypeRef(range.function, typeIRGenerator.typeEnumTypeRef))
     TCD.Extractor(
       getExtractorName(range),
       param = (paramVar.name -> expClassParametrizedTypeRef),
-      retTypeRef = Some(extraRangeTypeRef),
+      retTypeRef = None,
       body = (_, _) => extractRangeCode
     )
 
-  def generateUnboundPattern(range: TermRange[Term]): Term =
-    val elemsVarName = getCollectionVarName(range).get
-    val elemsVar = Term.Variable(elemsVarName)
-    val args = Seq(elemsVar) ++ range.holeSeed.toSeq
-    Term.Function(getExtractorName(range), args*)
+  def generateUnboundPattern(range: TermRange[Term], generatePat: Term => TCP): TCP =
+    val args = range.argTemplates
+      .patch(from = range.holeArgIdx, other = range.holeSeed.toSeq, replaced = 0)
+      .map(generatePat)
+
+    TCP.Extract(getExtractorName(range), args*)
 
   def generateConstructor[TTerm <: TermOps[TTerm, Any]](range: TermRange[TTerm]): TCN =
     RuntimeAPIGenerator.genFoldLeft1(
