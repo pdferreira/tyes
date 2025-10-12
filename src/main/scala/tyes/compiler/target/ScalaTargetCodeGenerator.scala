@@ -106,12 +106,17 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     val extendsStr = tcADTCons.inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "")
     s"case ${tcADTCons.name}${paramsStr}${extendsStr}"
 
-  private def generate(tcTypeRef: TargetCodeTypeRef): String =
+  private def generate(tcTypeRef: TargetCodeTypeRef): String = generate(tcTypeRef, asType = true)
+
+  private def generate(tcTypeRef: TargetCodeTypeRef, asType: Boolean): String =
     if tcTypeRef.name.matches(raw"^Tuple\d*$$") then
-      return tcTypeRef.params.map(generate).mkString("(", ", ", ")")
+      if asType then
+        return tcTypeRef.params.map(generate(_, asType)).mkString("(", ", ", ")")
+      else
+        return ""
 
     val nameStr = (tcTypeRef.namespaces :+ tcTypeRef.name).mkString(".")
-    val paramsStr = tcTypeRef.params.map(generate).mkStringOrEmpty("[", ", ", "]")
+    val paramsStr = tcTypeRef.params.map(generate(_, asType)).mkStringOrEmpty("[", ", ", "]")
     nameStr + paramsStr
 
   def generate(tcNode: TargetCodeNode): String = generate(tcNode, indentLevel = 0)
@@ -226,7 +231,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         s"$matchedStr match $matchesStr"
       case TCN.Return(exp) => s"${startIndent}return ${generate(exp)}"
       case TCN.ADTConstructorCall(typeRef, args*) =>
-        val typeRefStr = generate(typeRef)
+        val typeRefStr = generate(typeRef, asType = false)
         val argsStr = args.map(generate).mkStringOrEmpty("(", ", ", ")")
         startIndent + typeRefStr + argsStr
       case TCN.Tuple(args*) =>
@@ -258,7 +263,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     case TCP.Var(name) => name
     case TCP.WithType(pat, typeRef) => s"${generate(pat)}: ${generate(typeRef)}"
     case TCP.ADTConstructor(typeRef, args*) =>
-      generate(typeRef) + args
+      generate(typeRef, asType = false) + args
         .map(generate)
         .mkStringOrEmpty("(", ", ", ")")
     case TCP.Extract(extractorName, args*) =>
