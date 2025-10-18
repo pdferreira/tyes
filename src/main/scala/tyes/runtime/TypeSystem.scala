@@ -23,32 +23,38 @@ trait TypeSystem[E[_]]:
       exp: Any,
       holeIdx: Int,
       extractArgs: PartialFunction[Any, TTuple],
-    ): ExtractRangeRes[TTuple, holeIdx.type] = exp match {
-      case extractArgs(args) =>
-        extractRangeFromProduct(args(holeIdx), holeIdx, extractArgs) match {
-          case Some(tuple) =>
-            def prepend(t1: Tuple, t2: Tuple) = Tuple.fromArray(
-              t1.productIterator
-                .zip(t2.productIterator)
-                .map({ case (a, as) => a +: as.asInstanceOf[Seq[Any]] })
-                .toArray
-            )
-            Some(
-              prepend(args.take(holeIdx), tuple.take(holeIdx))
-                .asInstanceOf[Tuple.Map[Tuple.Take[TTuple, holeIdx.type], Seq]]
-              ++ tuple(holeIdx).asInstanceOf[Tuple.Elem[TTuple, holeIdx.type]]
-              *: prepend(args.drop(holeIdx).tail, tuple.drop(holeIdx).tail)
-                .asInstanceOf[Tuple.Map[Tuple.Tail[Tuple.Drop[TTuple, holeIdx.type]], Seq]]
-            )
-          case None => 
-            Some(
-              args.take(holeIdx).map([A] => a => Seq(a))
-              ++ args(holeIdx)
-              *: args.drop(holeIdx).tail.map([A] => a => Seq(a))
-            )
-        }
-      case _ => None
-    }
+    ): ExtractRangeRes[TTuple, holeIdx.type] =
+      def xpend: ((Any, Any)) => Seq[Any] =
+        if holeIdx == 0 then { case (a, as) => as.asInstanceOf[Seq[Any]] :+ a }
+        else { case (a, as) => a +: as.asInstanceOf[Seq[Any]] }
+
+      def accumulate(tupleOfElems: Tuple, tupleOfSeqs: Tuple) = Tuple.fromArray(
+        tupleOfElems.productIterator
+          .zip(tupleOfSeqs.productIterator)
+          .map(xpend)
+          .toArray
+      )
+
+      exp match {
+        case extractArgs(args) =>
+          extractRangeFromProduct(args(holeIdx), holeIdx, extractArgs) match {
+            case Some(tuple) =>
+              Some(
+                accumulate(args.take(holeIdx), tuple.take(holeIdx))
+                  .asInstanceOf[Tuple.Map[Tuple.Take[TTuple, holeIdx.type], Seq]]
+                ++ tuple(holeIdx).asInstanceOf[Tuple.Elem[TTuple, holeIdx.type]]
+                *: accumulate(args.drop(holeIdx).tail, tuple.drop(holeIdx).tail)
+                  .asInstanceOf[Tuple.Map[Tuple.Tail[Tuple.Drop[TTuple, holeIdx.type]], Seq]]
+              )
+            case None => 
+              Some(
+                args.take(holeIdx).map([A] => a => Seq(a))
+                ++ args(holeIdx)
+                *: args.drop(holeIdx).tail.map([A] => a => Seq(a))
+              )
+          }
+        case _ => None
+      }
 
   protected def checkIf(cond: => Boolean, error: => Either[String, Unit]): Either[String, Unit] =
     if cond then
