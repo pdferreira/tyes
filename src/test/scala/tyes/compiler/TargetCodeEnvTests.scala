@@ -32,20 +32,20 @@ class TargetCodeEnvTests extends AnyFunSpec:
             assert(env(varA) == aCode)
           }
 
-          describe("if it is composed by a variable that has a plural mapping") {
+          describe("if it is composed by a variable that has a collection mapping") {
 
-            val varBs = Term.Variable(varB.name + "s")
-            val (_, bsCode) = env.requestIdentifier(varBs)
+            val colVar = Term.Variable("col")
+            val (_, colVarCode) = env.requestIdentifier(colVar, elementVar = Some(varB.name))
 
             it("and a numeric index") {
               val idx = 5
               val varB5 = Term.Variable(indexedVar(varB.name, idx.toString))
-              assert(env(varB5) == TCN.Index(bsCode, TCN.Integer(5)))
+              assert(env(varB5) == TCN.Index(colVarCode, TCN.Integer(5)))
             }
 
             it("and a variable index that has a mapping") {
               val varBA = Term.Variable(indexedVar(varB.name, varA.name))
-              assert(env(varBA) == TCN.Index(bsCode, aCode))
+              assert(env(varBA) == TCN.Index(colVarCode, aCode))
             }
           }
 
