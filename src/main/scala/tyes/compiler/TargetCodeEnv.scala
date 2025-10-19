@@ -1,5 +1,6 @@
 package tyes.compiler
 
+import scala.collection.mutable
 import tyes.model.*
 import tyes.model.indexes.*
 import tyes.model.terms.TermVariable
@@ -22,8 +23,9 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   import TargetCodeEnv.*
   private val TCN = TargetCodeNode
 
-  private val idToCode = scala.collection.mutable.Map[Id, TargetCodeNode]()
-  private val nameToIds = scala.collection.mutable.Map[String, Seq[Id]]()
+  private val idToCode = mutable.Map[Id, TargetCodeNode]()
+  private val nameToIds = mutable.Map[String, Seq[Id]]()
+  private val elemVarToCollectionId = mutable.Map[String, Id]()
   
   def this(parent: TargetCodeEnv) = this(Some(parent))
 
@@ -37,7 +39,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private def nameclash(name: String): Id =
     NameOperations.nameclash(name, allIds.map(_.asString)).toId
 
-  def requestIdentifier(termVar: TermVariable): (Id, TargetCodeNode.Var) =
+  def requestIdentifier(termVar: TermVariable, elementVar: Option[String] = None): (Id, TargetCodeNode.Var) =
     val id = nameclash(termVar.name)
     val idCode: TCN.Var = TCN.Var(id.toString)
     
@@ -46,6 +48,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
       case None => Seq(id)
       case Some(ids) => ids :+ id
     }
+    elementVar.foreach(n => elemVarToCollectionId(n) = id)
 
     (id, idCode)
 
@@ -58,7 +61,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
       // TODO: clean this up when indexed vars stop being done ad-hoc
       .orElse(for
           (rangedVarName, idxStr) <- extractIndex(termVar.name)
-          colCode <- get(RangeIRGenerator.getCollectionVarName(rangedVarName).toId)
+          colCode <- getCollectionCode(rangedVarName)
         yield TCN.Index(
           colCode,
           idxStr.toIntOption.map(TCN.Integer(_)).getOrElse(apply(idxStr.toId))
@@ -74,12 +77,23 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
 
   def contains(termVar: TermVariable): Boolean = getIds(termVar).isDefined
 
+  def containsCollection(elemVarName: String): Boolean =
+    getCollectionIdForElemVarName(elemVarName).isDefined
+
   def getIndexes(indexedName: String): Set[Int] =
     nameToIds.keys
       .map(extractIntIndex(_))
       .collect({ case Some((`indexedName`, idx)) => idx })
       .toSet
       .union(parent.map(_.getIndexes(indexedName)).getOrElse(Set()))
+
+  def getCollectionCode(elemVarName: String): Option[TargetCodeNode] =
+    getCollectionIdForElemVarName(elemVarName)
+      .flatMap(get)
+
+  private def getCollectionIdForElemVarName(elemVarName: String): Option[Id] =
+    elemVarToCollectionId.get(elemVarName)
+      .orElse(parent.flatMap(_.getCollectionIdForElemVarName(elemVarName)))
 
   override def toString(): String =
     val parentStr = parent.map(" <- " + _.toString).getOrElse("")

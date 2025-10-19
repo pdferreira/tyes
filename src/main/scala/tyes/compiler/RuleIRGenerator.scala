@@ -50,29 +50,7 @@ class RuleIRGenerator(
       Term.Function(fnName, argsAsVariables*)
     case r: Term.Range =>
       r.toConcrete(Term.Function(_, _*)).getOrElse({
-        if !r.argTemplates.forall({
-          case Term.Variable(_) => true
-          case Term.Type(Type.Variable(_)) => true
-          case _ => false
-        }) then
-          throw new NotImplementedError(f"for $r")
-
-        val args = r.argTemplates
-          .map({
-            case v @ Term.Variable(name) => extractIndex(name) match {
-              case Some((name, idxStr)) if idxStr == r.cursor =>
-                Term.Variable(RangeIRGenerator.getCollectionVarName(name))
-              case _ => v
-            }
-            case t @ Term.Type(Type.Variable(name)) => extractIndex(name) match {
-              case Some((name, idxStr)) if idxStr == r.cursor =>
-                Term.Type(Type.Variable(RangeIRGenerator.getCollectionVarName(name)))
-              case _ => t
-            }
-            case t => throw new NotImplementedError(f"for $t")
-          })
-          .patch(from = r.holeArgIdx, other = r.holeSeed.toSeq, replaced = 0)
-        
+        val args = r.argTemplates.patch(from = r.holeArgIdx, other = r.holeSeed.toSeq, replaced = 0)
         val funTemplate = extractTemplate(Term.Function(r.function, args*)).asInstanceOf[Term.Function]
         if r.holeSeed.isEmpty then
           r.copy(argTemplates = funTemplate.args)
@@ -199,7 +177,7 @@ class RuleIRGenerator(
       val declTerm = Term.Function(f.name, declTermArgs*): Term.Function
       
       res += IRCond.TypeDecl(
-        declPat = termIRGenerator.generatePattern(declTerm),
+        declPat = termIRGenerator.generatePattern(declTerm)._1,
         typExp = IRNode.Type(IRType.FromCode(TCN.Var(k)))
       )
 
@@ -218,13 +196,12 @@ class RuleIRGenerator(
       typeIRGenerator.generateDestructureDecl(pType, codeEnv, inductionCall)
     case JudgementRange(from, to) =>
       val (rangedVarName, fromIdx, toIdx) = extractRangeVariable(from, to)
-      val collectionVar = Term.Variable(rangedVarName + "s")
-      toIdx match {
-        case Index.Variable(toIdxVarName, min) if codeEnv.contains(collectionVar) =>
+      val colCodeOpt = codeEnv.getCollectionCode(rangedVarName)
+      (toIdx, colCodeOpt) match {
+        case (Index.Variable(toIdxVarName, min), Some(colCode)) =>
           val minIndex = (codeEnv.getIndexes(indexedVar(rangedVarName, fromIdx.toString)) + fromIdx).min
           assert(minIndex == fromIdx, "No support for ranges that only iterate part of the collection")
 
-          val collectionVarCode = codeEnv(collectionVar).asInstanceOf[TCN.Var]
           val fromConds = genPremiseConds(from.replaceIndex(fromIdx.toString, 0.toString), codeEnv)
           val Judgement(_, HasType(_, fromType)) = from: @unchecked
 
@@ -236,7 +213,7 @@ class RuleIRGenerator(
           val remainingCond = IRCond.TypeDecl(
             TCP.Any,
             IRNode.Range(
-              colVar = collectionVarCode.name,
+              colVar = colCode.asInstanceOf[TCN.Var].name,
               startIdx = 1,
               seed = typeIRGenerator.generate(fromType, codeEnv),
               cursor = cursorVar.name,

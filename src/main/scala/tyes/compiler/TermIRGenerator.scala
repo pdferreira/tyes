@@ -7,6 +7,7 @@ import tyes.model.Term
 import tyes.model.TyesLanguageExtensions.*
 import tyes.model.Type
 import tyes.model.terms.Index
+import tyes.model.terms.TermVariable
 
 class TermIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
@@ -30,19 +31,22 @@ class TermIRGenerator(
       }
   }
 
-  def generatePattern(term: Term): TargetCodePattern = term match {
-    case Term.Constant(value: Int) => TCP.Integer(value)
-    case Term.Constant(value: String) => TCP.Text(value)
+  /**
+  * Generates a code pattern for a term.
+  * 
+  * @return the pattern and a mapping from collection variables (e.g. `es`) to their element variables (e.g. `e`), if any 
+  */
+  def generatePattern(term: Term): (TargetCodePattern, Map[String, String]) = term match {
+    case Term.Constant(value: Int) => (TCP.Integer(value), Map())
+    case Term.Constant(value: String) => (TCP.Text(value), Map())
     case Term.Constant(_) => ???
-    case Term.Variable(name) => TCP.Var(name)
+    case Term.Variable(name) => (TCP.Var(name), Map())
     case Term.Function(name, args*) => 
-      TCP.ADTConstructor(
-        TCTypeRef(name),
-        args.map(generatePattern)*
-      )
-    case Term.Type(typ) => typeIRGenerator.generatePattern(typ)
+      val (argPats, colVars) = args.map(generatePattern).unzip
+      (TCP.ADTConstructor(TCTypeRef(name), argPats*), colVars.fold(Map())(_ ++ _))
+    case Term.Type(typ) => (typeIRGenerator.generatePattern(typ), Map())
     case r: Term.Range =>
       r.toConcrete(Term.Function(_, _*))
         .map(generatePattern)
-        .getOrElse(rangeIRGenerator.generateUnboundPattern(r, generatePattern))
+        .getOrElse(rangeIRGenerator.generateUnlimitedPattern(r, generatePattern))
   }
