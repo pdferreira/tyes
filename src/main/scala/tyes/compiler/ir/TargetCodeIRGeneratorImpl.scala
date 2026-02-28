@@ -37,7 +37,7 @@ class TargetCodeIRGeneratorImpl(
       )
       RuntimeAPIGenerator.genFoldRange(
         expCode = idxRangeNode,
-        initCode = TCN.ADTConstructorCall(TCTypeRef("Seq"), seed),
+        initCode = TCN.ADTConstructorCall(TCTypeRef("Seq"), seed.toSeq*),
         fCode = TCN.Lambda(cursor, generate(body, eitherIsExpected || canFail(body)))
       )
     

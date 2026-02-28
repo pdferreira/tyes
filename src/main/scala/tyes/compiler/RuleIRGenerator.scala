@@ -214,8 +214,8 @@ class RuleIRGenerator(
             TCP.Any,
             IRNode.Range(
               colVar = colCode.asInstanceOf[TCN.Var].name,
-              startIdx = 1,
-              seed = typeIRGenerator.generate(fromType, codeEnv),
+              startIdx = if elemType == fromType then 1 else 0,
+              seed = if elemType == fromType then Some(typeIRGenerator.generate(fromType, codeEnv)) else None,
               cursor = cursorVar.name,
               body = IRNode.And(
                 conds = genPremiseConds(elem, rangeCodeEnv),
@@ -223,7 +223,7 @@ class RuleIRGenerator(
               )
             )
           )
-          fromConds ++ Seq(remainingCond)
+          (if elemType == fromType then fromConds else Seq()) ++ Seq(remainingCond)
         
         case _ =>
           for

@@ -232,7 +232,11 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TCN.Return(exp) => s"${startIndent}return ${generate(exp)}"
       case TCN.ADTConstructorCall(typeRef, args*) =>
         val typeRefStr = generate(typeRef, asType = false)
-        val argsStr = args.map(generate).mkStringOrEmpty("(", ", ", ")")
+        val argsStr = 
+          if typeRef.name == "Seq" && args.isEmpty
+          then "()"
+          else args.map(generate).mkStringOrEmpty("(", ", ", ")")
+
         startIndent + typeRefStr + argsStr
       case TCN.Tuple(args*) =>
         assert(args.size >= 2, "Only tuples with 2+ components are supported")

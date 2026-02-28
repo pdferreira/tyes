@@ -12,7 +12,7 @@ enum IRNode:
   case Range(
     colVar: String,
     startIdx: Int,
-    seed: TargetCodeNode,
+    seed: Option[TargetCodeNode],
     cursor: String,
     body: IRNode
   )
