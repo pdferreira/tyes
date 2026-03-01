@@ -30,13 +30,13 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
       else
         TypeError.noTypeFor(exp)
 
-    case LLetRange((x, _, es, b)) => 
+    case LLetRange((x, _ts, es, b)) => 
       for
-        t <- typecheck(es(0), env)
         t2 <- typecheck(b, env)
-        _ <- (1 until es.size).foldRange(Seq(t))(i => typecheck(es(i), env).expecting(t))
+        ts <- (0 until _ts.size).foldRange(Seq())(i => checkTypeDeclared(_ts(i), exp))
+        _ <- (0 until es.size).foldRange(Seq())(i => typecheck(es(i), env).expecting(ts(i)))
       yield
-        Type.$FunType(t, t2)
+        Type.$FunType(ts(0), t2)
 
     case _ => TypeError.noTypeFor(exp)
   }

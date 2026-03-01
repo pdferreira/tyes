@@ -1,6 +1,8 @@
 package tyes.model
 
-enum Type extends terms.TermOps[Type, String](TypeBuilder):
+import tyes.model.ranges.*
+
+enum Type extends terms.TermOps[Type, String](TypeBuilder) with TypeVariableContainer:
   case Named(name: String)
   case Variable(name: String) extends Type, terms.TermVariable
   case Composite(name: String, args: Type*)
@@ -13,6 +15,13 @@ enum Type extends terms.TermOps[Type, String](TypeBuilder):
     maxIndex: terms.Index,
     holeSeed: Option[Type] = None
   ) extends Type, terms.TermRange[Type]
+
+  override def typeVariables: Set[Type.Variable] = this match {
+    case Type.Named(_) => Set.empty
+    case v: Type.Variable => Set(v)
+    case Type.Composite(_, args*) => args.flatMap(_.typeVariables).toSet
+    case r: Type.Range => getRangeElems(r, _.typeVariables).toSet
+  }
 
 private object TypeBuilder extends terms.TermBuilder[Type, String]:
 

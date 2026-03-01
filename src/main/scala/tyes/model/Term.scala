@@ -1,6 +1,9 @@
 package tyes.model
 
-enum Term extends terms.TermOps[Term, Any](TermBuilder):
+import tyes.model.Type
+import tyes.model.ranges.*
+
+enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContainer:
   case Constant[T](value: T)
   case Variable(name: String) extends Term, terms.TermVariable
   case Function(name: String, args: Term*)
@@ -64,6 +67,16 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
     }
 
   override def variables: Set[String] = ifType(_.variables).getOrElse { super.variables }
+
+  def types: Set[tyes.model.Type] = this match {
+    case Term.Constant(_) => Set()
+    case Term.Variable(_) => Set()
+    case Term.Function(_, args*) => args.flatMap(_.types).toSet
+    case Term.Type(t) => Set(t)
+    case r: Term.Range => getRangeElems(r, _.types).toSet
+  }
+
+  override def typeVariables: Iterable[tyes.model.Type.Variable] = types.flatMap(_.typeVariables)
 
   override def toString(): String = ifType(typ => s"T:$typ").getOrElse { super.toString }
 

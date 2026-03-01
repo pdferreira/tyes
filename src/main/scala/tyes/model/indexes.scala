@@ -5,10 +5,12 @@ object indexes:
   private val INDEX_SEP = "_"
 
   def extractIndex(rawVarName: String): Option[(String, String)] =
-    rawVarName.split(INDEX_SEP, 2) match {
-      case Array(varName, idxStr) => Some((varName, idxStr))
-      case _ => None
-    }
+    val sepIdx = rawVarName.lastIndexOf(INDEX_SEP)
+    if sepIdx < 0 then
+      None
+    else
+      val (sBefore, sAfter) = rawVarName.splitAt(sepIdx)
+      Some((sBefore, sAfter.drop(1)))
 
   def extractIntIndex(rawVarName: String): Option[(String, Int)] =
     extractIndex(rawVarName) match {

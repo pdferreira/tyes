@@ -137,10 +137,14 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
             case (Some(accSubst), (thisTemplate, otherTemplate)) =>
               thisTemplate.substitute(accSubst).matches(otherTemplate.replaceIndex(otherCursor, cursor))
                 .map(accSubst ++ _.map(_ -> _.replaceIndex(otherCursor, cursor)))
-          } 
-          // only valid if none of the ranged-over variables got a substitution, as
-          // those act more like constants from the range point of view 
-          if tSubst.keys.collect(extractIndex.unlift).forall(_._2 != cursor)
+          }
+          // only valid if each ranged-over variable that got a substitution maps
+          // to a term that is also ranged-over by the same cursor 
+          if tSubst.forall(kv => kv._1 match {
+            case extractIndex.unlift(_, idxStr) if idxStr == cursor =>
+              kv._2.variables.collect(extractIndex.unlift).exists(_._2 == cursor)
+            case _ => true
+          })
           mSubst <- maxIndex match {
             case Index.Variable(maxVar, min) => otherMaxIndex match {
               case Index.Variable(`maxVar`, `min`) => Some(Map())

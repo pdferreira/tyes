@@ -147,8 +147,6 @@ object TyesLanguageExtensions:
 
   extension (term: Term)
 
-    def typeVariables: Set[String] = types.flatMap(_.variables)
-
     def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
       case Term.Constant(_) => Set.empty
       case v: Term.Variable => Set(v)
@@ -157,14 +155,6 @@ object TyesLanguageExtensions:
       case r @ Term.Range(_, _, _, _, _, maxIndex, _) =>
         val indexVars = maxIndex.asVariable.map(v => Term.Variable(v.name): Term.Variable).toSet
         indexVars ++ getRangeElems(r, _.termVariables).toSet
-    }
-
-    def types: Set[Type] = term match {
-      case Term.Constant(_) => Set()
-      case Term.Variable(_) => Set()
-      case Term.Function(_, args*) => args.flatMap(_.types).toSet
-      case Term.Type(t) => Set(t)
-      case r: Term.Range => getRangeElems(r, _.types).toSet
     }
 
   extension (asrt: Assertion)
@@ -231,15 +221,6 @@ object TyesLanguageExtensions:
         j <- concl +: prems
         t <- j.types
       yield t).toSet
-  
-  extension (typ: Type)
-
-    def typeVariables: Iterable[Type.Variable] = typ match {
-      case Type.Named(_) => Set.empty
-      case v: Type.Variable => Set(v)
-      case Type.Composite(_, args*) => args.flatMap(_.typeVariables).toSet
-      case r: Type.Range => getRangeElems(r, _.typeVariables).toSet
-    }
 
   extension [TTerm <: TermOps[TTerm, TConstant], TConstant](range: TermRange[TTerm])
 
@@ -263,6 +244,17 @@ object TyesLanguageExtensions:
       for
         t <- range.argTemplates
         case extractIndex.unlift(name, idxStr) <- t.variables
+        if idxStr == range.cursor
+      yield
+        name
+    )
+
+  extension [TTerm <: TypeVariableContainer](range: TermRange[TTerm])
+
+    def iteratedTypeVariables: Set[String] = Set.from(
+      for
+        t <- range.argTemplates
+        case extractIndex.unlift(name, idxStr) <- t.typeVariables.map(_.name)
         if idxStr == range.cursor
       yield
         name

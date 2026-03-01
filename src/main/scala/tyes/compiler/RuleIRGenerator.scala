@@ -115,7 +115,13 @@ class RuleIRGenerator(
       .toMap
     
     val destructureConds = genDestructureConds(termSubst, codeEnv)
-    val typeConds = genConclusionTypeConds(constructor.types.toSeq, typeSubst, codeEnv)
+
+    val typeConds = constructor match {
+      case r: Term.Range =>
+        genRangeConclusionTypeConds(r, typeSubst, codeEnv)
+      case _ =>
+        genConclusionTypeConds(constructor.types.toSeq, typeSubst, codeEnv) 
+    }
     destructureConds ++ typeConds
 
   def genConclusionTypeConds(types: Seq[Type], typeSubst: Map[String, Type], codeEnv: TargetCodeEnv): Seq[IRCond] =
@@ -141,7 +147,55 @@ class RuleIRGenerator(
       }   
     yield
       c   
-  
+
+  def genRangeConclusionTypeConds(range: Term.Range, typeSubst: Map[String, Type], codeEnv: TargetCodeEnv): Seq[IRCond] =
+    for
+      rangedVarName <- range.iteratedTypeVariables.toSeq
+      colCode <- codeEnv.getCollectionCode(rangedVarName).toSeq
+    
+      c <- {
+        val rangeCodeEnv = new TargetCodeEnv(codeEnv)
+        val (_, cursorVar) = rangeCodeEnv.requestIdentifier(Term.Variable("i"))
+
+        val typOpt = typeSubst
+          .get(indexedVar(rangedVarName, range.cursor))
+          .map(targetT => {
+            if !targetT.isInstanceOf[Type.Variable] then
+              throw new NotImplementedError(s"Not implemented for ${targetT.getClass.getName}")
+            
+            targetT.replaceIndex(range.cursor, cursorVar.name)
+          })
+
+        val colCodeVar = colCode.asInstanceOf[TCN.Var]
+        
+        val innerTypExp = IRNode.Type(IRType.FromCode(
+          rangeCodeEnv(Type.Variable(indexedVar(rangedVarName, cursorVar.name))),
+          isOptional = true
+        ))
+        val typExp = IRNode.Range(
+          colVar = colCodeVar.name,
+          startIdx = 0,
+          seed = None,
+          cursor = cursorVar.name,
+          body = typOpt match {
+            case Some(typ) => IRNode.And(
+              conds = typeIRGenerator.generateDestructureDecl(typ, rangeCodeEnv, innerTypExp),
+              next = IRNode.Type(IRType.FromCode(typeIRGenerator.generate(typ, rangeCodeEnv)))
+            )
+            case None => innerTypExp
+          }
+        )
+        Seq(IRCond.TypeDecl(
+          declPat =
+            val permanentColVar = Type.Variable(typeIRGenerator.getPermanentTypeVarName(colCodeVar.name))
+            val permanentElemVarName = typeIRGenerator.getPermanentTypeVarName(rangedVarName)
+            val (_, permanentIdCode) = codeEnv.requestIdentifier(permanentColVar, elementVar = Some(permanentElemVarName))
+            TCP.Var(permanentIdCode.name),
+          typExp
+        ))
+      }
+    yield c
+
   def genRequiredConds(requirements: Seq[(String, Term)]): Seq[IRCond] =
     for (k, v) <- requirements
     if v.isGround || v.isInstanceOf[Term.Function]

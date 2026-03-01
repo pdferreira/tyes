@@ -11,8 +11,8 @@ typesystem SequenceV2
     and ...
     and e_n : t
 
-  rule infers let x = e_0 in ... in let x = e_n in b : t -> t2
-    if e_0 : t
+  rule infers let x: t_0 = e_0 in ... in let x : t_n = e_n in b : t_0 -> t2
+    if e_0 : t_0
     and ...
-    and e_n : t
+    and e_n : t_n
     and b : t2

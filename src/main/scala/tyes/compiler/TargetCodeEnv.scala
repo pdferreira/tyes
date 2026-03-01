@@ -75,7 +75,13 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private def getIds(termVar: TermVariable): Option[Seq[Id]] =
     nameToIds.get(termVar.name).orElse(parent.flatMap(_.getIds(termVar)))
 
-  def contains(termVar: TermVariable): Boolean = getIds(termVar).isDefined
+  def contains(termVar: TermVariable): Boolean =
+    if getIds(termVar).isDefined then
+      return true
+    else
+      extractIndex(termVar.name)
+        .map({ case (rangedVarName, _) => containsCollection(rangedVarName) })
+        .getOrElse(false)
 
   def containsCollection(elemVarName: String): Boolean =
     getCollectionIdForElemVarName(elemVarName).isDefined
