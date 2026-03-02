@@ -13,6 +13,7 @@ import tyes.compiler.target.TargetCodeTypeRef
 import tyes.compiler.target.TargetCodeUnit
 import tyes.compiler.Orderings.given
 import tyes.model.*
+import tyes.model.indexes.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
 
@@ -83,26 +84,35 @@ class TypeIRGenerator:
     if typ == Constants.Types.any then
       Constants.Types.any
     else
-      val prefix = typ match {
+      val varName = typ match {
         case Type.Variable(name) => name
-        case Type.Named(_) => "ct"
-        case Type.Composite(name, _*) => name.filter(_.isUpper).toLowerCase
+        case Type.Named(_) => "ct" + nonVarSuffix
+        case tc @ Type.Composite(name, _*) =>
+          val prefix = name.filter(_.isUpper).toLowerCase
+          val cursors = tc.variables
+            .collect(extractIndex.unlift)
+            .map(_._2)
+            .filter(_.toIntOption.isEmpty)
+            .toSet
+          assert(cursors.size <= 1, s"Assumption: at most single cursor used in all variables, found: ${cursors.mkString(", ")}")
+          if cursors.size == 1 then
+            indexedVar(prefix + nonVarSuffix, cursors.head)
+          else
+            prefix + nonVarSuffix
       }
-      val suffix = typ match {
-        case Type.Variable(_) => ""
-        case _ => nonVarSuffix
-      }
-      Type.Variable("_" + prefix + suffix)
+      Type.Variable("_" + varName)
 
   def getPermanentTypeVar(tempVar: Type.Variable): Type.Variable =
     if tempVar == Constants.Types.any then
       tempVar
     else
-      val name = tempVar.name
-      if name.startsWith("_") then
-        Type.Variable(name.substring(1))
-      else
-        tempVar
+      Type.Variable(getPermanentTypeVarName(tempVar.name))
+      
+  def getPermanentTypeVarName(name: String): String =
+    if name.startsWith("_") then
+      name.substring(1)
+    else
+      name
   
   private def genExpectationCheck(
     typ: Type,

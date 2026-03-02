@@ -1,12 +1,13 @@
 import tyes.runtime.*
 import example.*
 
-class PolymorphicSumV2TypeSystem extends TypeSystem[LExpression]:
+class RangesTypeSystem extends TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
     case One
     case Two
+    case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
 
   def typecheck(exp: LExpression[Type], env: Environment[Type]): Either[String, Type] = exp match {
     case LNumber(n) => 
@@ -17,13 +18,14 @@ class PolymorphicSumV2TypeSystem extends TypeSystem[LExpression]:
       else
         TypeError.noTypeFor(exp)
 
-    case LPlusRange((es)) => 
+    case LApp(e1, e2) => 
       for
-        t <- typecheck(es(0), env)
-        _ <- (1 until es.size).foldRange(Seq(t))(i => typecheck(es(i), env).expecting(t))
+        t1 <- typecheck(e1, env)
+        t2 <- typecheck(e2, env)
       yield
-        t
+        Type.$FunType(t1, t2)
 
+    case LPlusRange((es)) => typecheck(es.tail.foldLeft(es.head)(LApp.apply), env)
     case _ => TypeError.noTypeFor(exp)
   }
 

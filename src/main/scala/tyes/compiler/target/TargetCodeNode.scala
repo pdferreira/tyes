@@ -12,6 +12,7 @@ enum TargetCodeNode:
   case Unit
   case Var(name: String)
   case Field(obj: TargetCodeNode, field: String)
+  case Index(colExp: TargetCodeNode, idxExp: TargetCodeNode)
   case Not(exp: TargetCodeNode)
   case Equals(left: TargetCodeNode, right: TargetCodeNode)
   case NotEquals(left: TargetCodeNode, right: TargetCodeNode)
@@ -27,6 +28,7 @@ enum TargetCodeNode:
   case Match(matchedExp: TargetCodeNode, branches: Seq[(TargetCodePattern, TargetCodeNode)])
   case Return(exp: TargetCodeNode)
   case ADTConstructorCall(typeRef: TargetCodeTypeRef, args: TargetCodeNode*)
+  case Tuple(args: TargetCodeNode*)
 
 case class TargetCodeTypeRef private(
   val name: String, 
@@ -54,15 +56,22 @@ enum TargetCodePattern:
   case Var(name: String)
   case WithType(pat: TargetCodePattern, typeRef: TargetCodeTypeRef)
   case ADTConstructor(typeRef: TargetCodeTypeRef, args: TargetCodePattern*)
+  case Extract(extractorName: String, args: TargetCodePattern*)
 
 case class TargetCodeUnit(name: String, decls: Seq[TargetCodeDecl])
 
 enum TargetCodeDecl:
   case Type(alias: String, typeRef: TargetCodeTypeRef)
-  case Method(name: String, params: Seq[(String, TargetCodeTypeRef)], retTypeRef: TargetCodeTypeRef, body: TargetCodeNode)
+  case Method(name: String, params: Seq[(String, TargetCodeTypeRef)], retTypeRef: Option[TargetCodeTypeRef], body: TargetCodeNode)
   case Import(namespaces: Seq[String], all: scala.Boolean = false)
   case Class(name: String, inherits: Seq[TargetCodeTypeRef], decls: Seq[TargetCodeDecl])
   case ADT(name: String, inherits: Seq[TargetCodeTypeRef], constructors: Seq[TargetCodeADTConstructor])
+  case Extractor(
+    name: String,
+    param: (String, TargetCodeTypeRef),
+    retTypeRef: Option[TargetCodeTypeRef],
+    body: (success: TargetCodeNode => TargetCodeNode, failure: () => TargetCodeNode) => TargetCodeNode
+  )
 
 case class TargetCodeADTConstructor(
   name: String,

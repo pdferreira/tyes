@@ -8,6 +8,7 @@ trait TargetCodeIRGenerator:
 def canFail(irNode: IRNode): Boolean = irNode match {
   case IRNode.Unexpected => false
   case IRNode.Type(irTyp) => canFail(irTyp)
+  case IRNode.Range(_, _, _, _, body) => canFail(body)
   case IRNode.Error(_) => true
   case IRNode.And(conds, next) => conds.exists(c => canFail(c)) || canFail(next)
   case IRNode.Switch(branches, otherwise) => branches.exists((_, n) => canFail(n)) || canFail(otherwise)

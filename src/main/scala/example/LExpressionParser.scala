@@ -18,12 +18,12 @@ class LExpressionParser[TType] extends RegexParsers:
 
   def leaf = ("(" ~> expression <~ ")") | number | variable | list
 
-  def app = leaf ~ leaf.* ^^ {
-    case exp ~ rs => rs.foldLeft(exp) { (left, right) => LApp(left, right) }
+  def app = rep1sep(leaf, "") ^? {
+    case exp +: rs => rs.foldLeft(exp) { (left, right) => LApp(left, right) }
   }
 
-  def operator = app ~ ("+" ~> app).* ^^ { 
-    case exp ~ rs => rs.foldLeft(exp) { (left, right) => LPlus(left, right) }
+  def operator = rep1sep(app, "+") ^? { 
+    case exp +: rs => rs.foldLeft(exp) { (left, right) => LPlus(left, right) }
   }
 
   def tpe: Parser[TType] = failure("No parser for types defined")

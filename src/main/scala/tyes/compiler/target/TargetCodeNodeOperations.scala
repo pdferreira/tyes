@@ -56,6 +56,10 @@ object TargetCodeNodeOperations extends CodeOperations:
       args
         .map(boundNames)
         .foldLeft(Set())(_ ++ _)
+    case TCP.Extract(_, args*) =>
+      args
+        .map(boundNames)
+        .foldLeft(Set())(_ ++ _)
   }
   
   def applyUntil(tcNode: TargetCodeNode, pf: PartialFunction[TargetCodeNode, TargetCodeNode]): TargetCodeNode =
@@ -75,6 +79,7 @@ object TargetCodeNodeOperations extends CodeOperations:
       decls = clazz.decls.map(applyToChildren(_, f))
     )
     case method: TCD.Method => method.copy(body = f(method.body))
+    case extractor: TCD.Extractor => extractor.copy(body = (matchS, matchF) => f(extractor.body(matchS, matchF)))
     case _: TCD.Import 
       |  _: TCD.Type
       => tcDecl
@@ -95,6 +100,7 @@ object TargetCodeNodeOperations extends CodeOperations:
     case TCN.TypeCheck(e, tr) => TCN.TypeCheck(f(e), tr) 
     case TCN.Equals(l, r) => TCN.Equals(f(l), f(r)) 
     case TCN.Field(obj, field) => TCN.Field(f(obj), field)
+    case TCN.Index(c, i) => TCN.Index(f(c), f(i))
     case TCN.For(cs, body) => TCN.For(cs.map(applyToChildren(_, f)), f(body))
     case TCN.FormattedText(fs*) => TCN.FormattedText(fs.map({ 
       case n: TargetCodeNode => f(n)
@@ -111,6 +117,7 @@ object TargetCodeNodeOperations extends CodeOperations:
     case TCN.Throw(exc, err) => TCN.Throw(exc, f(err))
     case TCN.Try(t, exc, c) => TCN.Try(f(t), exc, f(c))
     case TCN.ADTConstructorCall(tr, args*) => TCN.ADTConstructorCall(tr, args.map(f)*)
+    case TCN.Tuple(args*) => TCN.Tuple(args.map(f)*)
   }
 
   def applyToChildren(tcCursor: TargetCodeForCursor, f: TargetCodeNode => TargetCodeNode): TargetCodeForCursor = tcCursor match {
@@ -126,6 +133,7 @@ object TargetCodeNodeOperations extends CodeOperations:
     case TCP.Var(_) => tcPat
     case TCP.ADTConstructor(typeRef, args*) => TCP.ADTConstructor(typeRef, args.map(f)*)
     case TCP.WithType(pat, typeRef) => TCP.WithType(f(pat), typeRef)
+    case TCP.Extract(extractorName, args*) => TCP.Extract(extractorName, args.map(f)*)
   }
 
   def replace(tcNode: TargetCodeNode, key: String, value: TargetCodeNode): TargetCodeNode = applyUntil(tcNode, {

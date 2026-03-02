@@ -4,7 +4,7 @@ typesystem PolymorphicSumV2
 
   rule Two infers 2 : two
 
-  rule Sum infers e_1 + e_2 : t
+  rule Sum infers e_1 + ... + e_n : t
     if  e_1 : t
     and ...
     and e_n : t

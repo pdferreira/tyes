@@ -24,8 +24,28 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       val indent = "  ".repeat(indentLevel)
       lines.map(_.prependedAll(indent)).mkString(wrapStart, "", wrapEnd)
 
+  private def needsParenthesis(codeStr: String): Boolean =
+    val firstNonSpaceIdx = codeStr.indexWhere(_ != ' ')
+    
+    // Is there any non-initial parenthesis?
+    val firstInnerSpaceIdx = codeStr.indexOf(' ', firstNonSpaceIdx)
+    if firstInnerSpaceIdx < 0 then
+      return false
+
+    // Is there any space before the first open parenthesis?
+    val firstOpenParenIdx = codeStr.indexOf('(')
+    if firstOpenParenIdx < 0 || firstInnerSpaceIdx < firstOpenParenIdx then
+      return true
+
+    // Is there any space after the last open parenthesis
+    val lastCloseParenIdx = codeStr.lastIndexOf(')')
+    if lastCloseParenIdx >= 0 && codeStr.indexOf(' ', lastCloseParenIdx) >= 0 then
+      return true
+
+    return false
+
   private def parenthesizeIfSpaced(codeStr: String): String =
-    if codeStr.contains(' ') then
+    if needsParenthesis(codeStr) then
       s"($codeStr)"
     else
       codeStr
@@ -57,13 +77,26 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
         s"${indent}class ${name}${extendsStr}:\r\n${declsStr}"
       case TCD.Method(name, params, rtName, body) =>
         val paramsStr = params.map((n, t) => s"$n: ${generate(t)}").mkString(", ")
-        val bodyStr = generate(body, indentLevel, skipStartIndent = true)
-        s"${indent}def $name($paramsStr): ${generate(rtName)} = $bodyStr"
+        val bodyStr = generate(body, indentLevel + 1, skipStartIndent = true)
+        val rtStr = rtName.map(n => ": " + generate(n)).getOrElse("")
+        s"${indent}def $name($paramsStr)$rtStr = $bodyStr"
       case TCD.ADT(name, inherits, cs) =>
         val extendsStr = inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "")
         val caseIndent = s"$indent  "
         val casesStr = caseIndent + cs.map(generate).mkString(s"\r\n${caseIndent}")
         s"${indent}enum ${name}${extendsStr}:\r\n${casesStr}"
+      case TCD.Extractor(name, param, retTypeRef, body) =>
+        val unapplyMethod = TCD.Method(
+          "unapply",
+          params = Seq(param),
+          retTypeRef = retTypeRef.map(TCTypeRef("Option", _)),
+          body = body(
+            n => TCN.ADTConstructorCall(TCTypeRef("Some"), n),
+            () => TCN.ADTConstructorCall(TCTypeRef("None"))
+          )
+        )
+        val unapplyStr = generate(unapplyMethod, indentLevel + 1)
+        s"${indent}object ${name}:\r\n${unapplyStr}"
     }
 
   private def generate(tcADTCons: TargetCodeADTConstructor): String =
@@ -73,9 +106,17 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     val extendsStr = tcADTCons.inherits.map(generate).mkStringOrEmpty(" extends ", ", ", "")
     s"case ${tcADTCons.name}${paramsStr}${extendsStr}"
 
-  private def generate(tcTypeRef: TargetCodeTypeRef): String =
+  private def generate(tcTypeRef: TargetCodeTypeRef): String = generate(tcTypeRef, asType = true)
+
+  private def generate(tcTypeRef: TargetCodeTypeRef, asType: Boolean): String =
+    if tcTypeRef.name.matches(raw"^Tuple\d*$$") then
+      if asType then
+        return tcTypeRef.params.map(generate(_, asType)).mkString("(", ", ", ")")
+      else
+        return ""
+
     val nameStr = (tcTypeRef.namespaces :+ tcTypeRef.name).mkString(".")
-    val paramsStr = tcTypeRef.params.map(generate).mkStringOrEmpty("[", ", ", "]")
+    val paramsStr = tcTypeRef.params.map(generate(_, asType)).mkStringOrEmpty("[", ", ", "]")
     nameStr + paramsStr
 
   def generate(tcNode: TargetCodeNode): String = generate(tcNode, indentLevel = 0)
@@ -165,12 +206,16 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       case TCN.Field(obj, field) =>
         val objStr = generate(obj, indentLevel, skipStartIndent)
         if objStr.linesIterator.length <= 1 then
-          s"$objStr.$field"
+          s"${parenthesizeIfSpaced(objStr)}.$field"
         else
           val wrapperIndent = if skipStartIndent then indent else ""
           val wrappers = (s"(\r\n$wrapperIndent", s"\r\n$wrapperIndent)")
           val multiLineObjStr = indentIfMultiline(objStr, 1, wrappers)
           s"${startIndent}$multiLineObjStr.$field"
+      case TCN.Index(colExp, idxExp) =>
+        val colStr = generate(colExp, indentLevel, skipStartIndent)
+        val idxStr = generate(idxExp)
+        s"${startIndent}$colStr($idxStr)"
       case TCN.Match(matchedExp, branches) =>
         val matchedStr = generate(matchedExp, indentLevel, skipStartIndent)
         val matchesStr = 
@@ -178,17 +223,24 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
             for case (patExp, thenExp) <- branches
             yield
               val patStr = generate(patExp)
-              val thenStr = indentIfMultiline(generate(thenExp), indentLevel + 2)
-              s"${indent}  case $patStr => $thenStr"
+              val thenStr = indentIfMultiline(generate(thenExp), indentLevel + 1)
+              s"${indent}case $patStr => $thenStr"
           )
-          .mkString("{\r\n", "\r\n", s"\r\n$indent}")
+          .mkString("{\r\n", "\r\n", s"\r\n${indent.substring(2)}}")
 
         s"$matchedStr match $matchesStr"
       case TCN.Return(exp) => s"${startIndent}return ${generate(exp)}"
       case TCN.ADTConstructorCall(typeRef, args*) =>
-        val typeRefStr = generate(typeRef)
-        val argsStr = args.map(generate).mkStringOrEmpty("(", ", ", ")")
+        val typeRefStr = generate(typeRef, asType = false)
+        val argsStr = 
+          if typeRef.name == "Seq" && args.isEmpty
+          then "()"
+          else args.map(generate).mkStringOrEmpty("(", ", ", ")")
+
         startIndent + typeRefStr + argsStr
+      case TCN.Tuple(args*) =>
+        assert(args.size >= 2, "Only tuples with 2+ components are supported")
+        startIndent + args.map(generate).mkString("(", ", ", ")")
     }
 
   def generate(tcCursor: TargetCodeForCursor, indentLevel: Int): String = 
@@ -215,7 +267,9 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
     case TCP.Var(name) => name
     case TCP.WithType(pat, typeRef) => s"${generate(pat)}: ${generate(typeRef)}"
     case TCP.ADTConstructor(typeRef, args*) =>
-      generate(typeRef) + args
+      generate(typeRef, asType = false) + args
         .map(generate)
         .mkStringOrEmpty("(", ", ", ")")
+    case TCP.Extract(extractorName, args*) =>
+      extractorName + args.map(generate).mkString("((", ", ", "))")
   }

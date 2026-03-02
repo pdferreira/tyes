@@ -13,3 +13,23 @@ trait TermBuilder[TTerm, TConstant]:
   def applyFunction(name: String, args: TTerm*): TTerm
   
   def unapplyFunction(term: TTerm): Option[(String, Seq[TTerm])]
+
+  def applyRange(
+    function: String,
+    cursor: String,
+    holeArgIdx: Int,
+    argTemplates: Seq[TTerm],
+    minIndex: Int,
+    maxIndex: Index,
+    holeSeed: Option[TTerm] = None,
+  ): TTerm & TermRange[TTerm]
+
+  def unapplyRange(term: TTerm): Option[(
+    String,
+    String,
+    Int,
+    Seq[TTerm],
+    Int,
+    Index,
+    Option[TTerm]
+  )]

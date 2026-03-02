@@ -1,6 +1,8 @@
 package tyes.model
 
 import tyes.model.indexes.*
+import tyes.model.ranges.*
+import tyes.model.terms.*
 
 object TyesLanguageExtensions:
   
@@ -145,20 +147,14 @@ object TyesLanguageExtensions:
 
   extension (term: Term)
 
-    def typeVariables: Set[String] = types.flatMap(_.variables)
-
     def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
       case Term.Constant(_) => Set.empty
       case v: Term.Variable => Set(v)
       case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
       case Term.Type(typ) => typ.typeVariables
-    }
-
-    def types: Set[Type] = term match {
-      case Term.Constant(_) => Set()
-      case Term.Variable(_) => Set()
-      case Term.Function(_, args*) => args.flatMap(_.types).toSet
-      case Term.Type(t) => Set(t)
+      case r @ Term.Range(_, _, _, _, _, maxIndex, _) =>
+        val indexVars = maxIndex.asVariable.map(v => Term.Variable(v.name): Term.Variable).toSet
+        indexVars ++ getRangeElems(r, _.termVariables).toSet
     }
 
   extension (asrt: Assertion)
@@ -225,11 +221,41 @@ object TyesLanguageExtensions:
         j <- concl +: prems
         t <- j.types
       yield t).toSet
-  
-  extension (typ: Type)
 
-    def typeVariables: Iterable[Type.Variable] = typ match {
-      case Type.Named(_) => Set.empty
-      case v: Type.Variable => Set(v)
-      case Type.Composite(_, args*) => args.flatMap(_.typeVariables).toSet
+  extension [TTerm <: TermOps[TTerm, TConstant], TConstant](range: TermRange[TTerm])
+
+    def toConcrete(createFunction: (String, Seq[TTerm]) => TTerm): Option[TTerm] = range.maxIndex match {
+      case Index.Number(maxIndex) if range.minIndex < maxIndex =>
+        val concreteArgs = (range.minIndex to maxIndex).map(i => range.argTemplates.map(t => t.replaceIndex(range.cursor, i.toString))): Seq[Seq[TTerm]]
+        assert(range.argTemplates.size == 1 || range.holeSeed.isDefined) // Invariant guaranteed by TermRange
+        val (remainingArgs, seed) = range.holeSeed match {
+          case Some(s) => (concreteArgs, s)
+          case None => (concreteArgs.tail, concreteArgs.head.head)
+        }
+        val funTerm = remainingArgs.foldLeft(seed) { (holeElem, rArgs) => {
+          val args = rArgs.patch(from = range.holeArgIdx, Seq(holeElem), replaced = 0)
+          createFunction(range.function, args)
+        } }
+        Some(funTerm)
+      case _ => None
     }
+
+    def iteratedVariables: Set[String] = Set.from(
+      for
+        t <- range.argTemplates
+        case extractIndex.unlift(name, idxStr) <- t.variables
+        if idxStr == range.cursor
+      yield
+        name
+    )
+
+  extension [TTerm <: TypeVariableContainer](range: TermRange[TTerm])
+
+    def iteratedTypeVariables: Set[String] = Set.from(
+      for
+        t <- range.argTemplates
+        case extractIndex.unlift(name, idxStr) <- t.typeVariables.map(_.name)
+        if idxStr == range.cursor
+      yield
+        name
+    )

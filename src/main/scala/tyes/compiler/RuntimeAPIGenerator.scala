@@ -46,3 +46,26 @@ object RuntimeAPIGenerator:
 
   def genEnvironmentGet(envVarCode: TCN, keyCode: TCN): TCN =
     TCN.Apply(TCN.Field(envVarCode, "get"), keyCode)
+
+  type GenExtractArgsCodeFn = (argsContainer: Seq[TCN] => TCN) => TCN
+
+  def genExtractRangeLNoSeed(expCode: TCN, typeRef: TCTypeRef): TCN =
+    TCN.TypeApply(TCN.Field(expCode, "extractRangeLNoSeed"), typeRef)
+    
+  def genExtractRangeRNoSeed(expCode: TCN, typeRef: TCTypeRef): TCN =
+    TCN.TypeApply(TCN.Field(expCode, "extractRangeRNoSeed"), typeRef)
+
+  def genExtractRangeR(expCode: TCN, typeRef: TCTypeRef): TCN =
+    TCN.TypeApply(TCN.Field(expCode, "extractRangeR"), typeRef)
+    
+  def genFoldRange(expCode: TCN, initCode: TCN, fCode: TCN): TCN =
+    TCN.Apply(TCN.Apply(TCN.Field(expCode, "foldRange"), initCode), fCode)
+
+  def genFoldLeft1(colCode: TCN, funCode: TCN): TCN =
+    TCN.Apply(
+      TCN.Apply(
+        TCN.Field(TCN.Field(colCode, "tail"), "foldLeft"),
+        TCN.Field(colCode, "head"),
+      ),
+      funCode
+    )

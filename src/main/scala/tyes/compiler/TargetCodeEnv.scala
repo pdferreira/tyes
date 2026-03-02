@@ -1,5 +1,6 @@
 package tyes.compiler
 
+import scala.collection.mutable
 import tyes.model.*
 import tyes.model.indexes.*
 import tyes.model.terms.TermVariable
@@ -22,8 +23,9 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   import TargetCodeEnv.*
   private val TCN = TargetCodeNode
 
-  private val idToCode = scala.collection.mutable.Map[Id, TargetCodeNode]()
-  private val nameToIds = scala.collection.mutable.Map[String, Seq[Id]]()
+  private val idToCode = mutable.Map[Id, TargetCodeNode]()
+  private val nameToIds = mutable.Map[String, Seq[Id]]()
+  private val elemVarToCollectionId = mutable.Map[String, Id]()
   
   def this(parent: TargetCodeEnv) = this(Some(parent))
 
@@ -37,7 +39,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private def nameclash(name: String): Id =
     NameOperations.nameclash(name, allIds.map(_.asString)).toId
 
-  def requestIdentifier(termVar: TermVariable): (Id, TargetCodeNode.Var) =
+  def requestIdentifier(termVar: TermVariable, elementVar: Option[String] = None): (Id, TargetCodeNode.Var) =
     val id = nameclash(termVar.name)
     val idCode: TCN.Var = TCN.Var(id.toString)
     
@@ -46,6 +48,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
       case None => Seq(id)
       case Some(ids) => ids :+ id
     }
+    elementVar.foreach(n => elemVarToCollectionId(n) = id)
 
     (id, idCode)
 
@@ -53,8 +56,18 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
     get(id).getOrElse(throw new NoSuchElementException(id.asString))
 
   def apply(termVar: TermVariable): TargetCodeNode =
-    val ids = getIds(termVar).getOrElse(throw new NoSuchElementException(termVar.toString))
-    apply(ids.head)
+    getIds(termVar)
+      .map(ids => apply(ids.head))
+      // TODO: clean this up when indexed vars stop being done ad-hoc
+      .orElse(for
+          (rangedVarName, idxStr) <- extractIndex(termVar.name)
+          colCode <- getCollectionCode(rangedVarName)
+        yield TCN.Index(
+          colCode,
+          idxStr.toIntOption.map(TCN.Integer(_)).getOrElse(apply(idxStr.toId))
+        )
+      )
+      .getOrElse(throw new NoSuchElementException(termVar.toString))
 
   private def get(id: Id): Option[TargetCodeNode] =
     idToCode.get(id).orElse(parent.flatMap(_.get(id)))
@@ -62,7 +75,16 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private def getIds(termVar: TermVariable): Option[Seq[Id]] =
     nameToIds.get(termVar.name).orElse(parent.flatMap(_.getIds(termVar)))
 
-  def contains(termVar: TermVariable): Boolean = getIds(termVar).isDefined
+  def contains(termVar: TermVariable): Boolean =
+    if getIds(termVar).isDefined then
+      return true
+    else
+      extractIndex(termVar.name)
+        .map({ case (rangedVarName, _) => containsCollection(rangedVarName) })
+        .getOrElse(false)
+
+  def containsCollection(elemVarName: String): Boolean =
+    getCollectionIdForElemVarName(elemVarName).isDefined
 
   def getIndexes(indexedName: String): Set[Int] =
     nameToIds.keys
@@ -70,6 +92,14 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
       .collect({ case Some((`indexedName`, idx)) => idx })
       .toSet
       .union(parent.map(_.getIndexes(indexedName)).getOrElse(Set()))
+
+  def getCollectionCode(elemVarName: String): Option[TargetCodeNode] =
+    getCollectionIdForElemVarName(elemVarName)
+      .flatMap(get)
+
+  private def getCollectionIdForElemVarName(elemVarName: String): Option[Id] =
+    elemVarToCollectionId.get(elemVarName)
+      .orElse(parent.flatMap(_.getCollectionIdForElemVarName(elemVarName)))
 
   override def toString(): String =
     val parentStr = parent.map(" <- " + _.toString).getOrElse("")

@@ -1,10 +1,22 @@
 package tyes.model
 
-enum Term extends terms.TermOps[Term, Any](TermBuilder):
+import tyes.model.Type
+import tyes.model.ranges.*
+
+enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContainer:
   case Constant[T](value: T)
   case Variable(name: String) extends Term, terms.TermVariable
   case Function(name: String, args: Term*)
   case Type(typ: tyes.model.Type)
+  case Range(
+    function: String,
+    cursor: String,
+    holeArgIdx: Int,
+    argTemplates: Seq[Term],
+    minIndex: Int,
+    maxIndex: terms.Index,
+    holeSeed: Option[Term] = None,
+  ) extends Term, terms.TermRange[Term]
 
   private def ifBothTypes[B](otherTerm: Term)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
     case (Term.Type(thisType), Term.Type(otherType)) => Some(fn(thisType, otherType))
@@ -47,7 +59,24 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder):
       super.unifies(otherTerm) 
     }
 
+  override def replaceIndex(oldIdxStr: String, newIdxStr: String): Term = 
+    ifType { typ =>
+      Term.Type(typ.replaceIndex(oldIdxStr, newIdxStr))
+    } getOrElse {
+      super.replaceIndex(oldIdxStr, newIdxStr)
+    }
+
   override def variables: Set[String] = ifType(_.variables).getOrElse { super.variables }
+
+  def types: Set[tyes.model.Type] = this match {
+    case Term.Constant(_) => Set()
+    case Term.Variable(_) => Set()
+    case Term.Function(_, args*) => args.flatMap(_.types).toSet
+    case Term.Type(t) => Set(t)
+    case r: Term.Range => getRangeElems(r, _.types).toSet
+  }
+
+  override def typeVariables: Iterable[tyes.model.Type.Variable] = types.flatMap(_.typeVariables)
 
   override def toString(): String = ifType(typ => s"T:$typ").getOrElse { super.toString }
 
@@ -71,5 +100,30 @@ private object TermBuilder extends terms.TermBuilder[Term, Any]:
   
   override def unapplyFunction(term: Term): Option[(String, Seq[Term])] = term match {
     case Term.Function(name, args*) => Some((name, args))
+    case _ => None
+  }
+
+  override def applyRange(
+    function: String,
+    cursor: String,
+    holeArgIdx: Int,
+    argTemplates: Seq[Term],
+    minIndex: Int,
+    maxIndex: terms.Index,
+    holeSeed: Option[Term] = None
+  ): Term & terms.TermRange[Term] =
+    Term.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeSeed)
+
+  override def unapplyRange(term: Term): Option[(
+    String,
+    String,
+    Int,
+    Seq[Term],
+    Int,
+    terms.Index,
+    Option[Term]
+  )] = term match {
+    case Term.Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeSeed) =>
+      Some((function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeSeed))
     case _ => None
   }

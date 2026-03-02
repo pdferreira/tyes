@@ -19,6 +19,9 @@ object IRNodeVisitor:
     case IRNode.Unexpected => irNode
     case IRNode.Error(_) => irNode
     case IRNode.Type(irType) => irNode
+
+    case IRNode.Range(colVar, start, seed, cursor, body) =>
+      IRNode.Range(colVar, start, seed, cursor, f(body))
     
     case IRNode.And(c +: cs, next) =>
       val newC = applyToChildren(c, f)
