@@ -4,9 +4,9 @@ typesystem SequenceV2
   
   rule infers 2 : two
 
-  rule infers [] : zero
+  rule infers [] : list
 
-  rule infers [ e_1, ..., e_n ] : t -> t
+  rule infers [ e_1, ..., e_n ] : list
     if e_1 : t
     and ...
     and e_n : t

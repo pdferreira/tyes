@@ -5,13 +5,13 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
+    case List
     case One
     case Two
-    case Zero
     case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
 
   def typecheck(exp: LExpression[Type], env: Environment[Type]): Either[String, Type] = exp match {
-    case LNil => Right(Type.Zero)
+    case LNil => Right(Type.List)
     case LNumber(n) => 
       if n == 1 then
         Right(Type.One)
@@ -26,7 +26,7 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
           t <- typecheck(es(0), env)
           _ <- (1 until es.size).foldRange(Seq(t))(i => typecheck(es(i), env).expecting(t))
         yield
-          Type.$FunType(t, t)
+          Type.List
       else
         TypeError.noTypeFor(exp)
 
