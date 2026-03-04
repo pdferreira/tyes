@@ -9,3 +9,5 @@ case class LFun[TType](argName: String, argType: Option[TType], bodyExp: LExpres
 case class LApp[TType](funExp: LExpression[TType], argExp: LExpression[TType]) extends LExpression[TType]
 case object LNil extends LExpression[Nothing]
 case class LList[TType](head: LExpression[TType], tail: LExpression[TType]) extends LExpression[TType]
+case object LEmptyRecord extends LExpression[Nothing]
+case class LRecord[TType](label: String, exp: LExpression[TType], rest: LExpression[TType]) extends LExpression[TType]

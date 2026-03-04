@@ -32,11 +32,21 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
     ("|" ~> metaVariable).? ^^ { tail => tail.getOrElse(Term.Function("LNil")) } 
   } <~ "]"
   
+  def record = "{" ~> bindings.repXopR(
+    ident ~ ("=" ~> expression) ^^ { case label ~ exp => Seq(label, exp) },
+    ",",
+    "LRecord",
+    atLeastOne = false
+  ) {
+    ("|" ~> metaVariable).? ^^ { rest => rest.getOrElse(Term.Function("LEmptyRecord")) }
+  } <~ "}"
+
   def leaf = 
     ("(" ~> expression <~ ")") 
     | number 
     | variable
     | list
+    | record
 
   def app = bindings.rep1opL(leaf, "", "LApp")
 

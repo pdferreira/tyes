@@ -16,7 +16,11 @@ class LExpressionParser[TType] extends RegexParsers:
     elems => elems.foldRight(LNil: LExpression[TType]) { (e, l) => LList(e, l) }
   }
 
-  def leaf = ("(" ~> expression <~ ")") | number | variable | list
+  def record = "{" ~> repsep(ident ~ ("=" ~> expression), ",") <~ "}" ^^ {
+    elems => elems.foldRight(LEmptyRecord: LExpression[TType]) { case (label ~ exp, r) => LRecord(label, exp, r) }
+  }
+
+  def leaf = ("(" ~> expression <~ ")") | number | variable | list | record
 
   def app = rep1sep(leaf, "") ^? {
     case exp +: rs => rs.foldLeft(exp) { (left, right) => LApp(left, right) }

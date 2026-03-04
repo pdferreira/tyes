@@ -29,4 +29,12 @@ object LExpressionExtensions:
         case LApp(funExp, argExp) => Term.Function("LApp", funExp.convert, argExp.convert)
         case LNil => Term.Function("LNil")
         case LList(head, tail) => Term.Function("LList", head.convert, tail.convert)
+        case LEmptyRecord => Term.Function("LEmptyRecord")
+        case LRecord(label, exp, rest) =>
+          Term.Function(
+            "LRecord",
+            Term.Constant(label),
+            exp.convert,
+            rest.convert
+          )
     }

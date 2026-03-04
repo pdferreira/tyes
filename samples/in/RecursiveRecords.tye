@@ -1,0 +1,7 @@
+typesystem RecursiveRecords
+
+  rule infers { } : rec
+
+  rule infers { l = e | r } : rec
+    if e : t
+    and r : rec
