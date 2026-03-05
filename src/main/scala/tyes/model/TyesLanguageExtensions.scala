@@ -5,7 +5,12 @@ import tyes.model.ranges.*
 import tyes.model.terms.*
 
 object TyesLanguageExtensions:
-  
+
+  type PremiseMatch[P <: Premise] <: Premise = P match {
+    case Judgement => Judgement
+    case JudgementRange => JudgementRange
+  }
+
   extension (metaBinding: Binding)
 
     def matches(entry: (String, Type)): Option[(Map[String, String], Map[String, Type])] = 
@@ -51,6 +56,14 @@ object TyesLanguageExtensions:
     typeVarSubst: Map[String, Type] = Map(),
     envVarSubst: Map[String, Either[String, Map[String, Type]]] = Map()
   )
+
+  object EnvironmentMatch:
+
+    def fromTermSubst(termSubst: Map[String, Term]): EnvironmentMatch =
+      // TODO: review assumption that only string constants that are directly unified are variables
+      val termVarSubst = termSubst.collect { case (k, Term.Constant(varName: String)) => k -> varName }
+      val typeVarSubst = termSubst.collect { case (k, Term.Type(t)) => k -> t }  
+      EnvironmentMatch(termVarSubst, typeVarSubst)
 
   extension (envPart: EnvironmentPart)
 
@@ -169,6 +182,20 @@ object TyesLanguageExtensions:
       case HasType(term, typ) => typ
     })
 
+    def substitute(subst: Map[String, Term]) = asrt match {
+      case HasType(term, typ) => HasType(
+        term.substitute(subst),
+        typ.substitute(subst.collect({ case (k, Term.Type(t)) => k -> t }))
+      )
+    }
+
+  extension (judg: Judgement)
+
+    def substitute(subst: Map[String, Term]): Judgement = Judgement(
+      env = judg.env.substitute(EnvironmentMatch.fromTermSubst(subst)),
+      assertion = judg.assertion.substitute(subst)
+    )
+
   extension (prem: Premise)
 
     private def combineWithoutWildcard(fromVars: Set[String], toVars: Set[String]): Set[String] = {
@@ -205,6 +232,14 @@ object TyesLanguageExtensions:
       case JudgementRange(from, to) => from.types ++ to.types
     }
 
+    def substitute(subst: Map[String, Term]): Premise = prem match {
+      case j: Judgement => j.substitute(subst)
+      case jr: JudgementRange => jr.copy(
+        from = jr.from.substitute(subst),
+        to = jr.to.substitute(subst)
+      )
+    }
+
   extension (ruleDecl: RuleDecl)
 
     def typeVariables: Set[String] = types.flatMap(_.variables)
@@ -212,6 +247,11 @@ object TyesLanguageExtensions:
     def termVariables: Set[String] = ruleDecl.conclusion.termVariables ++ ruleDecl.premises.flatMap(_.termVariables)
 
     def types: Set[Type] = ruleDecl.conclusion.types ++ ruleDecl.premises.flatMap(_.types)
+
+    def substitute(subst: Map[String, Term]): RuleDecl = ruleDecl.copy(
+      premises = ruleDecl.premises.map(_.substitute(subst)),
+      conclusion = ruleDecl.conclusion.substitute(subst)
+    )
 
   extension (tsDecl: TypeSystemDecl)
 
