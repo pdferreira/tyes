@@ -1,0 +1,10 @@
+typesystem LiteralRecords
+
+  rule infers { } : rec
+
+  rule infers { x = e1, y = e2 } : t1 -> t2 -> rec
+    if e1 : t1
+    and e2 : t2
+
+  rule infers { content = e } : t -> ref
+    if e : t

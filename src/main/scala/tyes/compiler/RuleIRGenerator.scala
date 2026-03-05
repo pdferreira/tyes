@@ -65,12 +65,12 @@ class RuleIRGenerator(
 
   case class GenerateOutput(node: IRNode, condition: Option[IRCond])
 
-  def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, overallTemplate: Term): GenerateOutput =
+  def generate(rule: RuleDecl, parentCodeEnv: TargetCodeEnv, constructor: Term): GenerateOutput =
     val HasType(cTerm, cType) = rule.conclusion.assertion: @unchecked
 
     val codeEnv = new TargetCodeEnv(Some(parentCodeEnv))
 
-    val conclusionConds = genConclusionConds(rule.conclusion, codeEnv)
+    val conclusionConds = genConclusionConds(rule.conclusion, codeEnv, constructor)
     val premiseConds = rule.premises.flatMap(p => genPremiseConds(p, codeEnv))
     val conds = conclusionConds ++ premiseConds
 
@@ -82,7 +82,7 @@ class RuleIRGenerator(
         next = result
       )
 
-    val constructorReqs = genConstructorReqs(cTerm)
+    val constructorReqs = genConstructorReqs(cTerm, constructor)
 
     GenerateOutput(
       node = result,
@@ -91,8 +91,7 @@ class RuleIRGenerator(
         .map(_.foldLeft1(IRCond.And.apply))
     )
 
-  private def genConstructorReqs(term: Term): Iterable[IRCond] =
-    val constructor = extractTemplate(term)
+  private def genConstructorReqs(term: Term, constructor: Term): Iterable[IRCond] =
     val constructorReqs = constructor.matches(term)
       .get
       .toSeq
@@ -100,15 +99,14 @@ class RuleIRGenerator(
 
     genRequiredConds(constructorReqs)
 
-  private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv): Seq[IRCond] =
+  private def genConclusionConds(concl: Judgement, codeEnv: TargetCodeEnv, constructor: Term): Seq[IRCond] =
     val HasType(cTerm, _) = concl.assertion: @unchecked
     
     val envConds = envIRGenerator.generateConditions(concl.env, codeEnv)
-    val termConds = genConclusionTermConds(cTerm, codeEnv)
+    val termConds = genConclusionTermConds(cTerm, codeEnv, constructor)
     termConds ++ envConds
 
-  private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv): Seq[IRCond] =
-    val constructor = extractTemplate(cTerm)
+  private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv, constructor: Term): Seq[IRCond] =
     val termSubst = constructor.matches(cTerm).get
     val typeSubst = termSubst
       .collect({ case (k, Term.Type(typ)) => k -> typ })

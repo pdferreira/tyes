@@ -43,11 +43,8 @@ object TyesInterpreter:
     case Judgement(metaEnv, HasType(metaTerm, typ)) =>
       metaTerm.matches(term).flatMap { (termSubst) =>
         // replace the vars we already unified in the term
-        // TODO: review assumption that only string constants that are directly unified are variables
-        val termVarSubst = termSubst.collect { case (k, Term.Constant(varName: String)) => k -> varName }
-        val typeVarSubst = termSubst.collect { case (k, Term.Type(t)) => k -> t }
-        val refinedMetaEnv = getSelfOrDefaultIfEmpty(metaEnv, DefaultEnv)
-          .substitute(EnvironmentMatch(termVarSubst, typeVarSubst))
+        val envMatch = EnvironmentMatch.fromTermSubst(termSubst)
+        val refinedMetaEnv = getSelfOrDefaultIfEmpty(metaEnv, DefaultEnv).substitute(envMatch)
 
         // match the conclusion env to the rule to see if it's applicable at all
         refinedMetaEnv.matches(termEnv).flatMap { case m @ EnvironmentMatch(envTermVarSubst, envTypeVarSubst, envVarSubst) =>
@@ -55,8 +52,8 @@ object TyesInterpreter:
           val refinedMetaTerm = metaTerm.substitute(envTermSubst)
 
           // build variable substitutions considering info from term and environment
-          val allVarSubst = envTermVarSubst ++ termVarSubst
-          val allTypeVarSubst = envTypeVarSubst ++ typeVarSubst
+          val allVarSubst = envTermVarSubst ++ envMatch.termVarSubst
+          val allTypeVarSubst = envTypeVarSubst ++ envMatch.typeVarSubst
           val allTermSubst = envTermSubst ++ termSubst
 
           // check all premises hold, while unifying possible type variables

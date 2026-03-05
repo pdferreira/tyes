@@ -7,6 +7,7 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
   enum Type extends tyes.runtime.Type:
     case List
     case One
+    case Rec
     case Two
     case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
 
@@ -30,6 +31,16 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
       else
         TypeError.noTypeFor(exp)
 
+    case LRecordRange((fs, es, e3)) => 
+      if e3 == LEmptyRecord then
+        for
+          t <- typecheck(es(0), env)
+          _ <- (1 until es.size).foldRange(Seq(t))(i => typecheck(es(i), env).expecting(t))
+        yield
+          Type.$FunType(t, Type.Rec)
+      else
+        TypeError.noTypeFor(exp)
+
     case LLetRange((x, _ts, es, b)) => 
       for
         t2 <- typecheck(b, env)
@@ -46,3 +57,6 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
 
   object LLetRange:
     def unapply(exp: LExpression[Type]) = exp.extractRangeR[LLet[Type]]
+
+  object LRecordRange:
+    def unapply(exp: LExpression[Type]) = exp.extractRangeR[LRecord[Type]]

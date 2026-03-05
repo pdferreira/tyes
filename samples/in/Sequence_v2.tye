@@ -16,3 +16,8 @@ typesystem SequenceV2
     and ...
     and e_n : t_n
     and b : t2
+
+  rule infers { f_1 = e_1, ..., f_n = e_n } : t -> rec
+    if e_1 : t
+    and ...
+    and e_n : t

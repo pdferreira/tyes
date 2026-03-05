@@ -1,5 +1,6 @@
 package tyes.compiler
 
+import scala.collection.mutable
 import tyes.compiler.Orderings.given
 import tyes.compiler.ir.IRNode
 import tyes.compiler.ir.IRError
@@ -65,19 +66,29 @@ class TypeSystemIRGenerator(
   private def generateTypecheckBody(expVar: TCN.Var, rules: Seq[RuleDecl]): TargetCodeNode =
     val defaultCase = TCP.Any -> RuntimeAPIGenerator.genError(IRError.NoType(expVar))
 
-    val ruleCases = rules
-      .groupBy(r => ruleIRGenerator.getTemplate(r))
+    val rulesByMatchingTemplate = mutable.Map[Term, mutable.ListBuffer[RuleDecl]]()
+    for r <- rules do
+      val rTemplate = ruleIRGenerator.getTemplate(r)
+      val groupTemplate = rulesByMatchingTemplate.keys
+        .collectFirst(Function.unlift(k => rTemplate.matches(k).map((k, _))))
+        
+      groupTemplate match {
+        case None => rulesByMatchingTemplate(rTemplate) = mutable.ListBuffer(r)
+        case Some((gTemplate, subst)) => rulesByMatchingTemplate(gTemplate) += r.substitute(subst)
+      }
+
+    val ruleCases = rulesByMatchingTemplate
       .toSeq
-      .sortBy((rTemplate, _) => rTemplate: Term)
-      .map((rTemplate, rs) => generateTypecheckCase(rTemplate, rs))
+      .sortBy({ case (gTemplate, _) => gTemplate: Term })
+      .map({ case (gTemplate, rs) => generateTypecheckCase(gTemplate, rs.toSeq) })
 
     TCN.Match(
       expVar,
       branches = ruleCases :+ defaultCase
     )
 
-  private def generateTypecheckCase(rTemplate: Term, rules: Seq[RuleDecl]): (TargetCodePattern, TargetCodeNode) =
-    val (rTemplateCode, elemVars) = termIRGenerator.generatePattern(rTemplate)
+  private def generateTypecheckCase(gTemplate: Term, rules: Seq[RuleDecl]): (TargetCodePattern, TargetCodeNode) =
+    val (rTemplateCode, elemVars) = termIRGenerator.generatePattern(gTemplate)
     
     val codeEnv = TargetCodeEnv()
     for v <- boundNames(rTemplateCode) do
@@ -88,7 +99,7 @@ class TypeSystemIRGenerator(
       // - if it has a single rule, use its resulting node
       // - otherwise if all have pre-conditions, create a switch node
       .map(rs => 
-        val rIRs = rs.map(r => ruleIRGenerator.generate(r, codeEnv, rTemplate))
+        val rIRs = rs.map(r => ruleIRGenerator.generate(r, codeEnv, gTemplate))
         if rIRs.exists(_.condition.isEmpty) then
           val rulesDesc = rs.zipWithIndex.map((r, idx) => r.name.getOrElse(idx.toString)).mkString(" and ")
           assert(rIRs.length == 1, s"If there're no conditions, expected only a single rule in the group, not $rulesDesc")
