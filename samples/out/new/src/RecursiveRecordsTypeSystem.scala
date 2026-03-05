@@ -9,7 +9,7 @@ class RecursiveRecordsTypeSystem extends TypeSystem[LExpression]:
 
   def typecheck(exp: LExpression[Type], env: Environment[Type]): Either[String, Type] = exp match {
     case LEmptyRecord => Right(Type.Rec)
-    case LRecord(l, e, r) => 
+    case LRecord(f, e, r) => 
       for
         _ <- typecheck(e, env)
         _ <- typecheck(r, env).expecting(Type.Rec)

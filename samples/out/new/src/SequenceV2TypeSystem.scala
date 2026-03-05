@@ -31,7 +31,7 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
       else
         TypeError.noTypeFor(exp)
 
-    case LRecordRange((ls, es, e3)) => 
+    case LRecordRange((fs, es, e3)) => 
       if e3 == LEmptyRecord then
         for
           t <- typecheck(es(0), env)
