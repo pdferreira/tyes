@@ -25,6 +25,8 @@ class LExpressionWithModelTypesParser(types: Set[Type]) extends tyes.cli.Abstrac
     case Constants.Types.Function(argTyp, retTyp) =>
       val argIsFunction = Constants.Types.Function.unapply(argTyp).isDefined
       prettyPrintFunctionType(argTyp, retTyp, argIsFunction)
+    // Special case for records while they need a special case
+    case Constants.Types.Record(fields) => prettyPrintRecordType(fields)
     case Type.Named(name) => name
     case Type.Label(label) => prettyPrint(label)
     case Type.Composite(name, args*) => name + args.map(prettyPrint).mkString("(", ", ", ")")

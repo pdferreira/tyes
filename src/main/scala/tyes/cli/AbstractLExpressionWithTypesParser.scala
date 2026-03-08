@@ -49,3 +49,7 @@ abstract class AbstractLExpressionWithTypesParser[T, L] extends LExpressionParse
       else prettyPrint(argTyp)
 
     s"$argTypStr ${Constants.Types.Function.operator} ${prettyPrint(retTyp)}"
+
+  protected def prettyPrintRecordType(fields: Seq[(L, T)]) =
+    import Constants.Types.Record.*
+    fields.map((f, t) => prettyPrint(f) + ": " + prettyPrint(t)).mkString(delimiterL, ", ", delimiterR)

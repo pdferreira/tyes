@@ -66,14 +66,29 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
     def labelParser(ident: String) = Parsers.success(newIdentifierLabel(ident))
     def typeParser = tpe
   })
+
+  def label = genericIdent ^^ { case name =>
+    if metaIdent.matches(name)
+    then Label.Variable(name)
+    else Label.Constant(name)
+  }
+
+  def identType = genericIdent ^^ { case name => 
+    if metaIdent.matches(name) 
+    then Type.Variable(name) 
+    else Type.Named(name) 
+  }
+
+  def recordType =
+    import Constants.Types.Record.*
+    delimiterL ~> repsep(label ~ (":" ~> tpe), ",") <~ delimiterR ^^ {
+      case fields => apply(fields.map({ case f ~ t => (f, t) }))
+    }
   
   def leafType = 
-    genericIdent ^^ { case name => 
-      if metaIdent.matches(name) 
-      then Type.Variable(name) 
-      else Type.Named(name) 
-    }
+    identType
     | ("(" ~> tpe <~ ")")
+    | recordType
 
   def tpe: Parser[Type] = leafType ~ (Constants.Types.Function.operator ~> tpe).? ^^ { 
     case argTpe ~ None => argTpe
