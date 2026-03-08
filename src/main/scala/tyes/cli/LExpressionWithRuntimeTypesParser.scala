@@ -1,6 +1,7 @@
 package tyes.cli
 
 import java.lang.reflect.Method
+import scala.annotation.targetName
 import scala.collection.immutable.ArraySeq
 import example.*
 import tyes.model.Constants
@@ -10,7 +11,7 @@ class LExpressionWithRuntimeTypesParser[T <: tyes.runtime.Type](
   rtTypeEnumClass: Class[T],
   rtTypeObjectClass: Class[?],
   rtTypeObject: Object
-) extends AbstractLExpressionWithTypesParser[T]:
+) extends AbstractLExpressionWithTypesParser[T, tyes.runtime.Label]:
 
   override type TNamedTypeInfo = Method
 
@@ -38,7 +39,8 @@ class LExpressionWithRuntimeTypesParser[T <: tyes.runtime.Type](
     val rtFunTypeCtor = rtFunTypeObj.getClass.getMethod("apply", rtTypeEnumClass, rtTypeEnumClass)
     rtFunTypeCtor.invoke(rtFunTypeObj, argTpe, retTpe).asInstanceOf[T]
   
-  def prettyPrint(typ: T): String = 
+  @targetName("prettyPrintType")
+  override def prettyPrint(typ: T): String = 
     if rtTypeEnumClass.isAssignableFrom(typ.getClass) then
       if typ.getClass.isAnonymousClass then
         return typ.toString.decapitalize
@@ -52,3 +54,6 @@ class LExpressionWithRuntimeTypesParser[T <: tyes.runtime.Type](
         return prettyPrintFunctionType(argTyp, retTyp, argIsFunction)
 
     return s"$typ (raw)"
+
+  @targetName("prettyPrintLabel")
+  override def prettyPrint(label: tyes.runtime.Label): String = label

@@ -33,7 +33,7 @@ object LExpressionExtensions:
         case LRecord(label, exp, rest) =>
           Term.Function(
             "LRecord",
-            Term.Constant(label),
+            Term.Label(Label.Constant(label)),
             exp.convert,
             rest.convert
           )

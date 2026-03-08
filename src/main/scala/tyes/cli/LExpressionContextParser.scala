@@ -19,6 +19,10 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
     .filter(id => !keywords.contains(id))
     .into(bindings.identTermParser)
 
+  def label = raw"[a-zA-Z][a-zA-Z\d_]*".r
+    .filter(id => !keywords.contains(id))
+    .into(bindings.labelParser)
+
   def metaVariable = bindings.metaTermVariableParser - oneOf(keywords)
 
   def variable = (
@@ -33,7 +37,7 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
   } <~ "]"
   
   def record = "{" ~> bindings.repXopR(
-    ident ~ ("=" ~> expression) ^^ { case label ~ exp => Seq(label, exp) },
+    label ~ ("=" ~> expression) ^^ { case label ~ exp => Seq(Term.Label(label), exp) },
     ",",
     "LRecord",
     atLeastOne = false

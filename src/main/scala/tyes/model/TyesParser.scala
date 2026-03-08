@@ -54,10 +54,16 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
     if metaVarIdent.matches(ident)
     then Term.Variable(ident)
     else Term.Constant(ident)
+
+  def newIdentifierLabel(ident: String): Label =
+    if metaVarIdent.matches(ident)
+    then Label.Variable(ident)
+    else Label.Constant(ident)
   
   def term: Parser[Term] = buildTermLanguageParser(new TyesTermLanguageBindings {
     def metaTermVariableParser = metaTermVariable
     def identTermParser(ident: String) = Parsers.success(newIdentifierTerm(ident))
+    def labelParser(ident: String) = Parsers.success(newIdentifierLabel(ident))
     def typeParser = tpe
   })
   

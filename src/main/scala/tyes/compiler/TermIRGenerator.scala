@@ -11,6 +11,7 @@ import tyes.model.terms.TermVariable
 
 class TermIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
+  private val labelIRGenerator: LabelIRGenerator,
   private val rangeIRGenerator: RangeIRGenerator,
 ):
   
@@ -25,6 +26,7 @@ class TermIRGenerator(
         args.map(generate(_, codeEnv))*
       )
     case Term.Type(typ) => typeIRGenerator.generate(typ, codeEnv)
+    case Term.Label(label) => labelIRGenerator.generate(label, codeEnv)
     case r: Term.Range =>
       r.toConcrete(Term.Function(_, _*)).map(generate(_, codeEnv)).getOrElse {
         rangeIRGenerator.generateConstructor(r)
@@ -45,6 +47,7 @@ class TermIRGenerator(
       val (argPats, colVars) = args.map(generatePattern).unzip
       (TCP.ADTConstructor(TCTypeRef(name), argPats*), colVars.fold(Map())(_ ++ _))
     case Term.Type(typ) => (typeIRGenerator.generatePattern(typ), Map())
+    case Term.Label(label) => (labelIRGenerator.generatePattern(label), Map())
     case r: Term.Range =>
       r.toConcrete(Term.Function(_, _*))
         .map(generatePattern)

@@ -8,6 +8,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContain
   case Variable(name: String) extends Term, terms.TermVariable
   case Function(name: String, args: Term*)
   case Type(typ: tyes.model.Type)
+  case Label(label: tyes.model.Label)
   case Range(
     function: String,
     cursor: String,
@@ -18,67 +19,84 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContain
     holeSeed: Option[Term] = None,
   ) extends Term, terms.TermRange[Term]
 
-  private def ifBothTypes[B](otherTerm: Term)(fn: (tyes.model.Type, tyes.model.Type) => B): Option[B] = (this, otherTerm) match {
-    case (Term.Type(thisType), Term.Type(otherType)) => Some(fn(thisType, otherType))
-    case _ => None
-  }
-
-  private def ifType[B](fn: tyes.model.Type => B): Option[B] = this match {
-    case Term.Type(typ) => Some(fn(typ))
-    case _ => None
-  }
-
-  override def matches(otherTerm: Term): Option[Map[String, Term]] = 
-    ifBothTypes(otherTerm) { (thisType, otherType) =>
+  override def matches(otherTerm: Term): Option[Map[String, Term]] = (this, otherTerm) match { 
+    case (Term.Type(thisType), Term.Type(otherType)) =>
       thisType.matches(otherType).map(_.view.mapValues(Term.Type.apply).toMap)
-    }.getOrElse { 
+    case (Term.Label(thisLabel), Term.Label(otherLabel)) =>
+      thisLabel.matches(otherLabel).map(_.view.mapValues(Term.Label.apply).toMap)
+    case _ => 
       super.matches(otherTerm) 
-    }
+  }
 
-  override def overlaps(otherTerm: Term): Boolean = 
-    ifBothTypes(otherTerm) { 
-      _.overlaps(_) 
-    }.getOrElse { 
-      super.overlaps(otherTerm) 
-    }
+  override def overlaps(otherTerm: Term): Boolean = (this, otherTerm) match { 
+    case (Term.Type(thisType), Term.Type(otherType)) => thisType.overlaps(otherType)
+    case (Term.Label(thisLabel), Term.Label(otherLabel)) => thisLabel.overlaps(otherLabel)
+    case _ => super.overlaps(otherTerm) 
+  }
 
-  override def isGround: Boolean = ifType(_.isGround).getOrElse { super.isGround }
+  override def isGround: Boolean = this match {
+    case Term.Type(typ) => typ.isGround
+    case Term.Label(label) => label.isGround
+    case _ => super.isGround 
+  }
 
-  override def substitute(subst: Map[String, Term]): Term = 
-    ifType { typ =>
-      val typSubst = Map.from(for case (k, Term.Type(t)) <- subst yield k -> t)
+  override def substitute(subst: Map[String, Term]): Term = this match { 
+    case Term.Type(typ) =>
+      val typSubst = TyesLanguageExtensions.termSubstToTypeSubst(subst)
       Term.Type(typ.substitute(typSubst))
-    } getOrElse {
+    case Term.Label(label) =>
+      val labelSubst = TyesLanguageExtensions.termSubstToLabelSubst(subst)
+      Term.Label(label.substitute(labelSubst))
+    case _ =>
       super.substitute(subst)
-    }
+  }
 
-  override def unifies(otherTerm: Term): Option[Map[String, Term]] =
-    ifBothTypes(otherTerm) { (thisType, otherType) =>
+  override def unifies(otherTerm: Term): Option[Map[String, Term]] = (this, otherTerm) match {
+    case (Term.Type(thisType), Term.Type(otherType)) =>
       thisType.unifies(otherType).map(_.view.mapValues(Term.Type.apply).toMap)
-    }.getOrElse { 
+    case (Term.Label(thisLabel), Term.Label(otherLabel)) =>
+      thisLabel.unifies(otherLabel).map(_.view.mapValues(Term.Label.apply).toMap)
+    case _ => 
       super.unifies(otherTerm) 
-    }
+  }
 
-  override def replaceIndex(oldIdxStr: String, newIdxStr: String): Term = 
-    ifType { typ =>
-      Term.Type(typ.replaceIndex(oldIdxStr, newIdxStr))
-    } getOrElse {
-      super.replaceIndex(oldIdxStr, newIdxStr)
-    }
+  override def replaceIndex(oldIdxStr: String, newIdxStr: String): Term = this match {
+    case Term.Type(typ) => Term.Type(typ.replaceIndex(oldIdxStr, newIdxStr))
+    case Term.Label(label) => Term.Label(label.replaceIndex(oldIdxStr, newIdxStr))
+    case _ => super.replaceIndex(oldIdxStr, newIdxStr)
+  }
 
-  override def variables: Set[String] = ifType(_.variables).getOrElse { super.variables }
+  override def variables: Set[String] = this match {
+    case Term.Type(typ) => typ.variables
+    case Term.Label(label) => label.variables
+    case _ => super.variables
+  }
 
   def types: Set[tyes.model.Type] = this match {
     case Term.Constant(_) => Set()
     case Term.Variable(_) => Set()
     case Term.Function(_, args*) => args.flatMap(_.types).toSet
     case Term.Type(t) => Set(t)
+    case Term.Label(_) => Set()
     case r: Term.Range => getRangeElems(r, _.types).toSet
+  }
+
+  def labels: Set[tyes.model.Label] = this match {
+    case Term.Constant(_) => Set()
+    case Term.Variable(_) => Set()
+    case Term.Function(_, args*) => args.flatMap(_.labels).toSet
+    case Term.Type(t) => t.labels
+    case Term.Label(l) => Set(l)
+    case r: Term.Range => getRangeElems(r, _.labels).toSet
   }
 
   override def typeVariables: Iterable[tyes.model.Type.Variable] = types.flatMap(_.typeVariables)
 
-  override def toString(): String = ifType(typ => s"T:$typ").getOrElse { super.toString }
+  override def toString(): String = this match {
+    case Term.Type(typ) => s"T:$typ"
+    case Term.Label(label) => s"L:$label"
+    case _ => super.toString
+  }
 
 private object TermBuilder extends terms.TermBuilder[Term, Any]:
   

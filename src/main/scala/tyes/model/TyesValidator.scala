@@ -40,23 +40,45 @@ object TyesValidator:
         errors += s"Error: $ruleName conclusion environment uses some identifiers not bound in its term: ${unknownConclEnvTermVariables.mkString(", ")}"
         
       val HasType(conclTerm, conclTyp) = concl.assertion: @unchecked
-      for cTypeVar <- conclTyp.variables do
-        if conclTerm.types.exists(t => t.variables.contains(cTypeVar)) then
-          () // ok, bound in concl term
+      for cTypeVar <- conclTyp.typeVariables do
+        val cTypeVarName = cTypeVar.name
 
-        else if conclTerm.variables.contains(cTypeVar) then
-          errors += s"Error: $ruleName conclusion uses a type variable bound to a term variable: $cTypeVar"
+        if conclTerm.types.exists(t => t.variables.contains(cTypeVarName)) then
+          () // ok, bound in concl term types
+
+        else if conclTerm.variables.contains(cTypeVarName) then
+          errors += s"Error: $ruleName conclusion uses a type variable bound to a term variable: $cTypeVarName"
 
         else if r.premises.isEmpty && concl.env.parts.isEmpty then
-          errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVar"
+          errors += s"Error: $ruleName conclusion uses a type variable but has no premises or environment: $cTypeVarName"
         
-        else if !r.premises.exists(p => p.bindsTypeVariableInTerm(cTypeVar)) then
-          if concl.bindsTypeVariableInEnv(cTypeVar) then
+        else if !r.premises.exists(p => p.bindsTypeVariableInTerm(cTypeVarName)) then
+          if concl.bindsTypeVariableInEnv(cTypeVarName) then
             () // ok, bound in concl env
-          else if !r.premises.exists(p => p.bindsTypeVariableInEnv(cTypeVar)) then
-            errors += s"Error: $ruleName conclusion uses an unbound type variable: $cTypeVar"
+          else if !r.premises.exists(p => p.bindsTypeVariableInEnv(cTypeVarName)) then
+            errors += s"Error: $ruleName conclusion uses an unbound type variable: $cTypeVarName"
           else
-            errors += s"Error: $ruleName conclusion uses a type variable that is only bound in a premise environment: $cTypeVar"
+            errors += s"Error: $ruleName conclusion uses a type variable that is only bound in a premise environment: $cTypeVarName"
+
+      for cLabelVar <- conclTyp.labelVariables do
+        val cLabelVarName = cLabelVar.name
+
+        if conclTerm.labels.exists(l => l.variables.contains(cLabelVarName)) then
+          () // ok, bound in concl term labels
+
+        else if conclTerm.variables.contains(cLabelVarName) then
+          errors += s"Error: $ruleName conclusion uses a label variable bound to a term variable: $cLabelVarName"
+
+        else if r.premises.isEmpty && concl.env.parts.isEmpty then
+          errors += s"Error: $ruleName conclusion uses a label variable but has no premises or environment: $cLabelVarName"
+        
+        else if !r.premises.exists(p => p.bindsLabelVariableInTerm(cLabelVarName)) then
+          if concl.bindsLabelVariableInEnv(cLabelVarName) then
+            () // ok, bound in concl env labels
+          else if !r.premises.exists(p => p.bindsLabelVariableInEnv(cLabelVarName)) then
+            errors += s"Error: $ruleName conclusion uses an unbound label variable: $cLabelVarName"
+          else
+            errors += s"Error: $ruleName conclusion uses a label variable that is only bound in a premise environment: $cLabelVarName"
 
     return errors.toSeq
 

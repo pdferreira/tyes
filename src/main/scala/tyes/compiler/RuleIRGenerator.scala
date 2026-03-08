@@ -39,6 +39,12 @@ class RuleIRGenerator(
             // names are not considered.
             val initial = fnName.findLast(_.isUpper).map(_.toLower).getOrElse('c')
             Term.Variable(initial.toString + getSuffix(idx))
+          case Term.Label(Label.Constant(_)) =>
+            // Simple naming heuristic based on the constructor name, while field
+            // names are not considered.
+            val initial = fnName.findLast(_.isUpper).map(_.toLower).getOrElse('l')
+            Term.Label(Label.Variable(initial.toString + getSuffix(idx)))
+          case Term.Label(Label.Variable(_)) => arg
           case Term.Function(_, _*) => Term.Variable("e" + getSuffix(idx))
           case Term.Type(typ) => 
             // Type variable arguments are assumed to be optional, so we match
@@ -108,9 +114,7 @@ class RuleIRGenerator(
 
   private def genConclusionTermConds(cTerm: Term, codeEnv: TargetCodeEnv, constructor: Term): Seq[IRCond] =
     val termSubst = constructor.matches(cTerm).get
-    val typeSubst = termSubst
-      .collect({ case (k, Term.Type(typ)) => k -> typ })
-      .toMap
+    val typeSubst = termSubstToTypeSubst(termSubst)
     
     val destructureConds = genDestructureConds(termSubst, codeEnv)
 
@@ -213,16 +217,20 @@ class RuleIRGenerator(
       if !f.isGround
     do
       // Map all args into fresh variables
-      val argsAsTemplate = f.args.zipWithIndex.map({
+      val argsAsTemplate: Seq[Term.Variable | Label.Variable] = f.args.zipWithIndex.map({
         case (v: Term.Variable, _) => v
+        case (Term.Label(v: Label.Variable), _) => v
         case (_, argIdx) => Term.Variable(s"e${('a' + argIdx).toChar}"): Term.Variable
       })
 
-      val argsAsCode = argsAsTemplate.map(v =>
+      val argTemplatesToCode = argsAsTemplate.map(v =>
         val (_, idCode) = codeEnv.requestIdentifier(v)
-        idCode
+        (v, idCode)
       )
-      val declTermArgs = argsAsCode.map(vCode => Term.Variable(vCode.name): Term.Variable)
+      val declTermArgs = argTemplatesToCode.map((v, vCode) => v match {
+        case _: Term.Variable => Term.Variable(vCode.name)
+        case _: Label.Variable => Term.Label(Label.Variable(vCode.name))
+      })
       
       // Generate a composite term pattern with the fresh args and use it for
       // the destructuring declaration.

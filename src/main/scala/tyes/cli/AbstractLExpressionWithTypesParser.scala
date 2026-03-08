@@ -1,9 +1,10 @@
 package tyes.cli
 
+import scala.annotation.targetName
 import example.*
 import tyes.model.*
 
-abstract class AbstractLExpressionWithTypesParser[T] extends LExpressionParser[T]:
+abstract class AbstractLExpressionWithTypesParser[T, L] extends LExpressionParser[T]:
 
   protected type TNamedTypeInfo
 
@@ -17,7 +18,11 @@ abstract class AbstractLExpressionWithTypesParser[T] extends LExpressionParser[T
 
   protected val hasFunctionRuntimeType: Boolean
 
+  @targetName("prettyPrintType")
   def prettyPrint(typ: T): String
+
+  @targetName("prettyPrintLabel")
+  def prettyPrint(label: L): String
 
   def leafType: Parser[T] = 
     allNamedTypes.foldLeft[Parser[T]](failure("Unrecognized type")) { (prevParser, typInfo) =>

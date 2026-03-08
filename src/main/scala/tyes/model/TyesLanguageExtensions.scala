@@ -11,6 +11,15 @@ object TyesLanguageExtensions:
     case JudgementRange => JudgementRange
   }
 
+  def termSubstToTypeSubst(termSubst: Map[String, Term]): Map[String, Type] = termSubst.collect({
+    case (k, Term.Type(typ)) => k -> typ
+    case (k, Term.Label(label)) => k -> Type.Label(label)
+  })
+
+  def termSubstToLabelSubst(termSubst: Map[String, Term]): Map[String, Label] = termSubst.collect({
+    case (k, Term.Label(l)) => k -> l
+  })
+
   extension (metaBinding: Binding)
 
     def matches(entry: (String, Type)): Option[(Map[String, String], Map[String, Type])] = 
@@ -39,12 +48,16 @@ object TyesLanguageExtensions:
       case _ => None
     }
 
+    def labelVariables: Set[String] = labels.flatMap(_.variables)
+
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
     def termVariables: Set[String] = metaBinding match {
       case Binding.BindName(_, _) => Set()
       case Binding.BindVariable(name, _) => Set(name)
     }
+
+    def labels: Set[Label] = types.flatMap(_.labels)
 
     def types: Set[Type] = metaBinding match {
       case Binding.BindName(_, typ) => Set(typ)
@@ -62,7 +75,7 @@ object TyesLanguageExtensions:
     def fromTermSubst(termSubst: Map[String, Term]): EnvironmentMatch =
       // TODO: review assumption that only string constants that are directly unified are variables
       val termVarSubst = termSubst.collect { case (k, Term.Constant(varName: String)) => k -> varName }
-      val typeVarSubst = termSubst.collect { case (k, Term.Type(t)) => k -> t }  
+      val typeVarSubst = termSubstToTypeSubst(termSubst)
       EnvironmentMatch(termVarSubst, typeVarSubst)
 
   extension (envPart: EnvironmentPart)
@@ -115,12 +128,16 @@ object TyesLanguageExtensions:
       case EnvironmentPart.Variable(_) => Some(Map())
     }
 
+    def labelVariables: Set[String] = labels.flatMap(_.variables)
+
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
     def termVariables: Set[String] = envPart match {
       case EnvironmentPart.Bindings(bindings) => bindings.flatMap(_.termVariables).toSet
       case EnvironmentPart.Variable(_) => Set()
     }
+
+    def labels: Set[Label] = types.flatMap(_.labels)
 
     def types: Set[Type] = envPart match {
       case EnvironmentPart.Bindings(bindings) => bindings.flatMap(_.types).toSet
@@ -150,32 +167,30 @@ object TyesLanguageExtensions:
         prevEnvOpt.zip(currEnvOpt).map(_ ++ _)
       }
 
+    def labelVariables: Set[String] = labels.flatMap(_.variables)
+
     def typeVariables: Set[String] = types.flatMap(_.variables)
 
     def termVariables: Set[String] = metaEnv.parts.flatMap(_.termVariables).toSet
 
     def envVariables: Set[String] = metaEnv.parts.collect({ case EnvironmentPart.Variable(name) => name }).toSet
 
+    def labels: Set[Label] = types.flatMap(_.labels)
+
     def types: Set[Type] = metaEnv.parts.flatMap(_.types).toSet
 
-  extension (term: Term)
-
-    def termVariables: Iterable[Term.Variable | Type.Variable] = term match {
-      case Term.Constant(_) => Set.empty
-      case v: Term.Variable => Set(v)
-      case Term.Function(_, args*) => args.flatMap(_.termVariables).toSet
-      case Term.Type(typ) => typ.typeVariables
-      case r @ Term.Range(_, _, _, _, _, maxIndex, _) =>
-        val indexVars = maxIndex.asVariable.map(v => Term.Variable(v.name): Term.Variable).toSet
-        indexVars ++ getRangeElems(r, _.termVariables).toSet
-    }
-
   extension (asrt: Assertion)
+
+    def labelVariables: Set[String] = labels.flatMap(_.variables)
 
     def typeVariables: Set[String] = types.flatMap(_.variables)
     
     def termVariables: Set[String] = asrt match {
       case HasType(e, _) => e.variables
+    }
+
+    def labels: Set[Label] = asrt match {
+      case HasType(term, typ) => term.labels ++ typ.labels
     }
 
     def types: Set[Type] = Set(asrt match {
@@ -185,7 +200,7 @@ object TyesLanguageExtensions:
     def substitute(subst: Map[String, Term]) = asrt match {
       case HasType(term, typ) => HasType(
         term.substitute(subst),
-        typ.substitute(subst.collect({ case (k, Term.Type(t)) => k -> t }))
+        typ.substitute(termSubstToTypeSubst(subst))
       )
     }
 
