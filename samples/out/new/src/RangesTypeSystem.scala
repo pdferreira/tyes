@@ -7,7 +7,7 @@ class RangesTypeSystem extends TypeSystem[LExpression]:
   enum Type extends tyes.runtime.Type:
     case One
     case Two
-    case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
+    case $FunType(t1: Type, t2: Type)
 
   def typecheck(exp: LExpression[Type], env: Environment[Type]): Either[String, Type] = exp match {
     case LNumber(n) => 
