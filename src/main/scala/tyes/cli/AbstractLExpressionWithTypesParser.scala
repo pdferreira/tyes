@@ -8,15 +8,21 @@ abstract class AbstractLExpressionWithTypesParser[T, L] extends LExpressionParse
 
   protected type TNamedTypeInfo
 
-  protected val allNamedTypes: Seq[TNamedTypeInfo]
+  protected val allNamedTypes: Iterable[TNamedTypeInfo]
 
   protected def getTypeName(typInfo: TNamedTypeInfo): String
+
+  protected def getRuntimeLabel(label: String): L
 
   protected def getRuntimeType(typInfo: TNamedTypeInfo): T
 
   protected def getFunctionRuntimeType(argTpe: T, retTpe: T): T
 
   protected val hasFunctionRuntimeType: Boolean
+
+  protected def getRecordRuntimeType(fields: Seq[(L, T)]): T
+
+  protected val hasRecordRuntimeType: Boolean
 
   @targetName("prettyPrintType")
   def prettyPrint(typ: T): String
@@ -25,10 +31,16 @@ abstract class AbstractLExpressionWithTypesParser[T, L] extends LExpressionParse
   def prettyPrint(label: L): String
 
   def leafType: Parser[T] = 
-    allNamedTypes.foldLeft[Parser[T]](failure("Unrecognized type")) { (prevParser, typInfo) =>
-      prevParser | (literal(getTypeName(typInfo)) ~> success(getRuntimeType(typInfo)))
-    }
-    | "(" ~> tpe <~ ")"
+    val coreParser =
+      allNamedTypes.foldLeft[Parser[T]](failure("Unrecognized type")) { (prevParser, typInfo) =>
+        prevParser | (literal(getTypeName(typInfo)) ~> success(getRuntimeType(typInfo)))
+      }
+      | "(" ~> tpe <~ ")"
+
+    if hasRecordRuntimeType then
+      coreParser | recordType
+    else
+      coreParser
 
   def functionType: Parser[T] =
     leafType ~ (Constants.Types.Function.operator ~> functionType).? ^^ {
@@ -36,6 +48,12 @@ abstract class AbstractLExpressionWithTypesParser[T, L] extends LExpressionParse
       case argTpe ~ Some(retTpe) => getFunctionRuntimeType(argTpe, retTpe)
     }
     | "(" ~> leafType <~ ")"
+
+  def recordType =
+    import Constants.Types.Record.*
+    delimiterL ~> repsep(ident ~ (":" ~> tpe), ",") <~ delimiterR ^^ {
+      case fields => getRecordRuntimeType(fields.map({ case f ~ t => (getRuntimeLabel(f), t) }))
+    }
 
   override def tpe: Parser[T] = 
     if hasFunctionRuntimeType

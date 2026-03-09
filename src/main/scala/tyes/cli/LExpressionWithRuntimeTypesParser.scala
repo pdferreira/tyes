@@ -18,7 +18,9 @@ class LExpressionWithRuntimeTypesParser[T <: tyes.runtime.Type](
   override val allNamedTypes = 
     for
       m <- ArraySeq.unsafeWrapArray(rtTypeObjectClass.getMethods())
-      if m.getParameterCount() == 0 && m.getReturnType() == rtTypeEnumClass
+      if m.getParameterCount() == 0
+      && m.getReturnType() == rtTypeEnumClass
+      && m.getName != Constants.Types.Record.Empty.name
     yield
       m
 
@@ -30,15 +32,37 @@ class LExpressionWithRuntimeTypesParser[T <: tyes.runtime.Type](
 
   override val hasFunctionRuntimeType = rtFunctionTypeObject.isDefined
 
+  private val rtEmptyRecordTypeObject =
+    rtTypeObjectClass
+      .getMethods
+      .find(m => m.getName == Constants.Types.Record.Empty.name)
+      .map(_.invoke(rtTypeObject))
+
+  private val rtRecordTypeObject = 
+    rtTypeObjectClass
+      .getMethods
+      .find(m => m.getName == Constants.Types.Record.name)
+      .map(_.invoke(rtTypeObject))
+
+  override val hasRecordRuntimeType = rtEmptyRecordTypeObject.isDefined && rtRecordTypeObject.isDefined
+
   override def getTypeName(typInfo: Method) = typInfo.getName.decapitalize
 
   override def getRuntimeType(typInfo: Method) = rtTypeEnumClass.cast(typInfo.invoke(rtTypeObject))
+
+  override def getRuntimeLabel(label: String) = label
 
   override def getFunctionRuntimeType(argTpe: T, retTpe: T) =
     val rtFunTypeObj = rtFunctionTypeObject.get
     val rtFunTypeCtor = rtFunTypeObj.getClass.getMethod("apply", rtTypeEnumClass, rtTypeEnumClass)
     rtFunTypeCtor.invoke(rtFunTypeObj, argTpe, retTpe).asInstanceOf[T]
-  
+
+  override def getRecordRuntimeType(fields: Seq[(tyes.runtime.Label, T)]) =
+    val rtEmptyRecObj = rtEmptyRecordTypeObject.get.asInstanceOf[T]
+    val rtRecTypeObj = rtRecordTypeObject.get
+    val rtRecTypeCtor = rtRecTypeObj.getClass.getMethod("apply", classOf[String], rtTypeEnumClass, rtTypeEnumClass)
+    fields.foldRight(rtEmptyRecObj)({ case ((l, t), r) => rtRecTypeCtor.invoke(rtRecTypeObj, l, t, r).asInstanceOf[T] })
+
   private def tryGetRecordRuntimeTypeFields(typ: T): Option[Seq[(tyes.runtime.Label, T)]] =
     if typ.getClass.isAnonymousClass then
       if typ.toString == Constants.Types.Record.Empty.name then
