@@ -8,7 +8,7 @@ class SequenceTypeSystem extends TypeSystem[LExpression]:
     case One
     case Two
     case Zero
-    case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
+    case $FunType(t1: Type, t2: Type)
 
   def typecheck(exp: LExpression[Type], env: Environment[Type]): Either[String, Type] = exp match {
     case LNil => Right(Type.Zero)

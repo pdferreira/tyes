@@ -17,9 +17,10 @@ import tyes.model.indexes.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
 
-class TypeIRGenerator:
+class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
 
   val typeEnumTypeRef = TCTypeRef("Type")
+  val labelTypeRef = TCTypeRef("Label")
 
   def generateDecl(tsDecl: TypeSystemDecl): TargetCodeDecl =
     val typeConstructors = inferTypeConstructors(tsDecl.types).toSeq
@@ -33,9 +34,16 @@ class TypeIRGenerator:
 
   private def inferTypeConstructors(types: Iterable[Type]): Set[Type] = types.flatMap({
     case tn @ Type.Named(_) => Set(tn)
+    case Type.Label(_) => Set()
     case Type.Variable(_) => Set()
     case Type.Composite(name, args*) => 
-      val self = Type.Composite(name, args.indices.map(idx => Type.Variable(s"t${idx + 1}"))*)
+      val self = Type.Composite(
+        name,
+        args.zipWithIndex.map((arg, idx) => arg match {
+          case _: Type.Label => Type.Label(Label.Variable(s"l${idx + 1}"))
+          case _ => Type.Variable(s"t${idx + 1}")
+        })*
+      )
       Set(self) ++ inferTypeConstructors(args)
   }).toSet
 
@@ -44,24 +52,19 @@ class TypeIRGenerator:
   private def generateTypeConstructor(typ: Type): TargetCodeADTConstructor = typ match {
     case Type.Named(name) => TCADTConstructor(getTypeNameInCode(name))
     case Type.Composite(name, args*) =>
-      val argNames = args.map(t => t.asInstanceOf[Type.Variable].name)
-      TCADTConstructor(
-        getTypeNameInCode(name),
-        params = argNames.map(n => n -> typeEnumTypeRef),
-        inherits = Seq(
-          TCN.ADTConstructorCall(typeEnumTypeRef), 
-          TCN.ADTConstructorCall(
-            TCTypeRef("tyes", "runtime", "CompositeType"),
-            args = argNames.map(TCN.Var.apply)*
-          )
-        )
-      )
+      val params = args.map(t => t match {
+        case Type.Variable(name) => name -> typeEnumTypeRef
+        case Type.Label(Label.Variable(name)) => name -> labelTypeRef
+        case _ => throw new IllegalArgumentException(t.getClass.getSimpleName)
+      })
+      TCADTConstructor(getTypeNameInCode(name), params = params)
     case _ => throw new Exception(s"Not a type constructor: $typ")
   }
 
   def generate(typ: Type, codeEnv: TargetCodeEnv = TargetCodeEnv()): TargetCodeNode = typ match {
     case Constants.Types.any => TCN.Var("_")
     case Type.Named(name) => TCN.ADTConstructorCall(generateRef(name))
+    case Type.Label(label) => labelIRGenerator.generate(label, codeEnv)
     case v: Type.Variable => codeEnv(v)
     case Type.Composite(name, args*) => 
       var typeArgs = args.map(generate(_, codeEnv))
@@ -74,6 +77,7 @@ class TypeIRGenerator:
   def generatePattern(typ: Type): TargetCodePattern = typ match {
     case Constants.Types.any => TCP.Any
     case Type.Named(name) => TCP.ADTConstructor(generateRef(name))
+    case Type.Label(label) => labelIRGenerator.generatePattern(label)
     case Type.Variable(name) => TCP.Var(name)
     case Type.Composite(name, args*) => 
       var typeArgs = args.map(generatePattern)
@@ -141,10 +145,15 @@ class TypeIRGenerator:
     declTypeExp: IRNode
   ): Seq[IRCond] =
     // Save previously bound type variables, before we decl new things in the env
-    val previouslyBoundVars = typ
-      .typeVariables
+    val previouslyBoundVars = typ.typeVariables.concat(typ.labelVariables: Iterable[terms.TermVariable])
       .filter(v => codeEnv.contains(v))
-      .toSet[Type]
+      .toSet
+
+    def isPreviouslyBoundVar(typ: Type): Boolean = typ match {
+      case v: Type.Variable => previouslyBoundVars.contains(v)
+      case Type.Label(v: Label.Variable) => previouslyBoundVars.contains(v)
+      case _ => false
+    }
       
     typ match {
       case _: Type.Named => 
@@ -154,7 +163,7 @@ class TypeIRGenerator:
         val permanentV = getPermanentTypeVar(v)
         val expectationCheck = genExpectationCheck(permanentV, codeEnv)
         val declPat =
-          if previouslyBoundVars.contains(permanentV) then
+          if isPreviouslyBoundVar(permanentV) then
             TCP.Any
           else
             val (_, realIdCode) = codeEnv.requestIdentifier(permanentV)
@@ -163,7 +172,7 @@ class TypeIRGenerator:
         Seq(IRCond.TypeDecl(declPat, declTypeExp, expectationCheck))
       
       case Type.Composite(tName, args*) =>
-        if args.forall(a => previouslyBoundVars.contains(a)) then
+        if args.forall(a => isPreviouslyBoundVar(a)) then
           // If all the type arguments correspond to already bound vars
           // we can assert a more precise expected type
           Seq(IRCond.TypeDecl(
@@ -175,16 +184,20 @@ class TypeIRGenerator:
           val expectationCheck = genExpectationCheck(typ, codeEnv)
 
           // Map all args into fresh variables
-          val argsAsTemplate = args.zipWithIndex.map({
+          val argsAsTemplate: Seq[Type.Variable | Label.Variable] = args.zipWithIndex.map({
             case (v: Type.Variable, _) => v
-            case (_, argIdx) => Type.Variable(s"t${('a' + argIdx).toChar}"): Type.Variable
+            case (Type.Label(l @ Label.Variable(_)), _) => l
+            case (_, argIdx) => Type.Variable(s"t${('a' + argIdx).toChar}")
           })
 
-          val argsAsCode = argsAsTemplate.map(v =>
+          val argTemplatesToCode = argsAsTemplate.map(v =>
             val (_, idCode) = codeEnv.requestIdentifier(v)
-            idCode
+            (v, idCode)
           )
-          val declTypeArgs = argsAsCode.map(vCode => Type.Variable(vCode.name): Type.Variable)
+          val declTypeArgs = argTemplatesToCode.map((v, vCode) => v match {
+            case _: Type.Variable => Type.Variable(vCode.name)
+            case _: Label.Variable => Type.Label(Label.Variable(vCode.name))
+          })
           
           // Generate a composite type pattern with the fresh args and use it for
           // the induction call.
@@ -197,8 +210,8 @@ class TypeIRGenerator:
           // we need to generate conds that assert the values are the same
           val argTypeReqs = 
             for 
-              (origArg, declArgCode) <- args.zip(argsAsCode)
-              if previouslyBoundVars.contains(origArg)
+              (origArg, declArgCode) <- args.zip(argTemplatesToCode.unzip._2)
+              if isPreviouslyBoundVar(origArg)
             yield
               val expectedTypeNode = generate(origArg, codeEnv)
               val declTypeNode = declArgCode

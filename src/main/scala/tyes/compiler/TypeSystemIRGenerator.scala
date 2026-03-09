@@ -24,9 +24,10 @@ class TypeSystemIRGenerator(
 
   private val expClassTypeRef = TCTypeRef("LExpression")
 
-  private val typeIRGenerator = new TypeIRGenerator()
+  private val labelIRGenerator = new LabelIRGenerator()
+  private val typeIRGenerator = new TypeIRGenerator(labelIRGenerator)
   private val rangeIRGenerator = new RangeIRGenerator(typeIRGenerator, expClassTypeRef)
-  private val termIRGenerator = new TermIRGenerator(typeIRGenerator, rangeIRGenerator)
+  private val termIRGenerator = new TermIRGenerator(typeIRGenerator, labelIRGenerator, rangeIRGenerator)
   private val envIRGenerator = new EnvironmentIRGenerator(typeIRGenerator, commonEnvName)
   private val ruleIRGenerator = new RuleIRGenerator(typeIRGenerator, termIRGenerator, envIRGenerator, expVar)
 

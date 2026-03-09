@@ -54,20 +54,41 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
     if metaVarIdent.matches(ident)
     then Term.Variable(ident)
     else Term.Constant(ident)
+
+  def newIdentifierLabel(ident: String): Label =
+    if metaVarIdent.matches(ident)
+    then Label.Variable(ident)
+    else Label.Constant(ident)
   
   def term: Parser[Term] = buildTermLanguageParser(new TyesTermLanguageBindings {
     def metaTermVariableParser = metaTermVariable
     def identTermParser(ident: String) = Parsers.success(newIdentifierTerm(ident))
+    def labelParser(ident: String) = Parsers.success(newIdentifierLabel(ident))
     def typeParser = tpe
   })
+
+  def label = genericIdent ^^ { case name =>
+    if metaIdent.matches(name)
+    then Label.Variable(name)
+    else Label.Constant(name)
+  }
+
+  def identType = genericIdent ^^ { case name => 
+    if metaIdent.matches(name) 
+    then Type.Variable(name) 
+    else Type.Named(name) 
+  }
+
+  def recordType =
+    import Constants.Types.Record.*
+    delimiterL ~> repsep(label ~ (":" ~> tpe), ",") <~ delimiterR ^^ {
+      case fields => apply(fields.map({ case f ~ t => (f, t) }))
+    }
   
   def leafType = 
-    genericIdent ^^ { case name => 
-      if metaIdent.matches(name) 
-      then Type.Variable(name) 
-      else Type.Named(name) 
-    }
+    identType
     | ("(" ~> tpe <~ ")")
+    | recordType
 
   def tpe: Parser[Type] = leafType ~ (Constants.Types.Function.operator ~> tpe).? ^^ { 
     case argTpe ~ None => argTpe

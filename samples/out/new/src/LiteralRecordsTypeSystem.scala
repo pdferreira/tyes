@@ -5,9 +5,11 @@ class LiteralRecordsTypeSystem extends TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
+    case $EmptyRecord
     case Rec
     case Ref
-    case $FunType(t1: Type, t2: Type) extends Type, tyes.runtime.CompositeType(t1, t2)
+    case $FunType(t1: Type, t2: Type)
+    case $Record(l1: Label, t2: Type, t3: Type)
 
   def typecheck(exp: LExpression[Type], env: Environment[Type]): Either[String, Type] = exp match {
     case LEmptyRecord => Right(Type.Rec)
@@ -15,11 +17,11 @@ class LiteralRecordsTypeSystem extends TypeSystem[LExpression]:
       if e3.isInstanceOf[LRecord[?]] then
         for
           t1 <- typecheck(e1, env)
-          LRecord(_, e2, ec) = e3: @unchecked
+          LRecord(y, e2, ec) = e3: @unchecked
           t2 <- typecheck(e2, env)
           _ <- checkIf(ec == LEmptyRecord, TypeError.noTypeFor(ec))
         yield
-          Type.$FunType(t1, Type.$FunType(t2, Type.Rec))
+          Type.$FunType(Type.$Record(x, t1, Type.$Record(y, t2, Type.$EmptyRecord)), Type.Rec)
       else if e3 == LEmptyRecord && x == "content" then
         for
           t <- typecheck(e1, env)

@@ -11,6 +11,8 @@ trait TyesTermLanguageBindings:
   
   def identTermParser(ident: String): Parser[Term]
 
+  def labelParser(ident: String): Parser[Label]
+
   def typeParser: Parser[Type]
 
   def rep1opL(elem: Parser[Term], op: Parser[String], funName: String): Parser[Term] =
