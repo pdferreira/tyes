@@ -2,7 +2,7 @@ package tyes.model
 
 import Parsers.*
 
-trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Term]):
+trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Term]) extends TypeRangeParsers:
 
   val keywords = Set("typesystem", "rule", "infers", "if", "and", "under")
   

@@ -98,7 +98,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContain
     case _ => super.toString
   }
 
-private object TermBuilder extends terms.TermBuilder[Term, Any]:
+object TermBuilder extends terms.TermBuilder[Term, Any]:
   
   override def applyConstant(value: Any): Term = Term.Constant(value)
 

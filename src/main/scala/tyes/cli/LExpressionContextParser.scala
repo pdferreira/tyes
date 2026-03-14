@@ -11,7 +11,7 @@ import Parsers.*
  
   If the source parser is assumed to be in Scala, this could perfectly be generated automatically
 */
-class LExpressionContextParser(bindings: TyesTermLanguageBindings):
+class LExpressionContextParser(bindings: TyesTermLanguageBindings) extends TermRangeParsers:
 
   val keywords = Set("let", "in", "fun")
 
@@ -32,11 +32,11 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
 
   def number = ("0" | raw"[1-9]\d*".r) ^^ { numStr => Term.Function("LNumber", Term.Constant(numStr.toInt)) }
 
-  def list = "[" ~> bindings.rep0opR(expression, ",", "LList") { 
+  def list = "[" ~> rep0opR(expression, ",", "LList") { 
     ("|" ~> metaVariable).? ^^ { tail => tail.getOrElse(Term.Function("LNil")) } 
   } <~ "]"
   
-  def record = "{" ~> bindings.repXopR(
+  def record = "{" ~> repXopR(
     label ~ ("=" ~> expression) ^^ { case label ~ exp => Seq(Term.Label(label), exp) },
     ",",
     "LRecord",
@@ -52,13 +52,13 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
     | list
     | record
 
-  def app = bindings.rep1opL(leaf, "", "LApp")
+  def app = rep1opL(leaf, "", "LApp")
 
-  def operator = bindings.rep1opL(app, "+", "LPlus")
+  def operator = rep1opL(app, "+", "LPlus")
 
   def tpe = bindings.typeParser
   
-  def let: Parser[Term] = bindings.repXopR(
+  def let: Parser[Term] = repXopR(
     ("let" ~> ident) ~ (":" ~> tpe).? ~ ("=" ~> (expression - let)) ^^ {
       case varTerm ~ varTypeOpt ~ varExp => Seq(
         varTerm,
@@ -71,7 +71,7 @@ class LExpressionContextParser(bindings: TyesTermLanguageBindings):
     atLeastOne = true
    ) { "in" ~> expression }
 
-  def fun: Parser[Term] = bindings.repXopR(
+  def fun: Parser[Term] = repXopR(
     ("fun" ~> ident) ~ (":" ~> tpe).? ^^ {
       case argTerm ~ argTypeOpt => Seq(
         argTerm,
