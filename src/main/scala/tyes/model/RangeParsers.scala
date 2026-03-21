@@ -31,6 +31,29 @@ trait RangeParsers[TTerm <: TermOps[TTerm, TConstant], TConstant]:
       case _ ~ Some(_) => err("impossible")
     }
 
+  def rep1opR(elem: Parser[TTerm], op: Parser[String], funName: String): Parser[TTerm] =
+    def buildFunTerm(lefts: Seq[TTerm], seed: TTerm): TTerm =
+      lefts.foldRight(seed) { (left, right) => applyFunction(funName, left, right) }
+
+    Parsers.rep1sep(elem, op) ~ (op ~> "..." ~>! op ~>! Parsers.rep1sep(elem, op)).? flatMap {
+      case (ls @ List(_, _*)) ~ None =>
+        success(buildFunTerm(ls.init, ls.last))
+      case (ls @ List(_, _*)) ~ Some(r +: rs) =>
+        val start = ls.last
+        val end = r
+        val seed =
+          if rs.size == 0 then
+            None
+          else
+            Some(buildFunTerm(rs.init, rs.last))
+
+        extractTermRange(funName, holeArgIdx = 1, Seq(start), Seq(end), seed, minOccurs = 2, applyRange)
+          .map(r => buildFunTerm(ls.init, r))
+          .fold(msgs => err(msgs.head), success)
+      case Nil ~ _ => err("impossible")
+      case _ ~ Some(_) => err("impossible")
+    }
+
   def rep0opR(elem: Parser[TTerm], op: Parser[String], funName: String)(seed: Parser[TTerm]): Parser[TTerm] =
     repXopR(elem.map(Seq(_)), op, funName, atLeastOne = false)(seed)
 

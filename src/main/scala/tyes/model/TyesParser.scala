@@ -90,9 +90,10 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
     | ("(" ~> tpe <~ ")")
     | recordType
 
-  def tpe: Parser[Type] = leafType ~ (Constants.Types.Function.operator ~> tpe).? ^^ { 
-    case argTpe ~ None => argTpe
-    case argTpe ~ Some(retTpe) => Constants.Types.Function(argTpe, retTpe)
-  }
+  def tpe: Parser[Type] = rep1opR(
+    leafType,
+    Constants.Types.Function.operator,
+    Constants.Types.Function.name
+  )
 
   def parse(input: String) = Parsers.parse(phrase(typesystem), input)

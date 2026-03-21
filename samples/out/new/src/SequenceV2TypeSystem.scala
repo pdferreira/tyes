@@ -7,7 +7,6 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
   enum Type extends tyes.runtime.Type:
     case List
     case One
-    case Rec
     case Two
     case $FunType(t1: Type, t2: Type)
 
@@ -34,10 +33,9 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
     case LRecordRange((fs, es, e3)) => 
       if e3 == LEmptyRecord then
         for
-          t <- typecheck(es(0), env)
-          _ <- (1 until es.size).foldRange(Seq(t))(i => typecheck(es(i), env).expecting(t))
+          ts <- (0 until es.size).foldRange(Seq())(i => typecheck(es(i), env))
         yield
-          Type.$FunType(t, Type.Rec)
+          ts.init.foldRight(ts.last)(Type.$FunType.apply)
       else
         TypeError.noTypeFor(exp)
 
