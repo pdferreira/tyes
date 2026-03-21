@@ -25,11 +25,11 @@ class TypeSystemIRGenerator(
   private val expClassTypeRef = TCTypeRef("LExpression")
 
   private val labelIRGenerator = new LabelIRGenerator()
-  private val typeIRGenerator = new TypeIRGenerator(labelIRGenerator)
+  private val typeIRGenerator: TypeIRGenerator = new TypeIRGenerator(labelIRGenerator, rangeIRGenerator)
   private val rangeIRGenerator = new RangeIRGenerator(typeIRGenerator, expClassTypeRef)
   private val termIRGenerator = new TermIRGenerator(typeIRGenerator, labelIRGenerator, rangeIRGenerator)
   private val envIRGenerator = new EnvironmentIRGenerator(typeIRGenerator, commonEnvName)
-  private val ruleIRGenerator = new RuleIRGenerator(typeIRGenerator, termIRGenerator, envIRGenerator, expVar)
+  private val ruleIRGenerator = new RuleIRGenerator(typeIRGenerator, termIRGenerator, rangeIRGenerator, envIRGenerator, expVar)
 
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
     val className = s"${tsDecl.name.getOrElse("")}TypeSystem"

@@ -17,7 +17,10 @@ import tyes.model.indexes.*
 import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
 
-class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
+class TypeIRGenerator(
+  labelIRGenerator: LabelIRGenerator,
+  rangeIRGenerator: => RangeIRGenerator,
+):
 
   val typeEnumTypeRef = TCTypeRef("Type")
 
@@ -38,13 +41,26 @@ class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
     case Type.Composite(name, args*) => 
       val self = Type.Composite(
         name,
-        args.zipWithIndex.map((arg, idx) => arg match {
-          case _: Type.Label => Type.Label(Label.Variable(s"l${idx + 1}"))
-          case _ => Type.Variable(s"t${idx + 1}")
-        })*
+        toTypeConstructorArgs(args)*
       )
       Set(self) ++ inferTypeConstructors(args)
+    case Type.Range(function, _, holeArgIdx, argTemplates, _, _, holeSeed) =>
+      val self = Type.Composite(
+        function,
+        toTypeConstructorArgs(argTemplates.patch(
+          from = holeArgIdx,
+          other = Seq(holeSeed.getOrElse(Type.Variable("$hole"))),
+          replaced = 0
+        ))*
+      )
+      Set(self) ++ inferTypeConstructors(holeSeed.toSeq ++ argTemplates)
   }).toSet
+
+  private def toTypeConstructorArgs(args: Seq[Type]): Seq[Type] =
+    args.zipWithIndex.map((arg, idx) => arg match {
+      case _: Type.Label => Type.Label(Label.Variable(s"l${idx + 1}"))
+      case _ => Type.Variable(s"t${idx + 1}")
+    })
 
   private def getTypeNameInCode(name: String) = name.capitalize
 
@@ -68,19 +84,34 @@ class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
     case Type.Composite(name, args*) => 
       var typeArgs = args.map(generate(_, codeEnv))
       TCN.ADTConstructorCall(generateRef(name), typeArgs*)
+    case r: Type.Range =>
+      r.toConcrete(Type.Composite(_, _*)).map(generate(_, codeEnv)).getOrElse {
+        rangeIRGenerator.generateConstructor(r) { funName =>
+          TCN.Field(TCN.ADTConstructorCall(generateRef(funName)), "apply")
+        }
+      }
   }
 
   private def generateRef(typeName: String): TargetCodeTypeRef =
     TCTypeRef(typeEnumTypeRef.name, getTypeNameInCode(typeName))
 
-  def generatePattern(typ: Type): TargetCodePattern = typ match {
-    case Constants.Types.any => TCP.Any
-    case Type.Named(name) => TCP.ADTConstructor(generateRef(name))
-    case Type.Label(label) => labelIRGenerator.generatePattern(label)
-    case Type.Variable(name) => TCP.Var(name)
+  /**
+  * Generates a code pattern for a term.
+  * 
+  * @return the pattern and a mapping from collection variables (e.g. `es`) to their element variables (e.g. `e`), if any 
+  */
+  def generatePattern(typ: Type): (TargetCodePattern, Map[String, String]) = typ match {
+    case Constants.Types.any => (TCP.Any, Map())
+    case Type.Named(name) => (TCP.ADTConstructor(generateRef(name)), Map())
+    case Type.Label(label) => (labelIRGenerator.generatePattern(label), Map())
+    case Type.Variable(name) => (TCP.Var(name), Map())
     case Type.Composite(name, args*) => 
-      var typeArgs = args.map(generatePattern)
-      TCP.ADTConstructor(generateRef(name), typeArgs*)
+      var (argPats, colVars) = args.map(generatePattern).unzip
+      (TCP.ADTConstructor(generateRef(name), argPats*), colVars.fold(Map())(_ ++ _))
+    case r: Type.Range =>
+      r.toConcrete(Type.Composite(_, _*))
+        .map(generatePattern)
+        .getOrElse(rangeIRGenerator.generateUnlimitedPattern(r, generatePattern))
   }
 
   def getTempTypeVar(typ: Type, nonVarSuffix: String = ""): Type.Variable =
@@ -144,7 +175,7 @@ class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
     declTypeExp: IRNode
   ): Seq[IRCond] =
     // Save previously bound type variables, before we decl new things in the env
-    val previouslyBoundVars = typ.typeVariables.concat(typ.labelVariables: Iterable[terms.TermVariable])
+    val previouslyBoundVars = typ.typeVariables.concat(typ.labelVariables: Iterable[terms.TermVariable[?]])
       .filter(v => codeEnv.contains(v))
       .toSet
 
@@ -157,6 +188,9 @@ class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
     typ match {
       case _: Type.Named => 
         Seq(IRCond.TypeDecl(TCP.Any, declTypeExp, genExpectationCheck(typ, codeEnv)))
+
+      case _: Type.Label =>
+        throw new IllegalArgumentException("Top-level labels are not expected")
 
       case v: Type.Variable =>
         val permanentV = getPermanentTypeVar(v)
@@ -201,7 +235,7 @@ class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
           // Generate a composite type pattern with the fresh args and use it for
           // the induction call.
           val declType = Type.Composite(tName, declTypeArgs*)
-          val declPat = generatePattern(declType)
+          val (declPat, _) = generatePattern(declType)
           
           val inductionDecl = IRCond.TypeDecl(declPat, declTypeExp, expectationCheck)
 

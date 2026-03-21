@@ -7,9 +7,7 @@ import tyes.compiler.target.TargetCodeTypeRef
 import tyes.compiler.*
 import tyes.model.*
 import tyes.model.indexes.*
-import tyes.model.terms.TermOps
-import tyes.model.terms.TermRange
-import tyes.model.terms.TermVariable
+import tyes.model.terms.*
 import tyes.model.TyesLanguageExtensions.*
 
 class RangeIRGenerator(
@@ -55,38 +53,39 @@ class RangeIRGenerator(
     * 
     * @return the pattern and a mapping from collection variables (e.g. `es`) to their element variables (e.g. `e`), if any 
     */
-  def generateUnlimitedPattern(range: TermRange[Term], generatePat: Term => (TCP, Map[String, String])): (TCP, Map[String, String]) =
-    if !range.argTemplates.forall({
-      case Term.Variable(_) => true
-      case Term.Type(Type.Variable(_)) => true
-      case _ => false
-    }) then
-      throw new NotImplementedError(f"for $range")
-
+  def generateUnlimitedPattern[TTerm](
+    range: TermRange[TTerm],
+    generatePat: TTerm => (TCP, Map[String, String])
+  ): (TCP, Map[String, String]) =
     val colToElemVar = mutable.Map[String, String]()
+    
+    def collectColVar[T](v: T): T =
+      val (colV, colVarEntry) = collectCollectionVar(v, range.cursor)
+      colVarEntry.foreach((colVar, elemVar) => colToElemVar(colVar.name) = elemVar)
+      colV
+
     val (args, otherColVars) = range.argTemplates
-      .map({
-        case v @ Term.Variable(name) => extractIndex(name) match {
-          case Some((name, idxStr)) if idxStr == range.cursor =>
-            val colVarName = getCollectionVarName(name)
-            colToElemVar(colVarName) = name
-            Term.Variable(colVarName)
-          case _ => v
-        }
-        case t @ Term.Type(Type.Variable(name)) => extractIndex(name) match {
-          case Some((name, idxStr)) if idxStr == range.cursor =>
-            val colVarName = getCollectionVarName(name)
-            colToElemVar(colVarName) = name
-            Term.Type(Type.Variable(colVarName))
-          case _ => t
-        }
-        case t => throw new NotImplementedError(f"for $t")
-      })
+      .map(collectColVar)
       .patch(from = range.holeArgIdx, other = range.holeSeed.toSeq, replaced = 0)
       .map(generatePat)
       .unzip
 
     (TCP.Extract(getExtractorName(range), args*), otherColVars.fold(colToElemVar.toMap)(_ ++ _))
+
+  def collectCollectionVar[T](v: T, cursor: String): (T, Option[(TermVariable[?], String)]) = v match {
+    case v: TermVariable[T] => extractIndex(v.name) match {
+      case Some((name, idxStr)) if idxStr == cursor =>
+        val colVar = v.copy(name = getCollectionVarName(name))
+        (colVar, Some(colVar -> name))
+      case _ =>
+        (v, None)
+    }
+    case t: SpecializedTerm[T, _, _] =>
+      val (specialized, colVarEntry) = collectCollectionVar(t.specialized, cursor)
+      (t.copy(specialized = specialized), colVarEntry)
+        
+    case t => throw new NotImplementedError(f"for $t")
+  }
 
   def generateConstructor[TTerm <: TermOps[TTerm, TConstant], TConstant](
     range: TermRange[TTerm]

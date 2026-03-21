@@ -45,7 +45,7 @@ class TermIRGenerator(
     case Term.Function(name, args*) => 
       val (argPats, colVars) = args.map(generatePattern).unzip
       (TCP.ADTConstructor(TCTypeRef(name), argPats*), colVars.fold(Map())(_ ++ _))
-    case Term.Type(typ) => (typeIRGenerator.generatePattern(typ), Map())
+    case Term.Type(typ) => typeIRGenerator.generatePattern(typ)
     case Term.Label(label) => (labelIRGenerator.generatePattern(label), Map())
     case r: Term.Range =>
       r.toConcrete(Term.Function(_, _*))

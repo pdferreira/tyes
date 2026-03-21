@@ -16,6 +16,7 @@ import utils.collections.*
 class RuleIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
   private val termIRGenerator: TermIRGenerator,
+  private val rangeIRGenerator: RangeIRGenerator,
   private val envIRGenerator: EnvironmentIRGenerator,
   private val expVar: TCN.Var
 ):
@@ -269,18 +270,28 @@ class RuleIRGenerator(
           val (_, cursorVar) = rangeCodeEnv.requestIdentifier(Term.Variable("i"))
           val elem = from.replaceIndex(fromIdx.toString, cursorVar.name)
           val Judgement(_, HasType(_, elemType)) = elem: @unchecked
+
+          val rangeBody = IRNode.And(
+            conds = genPremiseConds(elem, rangeCodeEnv),
+            next = IRNode.Type(IRType.FromCode(typeIRGenerator.generate(elemType, rangeCodeEnv)))
+          )
+
+          // Only after generating the range body, add the variable to the parent env if applicable
+          val (typeColVar, colVarEntry) = rangeIRGenerator.collectCollectionVar(elemType, cursorVar.name)
+          val colVarDecl = for 
+            (colVar, elemVar) <- colVarEntry
+            if !codeEnv.containsCollection(elemVar)
+          yield
+            codeEnv.requestIdentifier(colVar, elementVar = Some(elemVar))
           
           val remainingCond = IRCond.TypeDecl(
-            TCP.Any,
+            if colVarDecl.isDefined then typeIRGenerator.generatePattern(typeColVar)._1 else TCP.Any,
             IRNode.Range(
               colVar = colCode.asInstanceOf[TCN.Var].name,
               startIdx = if elemType == fromType then 1 else 0,
               seed = if elemType == fromType then Some(typeIRGenerator.generate(fromType, codeEnv)) else None,
               cursor = cursorVar.name,
-              body = IRNode.And(
-                conds = genPremiseConds(elem, rangeCodeEnv),
-                next = IRNode.Type(IRType.FromCode(typeIRGenerator.generate(elemType, rangeCodeEnv)))
-              )
+              body = rangeBody
             )
           )
           (if elemType == fromType then fromConds else Seq()) ++ Seq(remainingCond)
