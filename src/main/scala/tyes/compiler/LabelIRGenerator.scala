@@ -7,6 +7,8 @@ import tyes.model.terms.TermVariable
 
 class LabelIRGenerator:
   
+  val labelTypeRef = TCTypeRef("Label")
+
   def generate(label: Label, codeEnv: TargetCodeEnv = TargetCodeEnv()): TargetCodeNode = label match {
     case Label.Constant(name) => TCN.Text(name)
     case v: Label.Variable => codeEnv(v)

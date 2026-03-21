@@ -20,7 +20,6 @@ import utils.StringExtensions.*
 class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
 
   val typeEnumTypeRef = TCTypeRef("Type")
-  val labelTypeRef = TCTypeRef("Label")
 
   def generateDecl(tsDecl: TypeSystemDecl): TargetCodeDecl =
     val typeConstructors = inferTypeConstructors(tsDecl.types).toSeq
@@ -54,7 +53,7 @@ class TypeIRGenerator(labelIRGenerator: LabelIRGenerator):
     case Type.Composite(name, args*) =>
       val params = args.map(t => t match {
         case Type.Variable(name) => name -> typeEnumTypeRef
-        case Type.Label(Label.Variable(name)) => name -> labelTypeRef
+        case Type.Label(Label.Variable(name)) => name -> labelIRGenerator.labelTypeRef
         case _ => throw new IllegalArgumentException(t.getClass.getSimpleName)
       })
       TCADTConstructor(getTypeNameInCode(name), params = params)
