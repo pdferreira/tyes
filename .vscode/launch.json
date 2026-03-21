@@ -1,0 +1,59 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "scala",
+      "request": "launch",
+      "name": "Debug Main",
+      "mainClass": "main"
+    },
+    {
+      "type": "scala",
+      "request": "launch",
+      "name": "tyer Test",
+      "mainClass": "tyer",
+      "args": [
+        "${file}",
+        "${input:skipValidation}",
+        "-e",
+        "${input:expression}",
+      ]
+    },
+    {
+      "type": "scala",
+      "request": "launch",
+      "name": "tyec Test",
+      "mainClass": "tyec",
+      "args": [
+        "-out",
+        "samples\\out\\new",
+        "${input:skipValidation}",
+        "${file}"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "expression",
+      "type": "promptString",
+      "description": "Enter the expression to type",
+      "default": "",
+    },
+    {
+      "id": "skipValidation",
+      "type": "pickString",
+      "description": "Skip validation?",
+      "default": "false",
+      "options": [
+        {
+          "label": "false",
+          "value": ""
+        },
+        {
+          "label": "true",
+          "value": "-skipValidation"
+        }
+      ],
+    }
+  ]
+}

@@ -2,5 +2,6 @@
 .bsp/*
 .metals/*
 .vscode/*
+!.vscode/launch.json
 target/*
 project/*
