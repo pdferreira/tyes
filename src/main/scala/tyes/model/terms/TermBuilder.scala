@@ -2,7 +2,7 @@ package tyes.model.terms
 
 trait TermBuilder[TTerm, TConstant]:
 
-  def applyVariable(name: String): TTerm & TermVariable
+  def applyVariable(name: String): TTerm & TermVariable[TTerm]
   
   def unapplyVariable(term: TTerm): Option[String]
 

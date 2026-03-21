@@ -11,7 +11,7 @@ object TestTermBuilder extends TermBuilder[TestTerm, Any]:
     case _ => None
   }
 
-  override def applyVariable(name: String): TestTerm & TermVariable = TestTerm.Variable(name)
+  override def applyVariable(name: String): TestTerm & TermVariable[TestTerm.Variable] = TestTerm.Variable(name)
 
   override def unapplyVariable(term: TestTerm): Option[String] = term match {
     case TestTerm.Variable(name) => Some(name)
@@ -51,7 +51,7 @@ object TestTermBuilder extends TermBuilder[TestTerm, Any]:
 
 enum TestTerm extends TermOps[TestTerm, Any](TestTermBuilder):
   case Constant(value: Any)
-  case Variable(name: String) extends TestTerm, TermVariable
+  case Variable(name: String) extends TestTerm, TermVariable[Variable]
   case Function(name: String, args: TestTerm*)
   case Range(
     function: String,

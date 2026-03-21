@@ -39,7 +39,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private def nameclash(name: String): Id =
     NameOperations.nameclash(name, allIds.map(_.asString)).toId
 
-  def requestIdentifier(termVar: TermVariable, elementVar: Option[String] = None): (Id, TargetCodeNode.Var) =
+  def requestIdentifier(termVar: TermVariable[?], elementVar: Option[String] = None): (Id, TargetCodeNode.Var) =
     val id = nameclash(termVar.name)
     val idCode: TCN.Var = TCN.Var(id.toString)
     
@@ -55,7 +55,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   def apply(id: Id): TargetCodeNode =
     get(id).getOrElse(throw new NoSuchElementException(id.asString))
 
-  def apply(termVar: TermVariable): TargetCodeNode =
+  def apply(termVar: TermVariable[?]): TargetCodeNode =
     getIds(termVar)
       .map(ids => apply(ids.head))
       // TODO: clean this up when indexed vars stop being done ad-hoc
@@ -72,10 +72,10 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private def get(id: Id): Option[TargetCodeNode] =
     idToCode.get(id).orElse(parent.flatMap(_.get(id)))
 
-  private def getIds(termVar: TermVariable): Option[Seq[Id]] =
+  private def getIds(termVar: TermVariable[?]): Option[Seq[Id]] =
     nameToIds.get(termVar.name).orElse(parent.flatMap(_.getIds(termVar)))
 
-  def contains(termVar: TermVariable): Boolean =
+  def contains(termVar: TermVariable[?]): Boolean =
     if getIds(termVar).isDefined then
       return true
     else

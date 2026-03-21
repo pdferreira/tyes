@@ -2,7 +2,7 @@ package tyes.model
 
 enum Label extends terms.TermOps[Label, String](LabelBuilder):
   case Constant(name: String)
-  case Variable(name: String) extends Label, terms.TermVariable
+  case Variable(name: String) extends Label, terms.TermVariable[Variable]
 
   def labelVariables: Iterable[Label.Variable] = this match {
     case _: Constant => Set()
@@ -18,7 +18,7 @@ private object LabelBuilder extends terms.TermBuilder[Label, String]:
     case _ => None
   }
 
-  override def applyVariable(name: String): Label & terms.TermVariable = Label.Variable(name)
+  override def applyVariable(name: String): Label & terms.TermVariable[Label.Variable] = Label.Variable(name)
 
   override def unapplyVariable(term: Label): Option[String] = term match {
     case Label.Variable(name) => Some(name)

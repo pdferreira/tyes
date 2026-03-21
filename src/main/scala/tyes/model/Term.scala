@@ -5,7 +5,7 @@ import tyes.model.ranges.*
 
 enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContainer:
   case Constant[T](value: T)
-  case Variable(name: String) extends Term, terms.TermVariable
+  case Variable(name: String) extends Term, terms.TermVariable[Variable]
   case Function(name: String, args: Term*)
   case Type(typ: tyes.model.Type)
   case Label(label: tyes.model.Label)
@@ -107,7 +107,7 @@ object TermBuilder extends terms.TermBuilder[Term, Any]:
     case _ => None
   }
 
-  override def applyVariable(name: String): Term & terms.TermVariable = Term.Variable(name)
+  override def applyVariable(name: String): Term & terms.TermVariable[Term.Variable] = Term.Variable(name)
 
   override def unapplyVariable(term: Term): Option[String] = term match {
     case Term.Variable(name) => Some(name)

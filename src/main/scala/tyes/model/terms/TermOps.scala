@@ -8,8 +8,8 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
   this: TTerm =>
 
   private object Variable:
-    def apply(name: String): TTerm & TermVariable = builder.applyVariable(name)
-    def unapply(term: TTerm & TermVariable): Option[String] = builder.unapplyVariable(term)
+    def apply(name: String): TTerm & TermVariable[TTerm] = builder.applyVariable(name)
+    def unapply(term: TTerm & TermVariable[TTerm]): Option[String] = builder.unapplyVariable(term)
 
   private object Constant:
     def apply(value: TConstant): TTerm = builder.applyConstant(value) 
@@ -254,7 +254,7 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       val newTemplates = argTemplates.map(_.substitute(subst - cursor))
       val newMaxIndex = maxIndex match {
         case Index.Variable(name, min) if subst.contains(name) =>
-          val newName = subst(name).asInstanceOf[TermVariable].name
+          val newName = subst(name).asInstanceOf[TermVariable[?]].name
           Index.Variable(newName, min)
         case _ => maxIndex 
       }
