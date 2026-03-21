@@ -1,14 +1,13 @@
 package tyes.model
 
-import tyes.model.Type
 import tyes.model.ranges.*
 
 enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContainer:
   case Constant[T](value: T)
   case Variable(name: String) extends Term, terms.TermVariable[Variable]
   case Function(name: String, args: Term*)
-  case Type(typ: tyes.model.Type)
-  case Label(label: tyes.model.Label)
+  case Type(typ: tyes.model.Type) extends Term, terms.SpecializedTerm[Type, tyes.model.Type, String](typ)
+  case Label(label: tyes.model.Label) extends Term, terms.SpecializedTerm[Label, tyes.model.Label, String](label)
   case Range(
     function: String,
     cursor: String,

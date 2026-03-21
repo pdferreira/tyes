@@ -4,7 +4,7 @@ import tyes.model.ranges.*
 
 enum Type extends terms.TermOps[Type, String](TypeBuilder) with TypeVariableContainer:
   case Named(name: String)
-  case Label(label: tyes.model.Label)
+  case Label(label: tyes.model.Label) extends Type, terms.SpecializedTerm[Label, tyes.model.Label, String](label)
   case Variable(name: String) extends Type, terms.TermVariable[Variable]
   case Composite(name: String, args: Type*)
   case Range(
