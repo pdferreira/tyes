@@ -9,8 +9,9 @@ import tyes.compiler.target.{TargetCodeNodeOperations as TCNOps}
 /**
   * Transforms a IRNode in such a way that the it is optimized for the required
   * data flow:
-  *   1. order of its declarations matches the order of the data flow
-  *   2. unused declarations get muted
+  *
+  * 1. order of its declarations matches the order of the data flow
+  * 2. unused declarations get muted
   * 
   * In a way it transforms from a purely declarative specification into an operational one.
   * 
