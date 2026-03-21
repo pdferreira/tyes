@@ -23,7 +23,7 @@ class RangeIRGenerator(
 
   private def getCollectionVarName(elemVarName: String): String = elemVarName + "s"
 
-  private def getCollectionVarName[TTerm <: TermOps[TTerm, Any]](range: TermRange[TTerm]): Option[String] =
+  private def getCollectionVarName[TTerm <: TermOps[TTerm, TConstant], TConstant](range: TermRange[TTerm]): Option[String] =
     val vs = range.iteratedVariables
     assert(vs.size <= 1)
     vs.headOption.map(getCollectionVarName)
@@ -88,8 +88,21 @@ class RangeIRGenerator(
 
     (TCP.Extract(getExtractorName(range), args*), otherColVars.fold(colToElemVar.toMap)(_ ++ _))
 
-  def generateConstructor[TTerm <: TermOps[TTerm, Any]](range: TermRange[TTerm]): TCN =
-    RuntimeAPIGenerator.genFoldLeft1(
-      TCN.Var(getCollectionVarName(range).get), 
-      TCN.Field(TCN.Var(range.function), "apply")
-    )
+  def generateConstructor[TTerm <: TermOps[TTerm, TConstant], TConstant](
+    range: TermRange[TTerm]
+  )(
+    genFunctionCode: String => TCN
+  ): TCN =
+    if range.argTemplates.size != 1 then
+      throw new IllegalArgumentException("Not supported range with non-binary function")
+
+    if range.holeSeed.isDefined then
+      throw new IllegalArgumentException("Not supported range with seed")
+    
+    val genFold1 =
+      if range.holeArgIdx == 0 then
+        RuntimeAPIGenerator.genFoldLeft1
+      else
+        RuntimeAPIGenerator.genFoldRight1
+    
+    genFold1(TCN.Var(getCollectionVarName(range).get), genFunctionCode(range.function))

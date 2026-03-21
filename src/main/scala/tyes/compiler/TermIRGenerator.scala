@@ -5,9 +5,6 @@ import tyes.compiler.target.TargetCodePattern
 import tyes.compiler.target.TargetCodeTypeRef
 import tyes.model.Term
 import tyes.model.TyesLanguageExtensions.*
-import tyes.model.Type
-import tyes.model.terms.Index
-import tyes.model.terms.TermVariable
 
 class TermIRGenerator(
   private val typeIRGenerator: TypeIRGenerator,
@@ -29,7 +26,9 @@ class TermIRGenerator(
     case Term.Label(label) => labelIRGenerator.generate(label, codeEnv)
     case r: Term.Range =>
       r.toConcrete(Term.Function(_, _*)).map(generate(_, codeEnv)).getOrElse {
-        rangeIRGenerator.generateConstructor(r)
+        rangeIRGenerator.generateConstructor(r) { funName =>
+          TCN.Field(TCN.Var(funName), "apply")
+        }
       }
   }
 

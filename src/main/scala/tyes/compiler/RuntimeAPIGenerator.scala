@@ -69,3 +69,12 @@ object RuntimeAPIGenerator:
       ),
       funCode
     )
+
+  def genFoldRight1(colCode: TCN, funCode: TCN): TCN =
+    TCN.Apply(
+      TCN.Apply(
+        TCN.Field(TCN.Field(colCode, "init"), "foldRight"),
+        TCN.Field(colCode, "last"),
+      ),
+      funCode
+    )
