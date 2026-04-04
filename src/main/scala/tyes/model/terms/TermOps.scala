@@ -245,11 +245,19 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
   }
 
   def substitute(subst: Map[String, TTerm]): TTerm = this match {
-    case Variable(name) =>
-      if subst.contains(name) then
-        subst(name)
+    case v @ Variable(name) =>
+      val vAfterIdx = extractIndex(name) match {
+        case None => v
+        case Some((rawName, idxStr)) => subst.get(idxStr) match {
+          case Some(IndexTerm(idx)) =>
+            Variable(indexedVar(rawName, idx.fold(iv => iv.name, in => in.value.toString)))
+          case _ => v
+        }
+      }
+      if subst.contains(vAfterIdx.name) then
+        subst(vAfterIdx.name)
       else
-        this
+        vAfterIdx
     case Constant(_) => this
     case Function(name, args*) => Function(name, args.map(_.substitute(subst))*)
     case Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeSeed)

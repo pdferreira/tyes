@@ -8,5 +8,5 @@ typesystem Ranges
     if e1 : t1
     and e2 : t2
 
-  rule Sum infers e_1 + ... + e_n : t
-    if e_1 ... e_n : t
+  rule Sum infers e_1 + ... + e_n : t_n
+    if e_1 ... e_n : t_1 -> ... -> t_n
