@@ -35,6 +35,11 @@ enum Type extends terms.TermOps[Type, String](TypeBuilder) with TypeVariableCont
     case _ => super.isGround 
   }
 
+  override def rename(subst: Map[String, String]): Type = this match {
+    case Type.Label(label) => Type.Label(label.rename(subst))
+    case _ => super.rename(subst)
+  }
+
   override def substitute(subst: Map[String, Type]): Type = this match { 
     case Type.Label(label) =>
       val labelSubst = subst.collect({ case (k, Type.Label(l)) => k -> l })

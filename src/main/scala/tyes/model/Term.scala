@@ -40,6 +40,12 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContain
     case _ => super.isGround 
   }
 
+  override def rename(subst: Map[String, String]): Term = this match {
+    case Term.Type(typ) => Term.Type(typ.rename(subst))
+    case Term.Label(label) => Term.Label(label.rename(subst))
+    case _ => super.rename(subst)
+  }
+
   override def substitute(subst: Map[String, Term]): Term = this match { 
     case Term.Type(typ) =>
       val typSubst = TyesLanguageExtensions.termSubstToTypeSubst(subst)

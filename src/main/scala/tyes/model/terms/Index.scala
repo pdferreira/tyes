@@ -15,6 +15,11 @@ enum Index:
 
   def variables: Set[String] = this.asVariable.map(_.name).toSet
 
+  def rename(subst: Map[String, String]): Index = this match {
+    case Variable(name, min) => subst.get(name).map(Variable(_, min)).getOrElse(this)
+    case _ => this 
+  }
+
   override def toString: String = this match {
     case Variable(name, min) if min > 0 => s"$name[>= $min]"
     case Variable(name, _) => name

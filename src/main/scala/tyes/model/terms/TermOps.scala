@@ -223,6 +223,27 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
       indexVars ++ getRangeElems(Range.apply.tupled(params), _.variables)
   }
 
+  def rename(subst: Map[String, String]): TTerm = this match {
+    case Variable(name) => subst.get(name).map(Variable(_)).getOrElse(this)
+    case Variable(_) => this
+    case Constant(_) => this
+    case IndexTerm(idx) => IndexTerm(idx.rename(subst))
+    case Function(name, args*) => Function(name, args.map(_.rename(subst))*)
+    case Range(function, cursor, holeArgIdx, argTemplates, minIndex, maxIndex, holeSeed)
+      if !subst.contains(cursor) && subst.values.toSet.contains(cursor)
+    =>
+      Range(
+        function,
+        cursor,
+        holeArgIdx,
+        argTemplates.map(_.rename(subst)),
+        minIndex,
+        maxIndex.rename(subst),
+        holeSeed.map(_.rename(subst))
+      )
+    case Range(_, _, _, _, _, _, _) => this
+  }
+
   def substitute(subst: Map[String, TTerm]): TTerm = this match {
     case Variable(name) =>
       if subst.contains(name) then
@@ -333,8 +354,8 @@ trait TermOps[TTerm <: TermOps[TTerm, TConstant], TConstant](builder: TermBuilde
 
   def overlaps(otherTerm: TTerm): Boolean =
     val commonVarNames = this.variables.intersect(otherTerm.variables)
-    val freshNamesSubst = Map.from(commonVarNames.map(name => name -> Variable("$" + name)))
-    val freshOtherTerm = otherTerm.substitute(freshNamesSubst)
+    val freshNamesSubst = Map.from(commonVarNames.map(name => name -> ("$" + name)))
+    val freshOtherTerm = otherTerm.rename(freshNamesSubst)
     this.unifies(freshOtherTerm).isDefined
 
   def isGround: Boolean = this.variables.isEmpty
