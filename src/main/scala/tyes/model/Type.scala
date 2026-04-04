@@ -4,6 +4,7 @@ import tyes.model.ranges.*
 
 enum Type extends terms.TermOps[Type, String](TypeBuilder) with TypeVariableContainer:
   case Named(name: String)
+  case Index(index: terms.Index)
   case Label(label: tyes.model.Label) extends Type, terms.SpecializedTerm[Label, tyes.model.Label, String](label)
   case Variable(name: String) extends Type, terms.TermVariable[Variable]
   case Composite(name: String, args: Type*)
@@ -62,6 +63,7 @@ enum Type extends terms.TermOps[Type, String](TypeBuilder) with TypeVariableCont
   override def typeVariables: Iterable[Type.Variable] = this match {
     case Type.Named(_) => Set.empty
     case Type.Label(_) => Set.empty
+    case Type.Index(_) => Set.empty
     case v: Type.Variable => Set(v)
     case Type.Composite(_, args*) => args.flatMap(_.typeVariables).toSet
     case r: Type.Range => getRangeElems(r, _.typeVariables).toSet
@@ -70,6 +72,7 @@ enum Type extends terms.TermOps[Type, String](TypeBuilder) with TypeVariableCont
   def labelVariables: Iterable[tyes.model.Label.Variable] = this match {
     case Type.Named(_) => Set.empty
     case Type.Variable(_) => Set.empty
+    case Type.Index(_) => Set.empty
     case Type.Label(l) => l.labelVariables
     case Type.Composite(_, args*) => args.flatMap(_.labelVariables).toSet
     case r: Type.Range => getRangeElems(r, _.labelVariables).toSet
@@ -77,6 +80,7 @@ enum Type extends terms.TermOps[Type, String](TypeBuilder) with TypeVariableCont
 
   def labels: Set[tyes.model.Label] = this match {
     case Type.Named(_) => Set.empty
+    case Type.Index(_) => Set.empty
     case Type.Variable(_) => Set.empty
     case Type.Label(l) => Set(l)
     case Type.Composite(_, args*) => args.flatMap(_.labels).toSet
@@ -108,6 +112,13 @@ object TypeBuilder extends terms.TermBuilder[Type, String]:
 
   override def unapplyFunction(typ: Type): Option[(String, Seq[Type])] = typ match {
     case Type.Composite(name, args*) => Some((name, args))
+    case _ => None
+  }
+
+  override def applyIndex(index: terms.Index): Type = Type.Index(index)
+
+  override def unapplyIndex(typ: Type): Option[terms.Index] = typ match {
+    case Type.Index(index) => Some(index)
     case _ => None
   }
 

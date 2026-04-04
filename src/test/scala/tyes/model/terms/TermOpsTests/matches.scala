@@ -51,18 +51,18 @@ class matches extends AnyFunSpec:
             for case (t, i) <- values.zipWithIndex
             yield indexedVar(rootVar, i.toString) -> t
           )
-          assert(range.matches(term) == Some(argsSubst + (boundsVar -> Constant(values.length - 1))))
+          assert(range.matches(term) == Some(argsSubst + (boundsVar -> Idx(Index.Number(values.length - 1)))))
         }
 
         it("matches a single term matching the template") {
           val term = Function("C", values(0))
-          assert(range.matches(term) == Some(Map("t_0" -> values(0), boundsVar -> Constant(0))))
+          assert(range.matches(term) == Some(Map("t_0" -> values(0), boundsVar -> Idx(Index.Number(0)))))
         }
 
         it("matches a range with matching template modulo their cursors") {
           val r1 = Range("f", "i", 0, Seq(Function("P", Variable("e_i"), Variable("y"))), 0, Index.Variable("k"), None)
           val r2 = Range("f", "j", 0, Seq(Function("P", Variable("e_j"), Constant(1))), 0, Index.Number(5), None)
-          assert(r1.matches(r2) == Some(Map("y" -> Constant(1), "k" -> Constant(5))))
+          assert(r1.matches(r2) == Some(Map("y" -> Constant(1), boundsVar -> Idx(Index.Number(5)))))
         }
 
         it("does not match a left-associative term with sub-terms not matching the template") {
@@ -112,7 +112,7 @@ class matches extends AnyFunSpec:
         
         it("matches a term that matches the seed") {
           val term = concreteSeed
-          assert(range.matches(term) == Some(Map("a" -> Constant(true), "k" -> Constant(0))))
+          assert(range.matches(term) == Some(Map("a" -> Constant(true), "k" -> Idx(Index.Number(0)))))
         }
 
         it("matches a term that matches the seed at the innermost position") {
@@ -126,7 +126,7 @@ class matches extends AnyFunSpec:
           )
           assert(range.matches(term) == Some(
             argsSubst + 
-            ("k" -> Constant(values.length)) + 
+            ("k" -> Idx(Index.Number(values.length))) + 
             ("a" -> Constant(true))
           ))
         }
@@ -145,7 +145,7 @@ class matches extends AnyFunSpec:
           assert(r1.matches(r2) == Some(Map(
             "y" -> Constant(1),
             "x" -> Function("R", Variable("z_i")),
-            "k" -> Constant(5)
+            "k" -> Idx(Index.Number(5))
           )))
         }
 
@@ -165,7 +165,7 @@ class matches extends AnyFunSpec:
             for case (t, i) <- values.zipWithIndex
             yield f"t_$i" -> t
           )
-          assert(range.matches(term) == Some(argsSubst + ("k" -> Constant(values.length - 1))))
+          assert(range.matches(term) == Some(argsSubst + ("k" -> Idx(Index.Number(values.length - 1)))))
         }
 
         it("doesn't match a term with lower occurrences") {

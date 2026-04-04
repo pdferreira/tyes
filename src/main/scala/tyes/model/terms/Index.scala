@@ -13,6 +13,8 @@ enum Index:
     case v: Variable => fVariable(v) 
   }
 
+  def variables: Set[String] = this.asVariable.map(_.name).toSet
+
   override def toString: String = this match {
     case Variable(name, min) if min > 0 => s"$name[>= $min]"
     case Variable(name, _) => name

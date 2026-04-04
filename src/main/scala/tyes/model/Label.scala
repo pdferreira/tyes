@@ -29,6 +29,10 @@ private object LabelBuilder extends terms.TermBuilder[Label, String]:
 
   override def unapplyFunction(term: Label): Option[(String, Seq[Label])] = None
 
+  override def applyIndex(index: terms.Index): Label = throw new NotImplementedError("not supported")
+
+  override def unapplyIndex(term: Label): Option[terms.Index] = None
+
   override def applyRange(
     function: String,
     cursor: String,

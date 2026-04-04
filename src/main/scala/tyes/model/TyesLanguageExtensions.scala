@@ -14,6 +14,7 @@ object TyesLanguageExtensions:
   def termSubstToTypeSubst(termSubst: Map[String, Term]): Map[String, Type] = termSubst.collect({
     case (k, Term.Type(typ)) => k -> typ
     case (k, Term.Label(label)) => k -> Type.Label(label)
+    case (k, Term.Index(idx)) => k -> Type.Index(idx)
   })
 
   def termSubstToLabelSubst(termSubst: Map[String, Term]): Map[String, Label] = termSubst.collect({

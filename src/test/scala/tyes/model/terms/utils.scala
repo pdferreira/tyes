@@ -25,6 +25,13 @@ object TestTermBuilder extends TermBuilder[TestTerm, Any]:
     case _ => None
   }
 
+  override def applyIndex(index: Index) = TestTerm.Idx(index)
+
+  override def unapplyIndex(term: TestTerm): Option[Index] = term match {
+    case TestTerm.Idx(index) => Some(index)
+    case _ => None
+  }
+
   override def applyRange(
     function: String,
     cursor: String,
@@ -51,6 +58,7 @@ object TestTermBuilder extends TermBuilder[TestTerm, Any]:
 
 enum TestTerm extends TermOps[TestTerm, Any](TestTermBuilder):
   case Constant(value: Any)
+  case Idx(index: Index)
   case Variable(name: String) extends TestTerm, TermVariable[Variable]
   case Function(name: String, args: TestTerm*)
   case Range(

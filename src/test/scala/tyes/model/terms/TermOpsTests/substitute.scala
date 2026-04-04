@@ -96,7 +96,7 @@ class substitute extends AnyFunSpec:
         it("is replaced by a left-associative function term") {
           val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Variable(boundsVar), None)
           val subst = Map(
-            boundsVar -> Constant(3),
+            boundsVar -> Idx(Index.Number(3)),
             indexedVar(rootVar, "1") -> Constant("a"),
             indexedVar(rootVar, "3") -> Constant(5)
           )
@@ -114,7 +114,7 @@ class substitute extends AnyFunSpec:
           val seed = Function("s", Variable("w"))
           val range = Range(function, cursor, 0, Seq(argTemplates), 0, Index.Variable(boundsVar), Some(seed))
           val subst = Map(
-            boundsVar -> Constant(0),
+            boundsVar -> Idx(Index.Number(0)),
             indexedVar(rootVar, "0") -> Constant("zero"),
             "w" -> Constant(true)
           )
@@ -132,12 +132,12 @@ class substitute extends AnyFunSpec:
           val seed = Function("s", Variable("w"))
           val template = Function("t", Variable(indexedVar(rootVar, cursor)), Variable("w"))
           val minIndex = 0
-          val maxIndex = Index.Variable(boundsVar, 5)
+          val maxIndex = Index.Variable(boundsVar, min = 5)
           val range = Range(function, cursor, 0, Seq(template), minIndex, maxIndex, Some(seed))
 
           val subst = Map(
             "w" -> Constant(true),
-            boundsVar -> Variable("b")
+            boundsVar -> Idx(Index.Variable("b", min = 7))
           )
 
           val expectedRange = Range(
@@ -146,10 +146,24 @@ class substitute extends AnyFunSpec:
             0,
             Seq(Function("t", Variable(indexedVar(rootVar, cursor)), Constant(true))),
             minIndex,
-            Index.Variable("b", min = 5),
+            Index.Variable("b", min = 7),
             Some(Function("s", Constant(true)))
           )
           assert(range.substitute(subst) == expectedRange)
+        }
+
+        it("does not propagate to its maxIndex if min constraint is incompatible") {
+          val template = Function("t", Variable(indexedVar(rootVar, cursor)), Variable("w"))
+          val minIndex = 0
+          val maxIndex = Index.Variable(boundsVar, min = 5)
+          val range = Range(function, cursor, 0, Seq(template), minIndex, maxIndex, None)
+
+          val subst = Map(
+            "w" -> Constant(true),
+            boundsVar -> Idx(Index.Variable("b", min = 3))
+          )
+
+          assertThrows[AssertionError](range.substitute(subst))
         }
 
       }

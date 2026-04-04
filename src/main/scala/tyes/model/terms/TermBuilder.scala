@@ -14,6 +14,10 @@ trait TermBuilder[TTerm, TConstant]:
   
   def unapplyFunction(term: TTerm): Option[(String, Seq[TTerm])]
 
+  def applyIndex(index: Index): TTerm
+
+  def unapplyIndex(term: TTerm): Option[Index]
+
   def applyRange(
     function: String,
     cursor: String,

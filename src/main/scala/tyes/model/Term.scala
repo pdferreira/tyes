@@ -4,6 +4,7 @@ import tyes.model.ranges.*
 
 enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContainer:
   case Constant[T](value: T)
+  case Index(idx: terms.Index)
   case Variable(name: String) extends Term, terms.TermVariable[Variable]
   case Function(name: String, args: Term*)
   case Type(typ: tyes.model.Type) extends Term, terms.SpecializedTerm[Type, tyes.model.Type, String](typ)
@@ -73,6 +74,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContain
 
   def types: Set[tyes.model.Type] = this match {
     case Term.Constant(_) => Set()
+    case Term.Index(_) => Set()
     case Term.Variable(_) => Set()
     case Term.Function(_, args*) => args.flatMap(_.types).toSet
     case Term.Type(t) => Set(t)
@@ -82,6 +84,7 @@ enum Term extends terms.TermOps[Term, Any](TermBuilder) with TypeVariableContain
 
   def labels: Set[tyes.model.Label] = this match {
     case Term.Constant(_) => Set()
+    case Term.Index(_) => Set()
     case Term.Variable(_) => Set()
     case Term.Function(_, args*) => args.flatMap(_.labels).toSet
     case Term.Type(t) => t.labels
@@ -117,6 +120,13 @@ object TermBuilder extends terms.TermBuilder[Term, Any]:
   
   override def unapplyFunction(term: Term): Option[(String, Seq[Term])] = term match {
     case Term.Function(name, args*) => Some((name, args))
+    case _ => None
+  }
+
+  override def applyIndex(index: terms.Index): Term = Term.Index(index)
+
+  override def unapplyIndex(term: Term): Option[terms.Index] = term match {
+    case Term.Index(index) => Some(index)
     case _ => None
   }
 
