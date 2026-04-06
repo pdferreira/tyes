@@ -11,6 +11,13 @@ object LExpressionWithModelTypesParser:
     types.collect({
       case matches(t) => Set(t)
       case Type.Composite(_, args*) => getAllMatchingTypes(args)(matches)
+      case Type.Range(funName, _, holeArgIdx, argTemplates, _, _, holeSeed) =>
+        val args = argTemplates.patch(
+          from = holeArgIdx,
+          other = Seq(holeSeed.getOrElse(Constants.Types.any)),
+          replaced = 0
+        )
+        getAllMatchingTypes(Seq(Type.Composite(funName, args*)))(matches)
       case _ => Set() 
     }).flatten.toSet
 

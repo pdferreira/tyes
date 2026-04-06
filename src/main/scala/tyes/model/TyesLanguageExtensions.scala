@@ -194,9 +194,9 @@ object TyesLanguageExtensions:
       case HasType(term, typ) => term.labels ++ typ.labels
     }
 
-    def types: Set[Type] = Set(asrt match {
-      case HasType(term, typ) => typ
-    })
+    def types: Set[Type] = asrt match {
+      case HasType(term, typ) => term.types + typ
+    }
 
     def substitute(subst: Map[String, Term]) = asrt match {
       case HasType(term, typ) => HasType(
