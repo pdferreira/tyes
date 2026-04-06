@@ -81,9 +81,14 @@ trait TyesParser(buildTermLanguageParser: TyesTermLanguageBindings => Parser[Ter
 
   def recordType =
     import Constants.Types.Record.*
-    delimiterL ~> repsep(label ~ (":" ~> tpe), ",") <~ delimiterR ^^ {
-      case fields => apply(fields.map({ case f ~ t => (f, t) }))
-    }
+    delimiterL ~> repXopR(
+      label ~ (":" ~> tpe) ^^ { case f ~ t => Seq(Type.Label(f), t) },
+      ",",
+      name,
+      atLeastOne = false
+    ) {
+      ("|" ~> metaIdent).? ^^ { rest => rest.map(Type.Variable.apply).getOrElse(Empty()) }
+    } <~ delimiterR
   
   def leafType = 
     identType

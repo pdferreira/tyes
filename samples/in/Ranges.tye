@@ -10,3 +10,7 @@ typesystem Ranges
 
   rule Sum infers e_1 + ... + e_n : t_n
     if e_1 ... e_n : t_1 -> ... -> t_n
+
+  rule Let infers let x : { f_1 : t_1, ..., f_n : t_n } = e_a in e_b : t_1 -> ... -> t_n
+    if e_a : t_1
+    and e_b : t_n
