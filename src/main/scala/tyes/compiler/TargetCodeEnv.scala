@@ -19,6 +19,12 @@ object TargetCodeEnv:
     protected inline def asString: String = id
 
 
+case class CollectionMetadata(
+  elemVarName: String,
+  minIndex: Int,
+  maxIndexVarName: Option[String]
+)
+
 class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   import TargetCodeEnv.*
   private val TCN = TargetCodeNode
@@ -26,6 +32,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private val idToCode = mutable.Map[Id, TargetCodeNode]()
   private val nameToIds = mutable.Map[String, Seq[Id]]()
   private val elemVarToCollectionId = mutable.Map[String, Id]()
+  private val idToColMetadata = mutable.Map[Id, CollectionMetadata]()
   
   def this(parent: TargetCodeEnv) = this(Some(parent))
 
@@ -39,7 +46,7 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private def nameclash(name: String): Id =
     NameOperations.nameclash(name, allIds.map(_.asString)).toId
 
-  def requestIdentifier(termVar: TermVariable[?], elementVar: Option[String] = None): (Id, TargetCodeNode.Var) =
+  def requestIdentifier(termVar: TermVariable[?], colMetadata: Option[CollectionMetadata] = None): (Id, TargetCodeNode.Var) =
     val id = nameclash(termVar.name)
     val idCode: TCN.Var = TCN.Var(id.toString)
     
@@ -48,7 +55,9 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
       case None => Seq(id)
       case Some(ids) => ids :+ id
     }
-    elementVar.foreach(n => elemVarToCollectionId(n) = id)
+    for m <- colMetadata do
+      elemVarToCollectionId(m.elemVarName) = id
+      idToColMetadata(id) = m
 
     (id, idCode)
 
@@ -61,11 +70,14 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
       // TODO: clean this up when indexed vars stop being done ad-hoc
       .orElse(for
           (rangedVarName, idxStr) <- extractIndex(termVar.name)
-          colCode <- getCollectionCode(rangedVarName)
-        yield TCN.Index(
-          colCode,
-          idxStr.toIntOption.map(TCN.Integer(_)).getOrElse(apply(idxStr.toId))
-        )
+          colId <- getCollectionIdForElemVarName(rangedVarName)
+          colCode = apply(colId)
+          colMetadata <- getCollectionMetadata(colId)
+        yield (idxStr.toIntOption, colMetadata.maxIndexVarName) match {
+          case (None, Some(`idxStr`)) => TCN.Field(colCode, "last")
+          case (None, _) => TCN.Index(colCode, apply(idxStr.toId))
+          case (Some(n), _) => TCN.Index(colCode, TCN.Integer(n - colMetadata.minIndex))
+        }
       )
       .getOrElse(throw new NoSuchElementException(termVar.toString))
 
@@ -100,6 +112,10 @@ class TargetCodeEnv(private val parent: Option[TargetCodeEnv] = None):
   private def getCollectionIdForElemVarName(elemVarName: String): Option[Id] =
     elemVarToCollectionId.get(elemVarName)
       .orElse(parent.flatMap(_.getCollectionIdForElemVarName(elemVarName)))
+
+  private def getCollectionMetadata(colId: Id): Option[CollectionMetadata] =
+    idToColMetadata.get(colId)
+      .orElse(parent.flatMap(_.getCollectionMetadata(colId)))
 
   override def toString(): String =
     val parentStr = parent.map(" <- " + _.toString).getOrElse("")

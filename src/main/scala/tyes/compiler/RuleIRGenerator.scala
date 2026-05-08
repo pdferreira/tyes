@@ -191,8 +191,12 @@ class RuleIRGenerator(
         Seq(IRCond.TypeDecl(
           declPat =
             val permanentColVar = Type.Variable(typeIRGenerator.getPermanentTypeVarName(colCodeVar.name))
-            val permanentElemVarName = typeIRGenerator.getPermanentTypeVarName(rangedVarName)
-            val (_, permanentIdCode) = codeEnv.requestIdentifier(permanentColVar, elementVar = Some(permanentElemVarName))
+            val permanentColMetadata = CollectionMetadata(
+              elemVarName = typeIRGenerator.getPermanentTypeVarName(rangedVarName),
+              minIndex = range.minIndex,
+              maxIndexVarName = range.maxIndex.asVariable.map(_.name)
+            )
+            val (_, permanentIdCode) = codeEnv.requestIdentifier(permanentColVar, colMetadata = Some(permanentColMetadata))
             TCP.Var(permanentIdCode.name),
           typExp
         ))
@@ -254,7 +258,7 @@ class RuleIRGenerator(
           val minIndex = (codeEnv.getIndexes(indexedVar(rangedVarName, fromIdx.toString)) + fromIdx).min
           assert(minIndex == fromIdx, "No support for ranges that only iterate part of the collection")
 
-          val fromConds = genPremiseConds(from.replaceIndex(fromIdx.toString, 0.toString), codeEnv)
+          val fromConds = genPremiseConds(from, codeEnv)
           val Judgement(_, HasType(_, fromType)) = from: @unchecked
 
           val rangeCodeEnv = new TargetCodeEnv(codeEnv)

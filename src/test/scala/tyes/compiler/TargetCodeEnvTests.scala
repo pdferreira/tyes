@@ -35,17 +35,27 @@ class TargetCodeEnvTests extends AnyFunSpec:
           describe("if it is composed by a variable that has a collection mapping") {
 
             val colVar = Term.Variable("col")
-            val (_, colVarCode) = env.requestIdentifier(colVar, elementVar = Some(varB.name))
+            val colMetadata = CollectionMetadata(
+              elemVarName = varB.name,
+              minIndex = 2,
+              maxIndexVarName = Some("n"),
+            )
+            val (_, colVarCode) = env.requestIdentifier(colVar, colMetadata = Some(colMetadata))
 
             it("and a numeric index") {
-              val idx = 5
+              val idx = 6
               val varB5 = Term.Variable(indexedVar(varB.name, idx.toString))
-              assert(env(varB5) == TCN.Index(colVarCode, TCN.Integer(5)))
+              assert(env(varB5) == TCN.Index(colVarCode, TCN.Integer(4)))
             }
 
             it("and a variable index that has a mapping") {
               val varBA = Term.Variable(indexedVar(varB.name, varA.name))
               assert(env(varBA) == TCN.Index(colVarCode, aCode))
+            }
+
+            it("and a variable index that is the collection's max") {
+              val varBN = Term.Variable(indexedVar(varB.name, colMetadata.maxIndexVarName.get))
+              assert(env(varBN) == TCN.Field(colVarCode, "last"))
             }
           }
 

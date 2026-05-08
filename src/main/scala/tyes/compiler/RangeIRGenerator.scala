@@ -53,20 +53,26 @@ class RangeIRGenerator:
     */
   def generateUnlimitedPattern[TTerm](
     range: TermRange[TTerm],
-    generatePat: (TTerm, TargetCodeEnv, Map[String, String]) => TCP,
+    generatePat: (TTerm, TargetCodeEnv, Map[String, CollectionMetadata]) => TCP,
     codeEnv: TargetCodeEnv
   ): TCP =
-    val colToElemVar = mutable.Map[String, String]()
+    val colVarToMetadata = mutable.Map[String, CollectionMetadata]()
     
     def collectColVar[T](v: T): T =
       val (colV, colVarEntry) = collectCollectionVar(v, range.cursor)
-      colVarEntry.foreach((colVar, elemVar) => colToElemVar(colVar.name) = elemVar)
+      for (colVar, elemVar) <- colVarEntry do
+        colVarToMetadata(colVar.name) = CollectionMetadata(
+          elemVarName = elemVar,
+          minIndex = range.minIndex,
+          maxIndexVarName = range.maxIndex.asVariable.map(_.name)
+        )
+
       colV
 
     val args = range.argTemplates
       .map(collectColVar)
       .patch(from = range.holeArgIdx, other = range.holeSeed.toSeq, replaced = 0)
-      .map(p => generatePat(p, codeEnv, colToElemVar.toMap))
+      .map(p => generatePat(p, codeEnv, colVarToMetadata.toMap))
 
     TCP.Extract(getExtractorName(range), args*)
 

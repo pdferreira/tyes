@@ -17,10 +17,10 @@ class LabelIRGenerator:
   def generatePattern(
     label: Label,
     codeEnv: TargetCodeEnv,
-    colToElemVar: Map[String, String]
+    colVarToMetadata: Map[String, CollectionMetadata]
   ): TargetCodePattern = label match {
     case Label.Constant(name) => TCP.Text(name)
     case v @ Label.Variable(name) =>
-      val (_, varCode) = codeEnv.requestIdentifier(v, elementVar = colToElemVar.get(name))
+      val (_, varCode) = codeEnv.requestIdentifier(v, colMetadata = colVarToMetadata.get(name))
       TCP.Var(varCode.name)
   }

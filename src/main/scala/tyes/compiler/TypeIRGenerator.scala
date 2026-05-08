@@ -103,20 +103,20 @@ class TypeIRGenerator(
   def generatePattern(
     typ: Type,
     codeEnv: TargetCodeEnv,
-    colToElemVar: Map[String, String] = Map(),
+    colVarToMetadata: Map[String, CollectionMetadata] = Map(),
   ): TargetCodePattern = typ match {
     case Constants.Types.any => TCP.Any
     case Type.Named(name) => TCP.ADTConstructor(generateRef(name))
-    case Type.Label(label) => labelIRGenerator.generatePattern(label, codeEnv, colToElemVar)
+    case Type.Label(label) => labelIRGenerator.generatePattern(label, codeEnv, colVarToMetadata)
     case v @ Type.Variable(name) =>
-      val (_, varCode) = codeEnv.requestIdentifier(v, elementVar = colToElemVar.get(name))
+      val (_, varCode) = codeEnv.requestIdentifier(v, colMetadata = colVarToMetadata.get(name))
       TCP.Var(varCode.name)
     case Type.Composite(name, args*) => 
-      var argPats = args.map(a => generatePattern(a, codeEnv, colToElemVar))
+      var argPats = args.map(a => generatePattern(a, codeEnv, colVarToMetadata))
       TCP.ADTConstructor(generateRef(name), argPats*)
     case r: Type.Range =>
       r.toConcrete(Type.Composite(_, _*))
-        .map(c => generatePattern(c, codeEnv, colToElemVar))
+        .map(c => generatePattern(c, codeEnv, colVarToMetadata))
         .getOrElse(rangeIRGenerator.generateUnlimitedPattern(r, generatePattern, codeEnv))
   }
 
