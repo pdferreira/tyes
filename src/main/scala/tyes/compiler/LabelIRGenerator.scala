@@ -14,7 +14,13 @@ class LabelIRGenerator:
     case v: Label.Variable => codeEnv(v)
   }
 
-  def generatePattern(label: Label): TargetCodePattern = label match {
+  def generatePattern(
+    label: Label,
+    codeEnv: TargetCodeEnv,
+    colToElemVar: Map[String, String]
+  ): TargetCodePattern = label match {
     case Label.Constant(name) => TCP.Text(name)
-    case Label.Variable(name) => TCP.Var(name)
+    case v @ Label.Variable(name) =>
+      val (_, varCode) = codeEnv.requestIdentifier(v, elementVar = colToElemVar.get(name))
+      TCP.Var(varCode.name)
   }

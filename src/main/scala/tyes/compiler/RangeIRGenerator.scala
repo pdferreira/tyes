@@ -49,12 +49,13 @@ class RangeIRGenerator:
   /**
     * Generates a code pattern for an unlimited range (maxIndex is a Index.Var).
     * 
-    * @return the pattern and a mapping from collection variables (e.g. `es`) to their element variables (e.g. `e`), if any 
+    * @return the pattern
     */
   def generateUnlimitedPattern[TTerm](
     range: TermRange[TTerm],
-    generatePat: TTerm => (TCP, Map[String, String])
-  ): (TCP, Map[String, String]) =
+    generatePat: (TTerm, TargetCodeEnv, Map[String, String]) => TCP,
+    codeEnv: TargetCodeEnv
+  ): TCP =
     val colToElemVar = mutable.Map[String, String]()
     
     def collectColVar[T](v: T): T =
@@ -62,13 +63,12 @@ class RangeIRGenerator:
       colVarEntry.foreach((colVar, elemVar) => colToElemVar(colVar.name) = elemVar)
       colV
 
-    val (args, otherColVars) = range.argTemplates
+    val args = range.argTemplates
       .map(collectColVar)
       .patch(from = range.holeArgIdx, other = range.holeSeed.toSeq, replaced = 0)
-      .map(generatePat)
-      .unzip
+      .map(p => generatePat(p, codeEnv, colToElemVar.toMap))
 
-    (TCP.Extract(getExtractorName(range), args*), otherColVars.fold(colToElemVar.toMap)(_ ++ _))
+    TCP.Extract(getExtractorName(range), args*)
 
   def collectCollectionVar[T](v: T, cursor: String): (T, Option[(TermVariable[?], String)]) = v match {
     case v: TermVariable[T] => extractIndex(v.name) match {

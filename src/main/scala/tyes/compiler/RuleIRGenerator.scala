@@ -217,28 +217,19 @@ class RuleIRGenerator(
       case (k, f: Term.Function) <- termSubst.toSeq
       if !f.isGround
     do
-      // Map all args into fresh variables
-      val argsAsTemplate: Seq[Term.Variable | Label.Variable] = f.args.zipWithIndex.map({
+      // Map all args into variables
+      val argsAsTemplates: Seq[Term] = f.args.zipWithIndex.map({
         case (v: Term.Variable, _) => v
-        case (Term.Label(v: Label.Variable), _) => v
-        case (_, argIdx) => Term.Variable(s"e${('a' + argIdx).toChar}"): Term.Variable
+        case (tl @ Term.Label(_: Label.Variable), _) => tl
+        case (_, argIdx) => Term.Variable(s"e${('a' + argIdx).toChar}")
       })
 
-      val argTemplatesToCode = argsAsTemplate.map(v =>
-        val (_, idCode) = codeEnv.requestIdentifier(v)
-        (v, idCode)
-      )
-      val declTermArgs = argTemplatesToCode.map((v, vCode) => v match {
-        case _: Term.Variable => Term.Variable(vCode.name)
-        case _: Label.Variable => Term.Label(Label.Variable(vCode.name))
-      })
-      
-      // Generate a composite term pattern with the fresh args and use it for
-      // the destructuring declaration.
-      val declTerm = Term.Function(f.name, declTermArgs*): Term.Function
+      // Generate a composite term pattern with the template args
+      // and use it for the destructuring declaration.
+      val declTerm = Term.Function(f.name, argsAsTemplates*)
       
       res += IRCond.TypeDecl(
-        declPat = termIRGenerator.generatePattern(declTerm)._1,
+        declPat = termIRGenerator.generatePattern(declTerm, codeEnv),
         typExp = IRNode.Type(IRType.FromCode(TCN.Var(k)))
       )
 
@@ -276,16 +267,15 @@ class RuleIRGenerator(
             next = IRNode.Type(IRType.FromCode(typeIRGenerator.generate(elemType, rangeCodeEnv)))
           )
 
-          // Only after generating the range body, add the variable to the parent env if applicable
+          // Only after generating the range body, generate the resulting pattern (it modifies the env)
           val (typeColVar, colVarEntry) = rangeIRGenerator.collectCollectionVar(elemType, cursorVar.name)
-          val colVarDecl = for 
-            (colVar, elemVar) <- colVarEntry
-            if !codeEnv.containsCollection(elemVar)
-          yield
-            codeEnv.requestIdentifier(colVar, elementVar = Some(elemVar))
+          val colVarDeclPat = colVarEntry match {
+            case None => TCP.Any
+            case Some(_) => typeIRGenerator.generatePattern(typeColVar, codeEnv)
+          }
           
           val remainingCond = IRCond.TypeDecl(
-            if colVarDecl.isDefined then typeIRGenerator.generatePattern(typeColVar)._1 else TCP.Any,
+            colVarDeclPat,
             IRNode.Range(
               colVar = colCode.asInstanceOf[TCN.Var].name,
               startIdx = if elemType == fromType then 1 else 0,

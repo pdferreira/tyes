@@ -89,12 +89,9 @@ class TypeSystemIRGenerator(
     )
 
   private def generateTypecheckCase(gTemplate: Term, rules: Seq[RuleDecl]): (TargetCodePattern, TargetCodeNode) =
-    val (rTemplateCode, elemVars) = termIRGenerator.generatePattern(gTemplate)
-    
     val codeEnv = TargetCodeEnv()
-    for v <- boundNames(rTemplateCode) do
-      codeEnv.requestIdentifier(Term.Variable(v), elementVar = elemVars.get(v))
-
+    val rTemplateCode = termIRGenerator.generatePattern(gTemplate, codeEnv)
+    
     val rImplIntermediateCode = groupNonOverlappingRules(rules)
       // For each of the groups:
       // - if it has a single rule, use its resulting node

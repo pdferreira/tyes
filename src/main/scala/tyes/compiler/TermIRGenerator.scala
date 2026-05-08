@@ -35,20 +35,26 @@ class TermIRGenerator(
   /**
   * Generates a code pattern for a term.
   * 
-  * @return the pattern and a mapping from collection variables (e.g. `es`) to their element variables (e.g. `e`), if any 
+  * @return the pattern 
   */
-  def generatePattern(term: Term): (TargetCodePattern, Map[String, String]) = term match {
-    case Term.Constant(value: Int) => (TCP.Integer(value), Map())
-    case Term.Constant(value: String) => (TCP.Text(value), Map())
+  def generatePattern(
+    term: Term,
+    codeEnv: TargetCodeEnv,
+    colToElemVar: Map[String, String] = Map(),
+  ): TargetCodePattern = term match {
+    case Term.Constant(value: Int) => TCP.Integer(value)
+    case Term.Constant(value: String) => TCP.Text(value)
     case Term.Constant(_) => ???
-    case Term.Variable(name) => (TCP.Var(name), Map())
+    case v @ Term.Variable(name) =>
+      val (_, varCode) = codeEnv.requestIdentifier(v, elementVar = colToElemVar.get(name))
+      TCP.Var(varCode.name)
     case Term.Function(name, args*) => 
-      val (argPats, colVars) = args.map(generatePattern).unzip
-      (TCP.ADTConstructor(TCTypeRef(name), argPats*), colVars.fold(Map())(_ ++ _))
-    case Term.Type(typ) => typeIRGenerator.generatePattern(typ)
-    case Term.Label(label) => (labelIRGenerator.generatePattern(label), Map())
+      val argPats = args.map(a => generatePattern(a, codeEnv, colToElemVar))
+      TCP.ADTConstructor(TCTypeRef(name), argPats*)
+    case Term.Type(typ) => typeIRGenerator.generatePattern(typ, codeEnv, colToElemVar)
+    case Term.Label(label) => labelIRGenerator.generatePattern(label, codeEnv, colToElemVar)
     case r: Term.Range =>
       r.toConcrete(Term.Function(_, _*))
-        .map(generatePattern)
-        .getOrElse(rangeIRGenerator.generateUnlimitedPattern(r, generatePattern))
+        .map(f => generatePattern(f, codeEnv, colToElemVar))
+        .getOrElse(rangeIRGenerator.generateUnlimitedPattern(r, generatePattern, codeEnv))
   }
