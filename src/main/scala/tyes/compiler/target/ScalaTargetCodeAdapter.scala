@@ -45,7 +45,8 @@ class ScalaTargetCodeAdapter:
 
   private def getVarNameFromCompositePattern(tcp: TargetCodePattern): String = tcp match {
     case TCP.ADTConstructor(typeRef, _*) => typeRef.name.filter(_.isUpper).toLowerCase
-    case TargetCodePattern.WithType(_, _) => ???
+    case TCP.Extract(extractorName, _*) => extractorName.filter(_.isUpper).toLowerCase
+    case TCP.WithType(_, _) => ???
     case _ =>
       assert(isComposite(tcp), s"Expected pattern to be composite, but instead got: $tcp")
       throw new NotImplementedError(tcp.toString)

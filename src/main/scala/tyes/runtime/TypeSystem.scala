@@ -137,6 +137,14 @@ trait TypeSystem[E[_]]:
         { case p: P => Tuple.fromProductTyped(p) }
       )
 
+  extension (t: T)
+
+    protected def expecting[TargetT <: T](expected: TargetT): Result[TargetT] =
+      if t == expected then
+        Right(expected)
+      else
+        TypeError.unexpectedType(t, expected)
+
   extension (resT: Result[T])
 
     protected def expecting[TargetT <: T](expected: TargetT): Result[TargetT] = resT.flatMap(t =>

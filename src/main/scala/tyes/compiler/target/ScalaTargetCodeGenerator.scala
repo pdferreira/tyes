@@ -51,7 +51,7 @@ class ScalaTargetCodeGenerator extends TargetCodeGenerator:
       codeStr
 
   private def genUncheckedIfNeeded(pat: TargetCodePattern): String = pat match {
-    case TCP.ADTConstructor(_, _*) => ": @unchecked"
+    case TCP.ADTConstructor(_, _*) | TCP.Extract(_, _*) => ": @unchecked"
     case _ => "" 
   }
 

@@ -139,6 +139,9 @@ class TypeIRGenerator(
             indexedVar(prefix + nonVarSuffix, cursors.head)
           else
             prefix + nonVarSuffix
+        case tr: Type.Range =>
+          val prefix = tr.function.filter(_.isUpper).toLowerCase
+          prefix + nonVarSuffix
       }
       Type.Variable("_" + varName)
 
@@ -168,6 +171,10 @@ class TypeIRGenerator(
 
     case Type.Composite(name, _*) if !checkArgs =>
       val typeRef = generateRef(name)
+      Some(IRTypeExpect.OfType(typeRef))
+
+    case Type.Range(function, _, _, _, _, _, _) if !checkArgs =>
+      val typeRef = generateRef(function)
       Some(IRTypeExpect.OfType(typeRef))
 
     case _ =>
@@ -248,4 +255,39 @@ class TypeIRGenerator(
               IRCond.TypeEquals(declTypeNode, expectedTypeNode)
 
           inductionDecl +: argTypeReqs
+
+      case tr: Type.Range =>
+        val expectationCheck = genExpectationCheck(tr, codeEnv)
+
+        // Generate a pattern with the template args and seed
+        val args = tr.argTemplates.patch(
+          from = tr.holeArgIdx,
+          other = tr.holeSeed.toSeq,
+          replaced = 0
+        )
+
+        val argsAsVariables: Seq[Type] = args.zipWithIndex.map({
+          case (v: Type.Variable, _) => v
+          case (tl @ Type.Label(_: Label.Variable), _) => tl
+          case (_, argIdx) => Type.Variable(s"t${('a' + argIdx).toChar}")
+        })
+        val argTemplatesAsVariables = argsAsVariables.patch(from = tr.holeArgIdx, other = Seq(), replaced = tr.holeSeed.size)
+        val seedAsVariable = tr.holeSeed.map(_ => argsAsVariables(tr.holeArgIdx))
+
+        val declTypeTemplate = tr.copy(argTemplates = argTemplatesAsVariables, holeSeed = seedAsVariable)
+        val declPat = generatePattern(declTypeTemplate, codeEnv).asInstanceOf[TCP.Extract]
+        val inductionDecl = IRCond.TypeDecl(declPat, declTypeExp, expectationCheck)
+
+        // For all arguments that corresponded to an previously declared type var
+        // we need to generate conds that assert the values are the same
+        val argTypeReqs = 
+          for 
+            (origArg, declArgPat) <- args.zip(declPat.args)
+            if isPreviouslyBoundVar(origArg) || origArg.isGround
+          yield
+            val expectedTypeNode = generate(origArg, codeEnv)
+            val declTypeNode = TCN.Var(declArgPat.asInstanceOf[TCP.Var].name)
+            IRCond.TypeEquals(declTypeNode, expectedTypeNode)
+
+        inductionDecl +: argTypeReqs
     }

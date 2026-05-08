@@ -27,7 +27,23 @@ class RangesTypeSystem extends TypeSystem[LExpression]:
       yield
         Type.$FunType(t1, t2)
 
-    case LPlusRange((es)) => typecheck(es.tail.foldLeft(es.head)(LApp.apply), env)
+    case LPlusRange((es)) => 
+      for
+        _ftr <- typecheck(es.tail.foldLeft(es.head)(LApp.apply), env).expecting[Type.$FunType]
+        $FunTypeRange((ts)) = _ftr: @unchecked
+      yield
+        ts.last
+
+    case LLet(x, _r2, e_a, e_b) => 
+      for
+        _rr <- checkTypeDeclared(_r2, exp).expecting[Type.$Record]
+        $RecordRange((_, ts, tc)) = _rr: @unchecked
+        _ <- typecheck(e_a, env).expecting(ts(0))
+        _ <- typecheck(e_b, env).expecting(ts.last)
+        _ <- tc.expecting(Type.$EmptyRecord)
+      yield
+        ts.init.foldRight(ts.last)(Type.$FunType.apply)
+
     case _ => TypeError.noTypeFor(exp)
   }
 
