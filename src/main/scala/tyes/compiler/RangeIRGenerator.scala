@@ -10,12 +10,7 @@ import tyes.model.indexes.*
 import tyes.model.terms.*
 import tyes.model.TyesLanguageExtensions.*
 
-class RangeIRGenerator(
-  private val typeIRGenerator: TypeIRGenerator,
-  private val expClassTypeRef: TCTypeRef,
-):
-
-  private val expClassParametrizedTypeRef = expClassTypeRef.copy(params = Seq(typeIRGenerator.typeEnumTypeRef))
+class RangeIRGenerator:
 
   private def getExtractorName[TTerm](range: TermRange[TTerm]) = s"${range.function}Range"
 
@@ -26,9 +21,12 @@ class RangeIRGenerator(
     assert(vs.size <= 1)
     vs.headOption.map(getCollectionVarName)
 
-  def generateExtractor[TTerm](range: TermRange[TTerm]): TCD =
-    val paramVar = TCN.Var("exp"): TCN.Var
-    val matchVar = TCN.Var("e"): TCN.Var
+  def generateExtractor[TTerm](
+    range: TermRange[TTerm],
+    paramVar: TCN.Var,
+    paramType: TCTypeRef,
+    genExtractedTypeRef: String => TCTypeRef
+  ): TCD.Extractor =
     val argsSize = range.argTemplates.size + 1
     val genExtractRangeFn =
       if argsSize == 2 && range.holeArgIdx == 0 && range.holeSeed.isEmpty then
@@ -40,10 +38,10 @@ class RangeIRGenerator(
       else
         throw new NotImplementedError(f"for ${range}")
 
-    val extractRangeCode = genExtractRangeFn(paramVar, TCTypeRef(range.function, typeIRGenerator.typeEnumTypeRef))
+    val extractRangeCode = genExtractRangeFn(paramVar, genExtractedTypeRef(range.function))
     TCD.Extractor(
       getExtractorName(range),
-      param = (paramVar.name -> expClassParametrizedTypeRef),
+      param = (paramVar.name -> paramType),
       retTypeRef = None,
       body = (_, _) => extractRangeCode
     )

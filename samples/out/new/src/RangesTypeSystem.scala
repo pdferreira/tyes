@@ -5,9 +5,11 @@ class RangesTypeSystem extends TypeSystem[LExpression]:
   type T = Type
 
   enum Type extends tyes.runtime.Type:
+    case $EmptyRecord
     case One
     case Two
     case $FunType(t1: Type, t2: Type)
+    case $Record(l1: Label, t2: Type, t3: Type)
 
   def typecheck(exp: LExpression[Type], env: Environment[Type]): Either[String, Type] = exp match {
     case LNumber(n) => 
@@ -31,3 +33,9 @@ class RangesTypeSystem extends TypeSystem[LExpression]:
 
   object LPlusRange:
     def unapply(exp: LExpression[Type]) = exp.extractRangeLNoSeed[LPlus[Type]]
+
+  object $FunTypeRange:
+    def unapply(typ: Type) = typ.extractRangeRNoSeed[Type.$FunType]
+
+  object $RecordRange:
+    def unapply(typ: Type) = typ.extractRangeR[Type.$Record]

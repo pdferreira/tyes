@@ -92,7 +92,7 @@ class TypeIRGenerator(
       }
   }
 
-  private def generateRef(typeName: String): TargetCodeTypeRef =
+  def generateRef(typeName: String): TargetCodeTypeRef =
     TCTypeRef(typeEnumTypeRef.name, getTypeNameInCode(typeName))
 
   /**

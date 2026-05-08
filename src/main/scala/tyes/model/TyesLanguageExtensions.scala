@@ -21,6 +21,20 @@ object TyesLanguageExtensions:
     case (k, Term.Label(l)) => k -> l
   })
 
+  def getAllMatchingTypes[T](types: Iterable[Type])(matches: PartialFunction[Type, T]): Set[T] =
+    types.collect({
+      case matches(t) => Set(t)
+      case Type.Composite(_, args*) => getAllMatchingTypes(args)(matches)
+      case Type.Range(funName, _, holeArgIdx, argTemplates, _, _, holeSeed) =>
+        val args = argTemplates.patch(
+          from = holeArgIdx,
+          other = Seq(holeSeed.getOrElse(Constants.Types.any)),
+          replaced = 0
+        )
+        getAllMatchingTypes(Seq(Type.Composite(funName, args*)))(matches)
+      case _ => Set() 
+    }).flatten.toSet
+
   extension (metaBinding: Binding)
 
     def matches(entry: (String, Type)): Option[(Map[String, String], Map[String, Type])] = 
@@ -264,6 +278,17 @@ object TyesLanguageExtensions:
 
     def types: Set[Type] = ruleDecl.conclusion.types ++ ruleDecl.premises.flatMap(_.types)
 
+    def consumedTypes: Set[Type] = Set.concat(
+      ruleDecl.conclusion.assertion match {
+        case HasType(term, _) => term.types
+      },
+      ruleDecl.conclusion.env.types,
+      ruleDecl.premises.flatMap(p => p match {
+        case Judgement(_, HasType(_, typ)) => Set(typ)
+        case JudgementRange(Judgement(_, HasType(_, fromTyp)), Judgement(_, HasType(_, toTyp))) => Set(fromTyp, toTyp)  
+      })
+    )
+
     def substitute(subst: Map[String, Term]): RuleDecl = ruleDecl.copy(
       premises = ruleDecl.premises.map(_.substitute(subst)),
       conclusion = ruleDecl.conclusion.substitute(subst)
@@ -277,6 +302,8 @@ object TyesLanguageExtensions:
         j <- concl +: prems
         t <- j.types
       yield t).toSet
+
+    def consumedTypes: Set[Type] = tsDecl.rules.foldLeft(Set())(_ ++ _.consumedTypes)
 
   extension [TTerm <: TermOps[TTerm, TConstant], TConstant](range: TermRange[TTerm])
 

@@ -80,14 +80,16 @@ trait TypeSystem[E[_]]:
         .map(Right.apply)
         .getOrElse(TypeError.noTypeFor(exp))
 
-    protected inline def extractRangeLNoSeed[P <: Product & E[T]](using
+  extension [X](term: X)
+
+    protected inline def extractRangeLNoSeed[P <: Product & X](using
       m: deriving.Mirror.ProductOf[P] {
         type MirroredElemTypes <: (?, ?)
       },
       ev1: ClassTag[P]
     ) =
       extractRangeFromProduct[m.MirroredElemTypes](
-        exp,
+        term,
         0,
         { case p: P => Tuple.fromProductTyped(p) }
       ).map {
@@ -95,14 +97,14 @@ trait TypeSystem[E[_]]:
         case _ => ???
       }
 
-    protected inline def extractRangeRNoSeed[P <: Product & E[T]](using
+    protected inline def extractRangeRNoSeed[P <: Product & X](using
       m: deriving.Mirror.ProductOf[P] {
         type MirroredElemTypes <: (?, ?)
       },
       ev1: ClassTag[P]
     ) =
       extractRangeFromProduct[m.MirroredElemTypes](
-        exp,
+        term,
         1,
         { case p: P => Tuple.fromProductTyped(p) }
       ).map {
@@ -110,19 +112,19 @@ trait TypeSystem[E[_]]:
         case _ => ???
       }
 
-    protected inline def extractRangeL[P <: Product & E[T]](using
+    protected inline def extractRangeL[P <: Product & X](using
       m: deriving.Mirror.ProductOf[P] {
         type MirroredElemTypes <: NonEmptyTuple
       },
       ev1: ClassTag[P]
     ) =
       extractRangeFromProduct[m.MirroredElemTypes](
-        exp,
+        term,
         0,
         { case p: P => Tuple.fromProductTyped(p) }
       )
 
-    protected inline def extractRangeR[P <: Product & E[T]](using
+    protected inline def extractRangeR[P <: Product & X](using
       m: deriving.Mirror.ProductOf[P] {
         type MirroredElemTypes <: NonEmptyTuple
       },
@@ -130,7 +132,7 @@ trait TypeSystem[E[_]]:
     ) =
       val holeIdx = constValue[Tuple.Size[m.MirroredElemTypes] - 1]
       extractRangeFromProduct[m.MirroredElemTypes](
-        exp,
+        term,
         holeIdx,
         { case p: P => Tuple.fromProductTyped(p) }
       )

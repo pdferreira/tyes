@@ -50,11 +50,11 @@ class SequenceV2TypeSystem extends TypeSystem[LExpression]:
     case _ => TypeError.noTypeFor(exp)
   }
 
-  object LListRange:
-    def unapply(exp: LExpression[Type]) = exp.extractRangeR[LList[Type]]
-
   object LLetRange:
     def unapply(exp: LExpression[Type]) = exp.extractRangeR[LLet[Type]]
+
+  object LListRange:
+    def unapply(exp: LExpression[Type]) = exp.extractRangeR[LList[Type]]
 
   object LRecordRange:
     def unapply(exp: LExpression[Type]) = exp.extractRangeR[LRecord[Type]]

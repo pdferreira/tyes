@@ -26,16 +26,18 @@ class TypeSystemIRGenerator(
 
   private val labelIRGenerator = new LabelIRGenerator()
   private val typeIRGenerator: TypeIRGenerator = new TypeIRGenerator(labelIRGenerator, rangeIRGenerator)
-  private val rangeIRGenerator = new RangeIRGenerator(typeIRGenerator, expClassTypeRef)
+  private val rangeIRGenerator = new RangeIRGenerator()
   private val termIRGenerator = new TermIRGenerator(typeIRGenerator, labelIRGenerator, rangeIRGenerator)
   private val envIRGenerator = new EnvironmentIRGenerator(typeIRGenerator, commonEnvName)
   private val ruleIRGenerator = new RuleIRGenerator(typeIRGenerator, termIRGenerator, rangeIRGenerator, envIRGenerator, expVar)
 
+  private val typeEnumTypeRef = typeIRGenerator.typeEnumTypeRef
+  private val expClassParametrizedTypeRef = expClassTypeRef.copy(params = Seq(typeEnumTypeRef))
+
+
   def generate(tsDecl: TypeSystemDecl): TargetCodeUnit =
     val className = s"${tsDecl.name.getOrElse("")}TypeSystem"
-    val typeEnumTypeRef = typeIRGenerator.typeEnumTypeRef
-    val expClassParametrizedTypeRef = expClassTypeRef.copy(params = Seq(typeEnumTypeRef))
-
+    
     TargetCodeUnit(className, Seq(
       TCD.Import(Seq("tyes", "runtime"), all = true),
       TCD.Import(Seq("example"), all = true),
@@ -56,11 +58,9 @@ class TypeSystemIRGenerator(
             retTypeRef = Some(TCTypeRef("Either", TCTypeRef("String"), typeEnumTypeRef)),
             body = generateTypecheckBody(expVar, tsDecl.rules)
           )
-        ) ++ (for
-          case r: Term.Range <- tsDecl.rules.map(ruleIRGenerator.getTemplate)
-        yield
-          rangeIRGenerator.generateExtractor(r)
         )
+        ++ generateTermExtractors(tsDecl).sortBy(_.name)
+        ++ generateTypeExtractors(tsDecl).sortBy(_.name)
       )
     ))
 
@@ -142,3 +142,27 @@ class TypeSystemIRGenerator(
         val (before, idxGroup +: after) = norGroups.splitAt(norGroupIdx): @unchecked
         before ++ ((r +: idxGroup) +: after)
   }
+
+  private def generateTermExtractors(tsDecl: TypeSystemDecl): Seq[TCD.Extractor] = Seq.from(
+    for
+      case r: Term.Range <- tsDecl.rules.map(ruleIRGenerator.getTemplate)
+    yield
+      rangeIRGenerator.generateExtractor(
+        r,
+        paramVar = TCN.Var("exp"),
+        paramType = expClassParametrizedTypeRef,
+        genExtractedTypeRef = name => TCTypeRef(name, typeEnumTypeRef),
+      )
+  )
+
+  private def generateTypeExtractors(tsDecl: TypeSystemDecl): Seq[TCD.Extractor] = Seq.from(
+    for
+      r <- getAllMatchingTypes(tsDecl.consumedTypes)({ case r: Type.Range => r })
+    yield
+      rangeIRGenerator.generateExtractor(
+        r,
+        paramVar = TCN.Var("typ"),
+        paramType = typeEnumTypeRef,
+        genExtractedTypeRef = typeIRGenerator.generateRef
+      )
+  )

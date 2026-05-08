@@ -3,26 +3,10 @@ package tyes.cli
 import scala.annotation.targetName
 import example.*
 import tyes.model.*
+import tyes.model.TyesLanguageExtensions.*
 import utils.StringExtensions.*
 
-object LExpressionWithModelTypesParser:
-
-  private def getAllMatchingTypes[T](types: Iterable[Type])(matches: PartialFunction[Type, T]): Set[T] =
-    types.collect({
-      case matches(t) => Set(t)
-      case Type.Composite(_, args*) => getAllMatchingTypes(args)(matches)
-      case Type.Range(funName, _, holeArgIdx, argTemplates, _, _, holeSeed) =>
-        val args = argTemplates.patch(
-          from = holeArgIdx,
-          other = Seq(holeSeed.getOrElse(Constants.Types.any)),
-          replaced = 0
-        )
-        getAllMatchingTypes(Seq(Type.Composite(funName, args*)))(matches)
-      case _ => Set() 
-    }).flatten.toSet
-
 class LExpressionWithModelTypesParser(types: Set[Type]) extends tyes.cli.AbstractLExpressionWithTypesParser[Type, Label]:
-  import LExpressionWithModelTypesParser.*
 
   override type TNamedTypeInfo = Type.Named
 
