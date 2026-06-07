@@ -3,6 +3,7 @@ package tyes.runtime
 import scala.reflect.ClassTag
 import scala.compiletime.constValue
 import scala.compiletime.ops.int.-
+import utils.collections.*
 
 trait TypeSystem[E[_]]:
   type T <: Type
@@ -23,6 +24,7 @@ trait TypeSystem[E[_]]:
       exp: Any,
       holeIdx: Int,
       extractArgs: PartialFunction[Any, TTuple],
+      matchesSeed: Tuple.Elem[TTuple, holeIdx.type] => Boolean = (_: Any) => true
     ): ExtractRangeRes[TTuple, holeIdx.type] =
       def xpend: ((Any, Any)) => Seq[Any] =
         if holeIdx == 0 then { case (a, as) => as.asInstanceOf[Seq[Any]] :+ a }
@@ -37,7 +39,7 @@ trait TypeSystem[E[_]]:
 
       exp match {
         case extractArgs(args) =>
-          extractRangeFromProduct(args(holeIdx), holeIdx, extractArgs) match {
+          extractRangeFromProduct(args(holeIdx), holeIdx, extractArgs, matchesSeed) match {
             case Some(tuple) =>
               Some(
                 accumulate(args.take(holeIdx), tuple.take(holeIdx))
@@ -46,12 +48,14 @@ trait TypeSystem[E[_]]:
                 *: accumulate(args.drop(holeIdx).tail, tuple.drop(holeIdx).tail)
                   .asInstanceOf[Tuple.Map[Tuple.Tail[Tuple.Drop[TTuple, holeIdx.type]], Seq]]
               )
-            case None => 
+            case _ if matchesSeed(args(holeIdx)) => 
               Some(
                 args.take(holeIdx).map([A] => a => Seq(a))
                 ++ args(holeIdx)
                 *: args.drop(holeIdx).tail.map([A] => a => Seq(a))
               )
+            case _ =>
+              None
           }
         case _ => None
       }
@@ -100,8 +104,7 @@ trait TypeSystem[E[_]]:
     protected inline def extractRangeRNoSeed[P <: Product & X](using
       m: deriving.Mirror.ProductOf[P] {
         type MirroredElemTypes <: (?, ?)
-      },
-      ev1: ClassTag[P]
+      }
     ) =
       extractRangeFromProduct[m.MirroredElemTypes](
         term,
@@ -109,6 +112,43 @@ trait TypeSystem[E[_]]:
         { case p: P => Tuple.fromProductTyped(p) }
       ).map {
         case ls *: seed *: EmptyTuple => (ls.asInstanceOf[Seq[?]] :+ seed).asInstanceOf[Seq[Tuple.Union[m.MirroredElemTypes]]]
+        case _ => ???
+      }
+
+    protected inline def extractRangeRNoSeedCustom[P <: Product](using
+      m: deriving.Mirror.ProductOf[P] {
+        type MirroredElemTypes <: (?, ?)
+      },
+      ev0: Tuple.Elem[m.MirroredElemTypes, 0] =:= Tuple.Union[m.MirroredElemTypes],
+      ev1: Tuple.Elem[m.MirroredElemTypes, 1] =:= Tuple.Union[m.MirroredElemTypes]
+    )[P2 <: Product](
+      matchTemplate: PartialFunction[Tuple.Union[m.MirroredElemTypes], P2]
+    )(using
+      m2: deriving.Mirror.ProductOf[P2] {
+        type MirroredElemTypes <: NonEmptyTuple
+      }
+    ) =
+      extractRangeFromProduct[m.MirroredElemTypes](
+        term,
+        1,
+        Function.unlift({
+          case p: P =>
+            val tuple = Tuple.fromProductTyped(p)
+            // validate non-hole arguments match the expected template (in this case just #0)
+            if matchTemplate.isDefinedAt(tuple(0)) then
+              Some(tuple)
+            else
+              None
+          case _ => None
+        }),
+        // validate hole argument matches the expected template
+        matchTemplate.isDefinedAt,
+      ).map {
+        case ls *: seed *: EmptyTuple => (ls.asInstanceOf[Seq[?]] :+ seed)
+          .asInstanceOf[Seq[Tuple.Union[m.MirroredElemTypes]]]
+          .map(matchTemplate)
+          .map(Tuple.fromProductTyped)
+          .unzipN
         case _ => ???
       }
 
